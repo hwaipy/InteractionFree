@@ -1,12 +1,10 @@
 *.class
 *.log
 
-*.class
-*.log
-
 # sbt specific
 .cache
 .history
+.gradle/
 .lib/
 dist/*
 target/
@@ -24,6 +22,3 @@ project/plugins/project/
 
 .DS_Store
 __pycache__/
-
-.storagespace
-node_modules/

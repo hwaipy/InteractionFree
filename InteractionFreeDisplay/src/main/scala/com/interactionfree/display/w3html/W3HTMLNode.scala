@@ -42,7 +42,7 @@ object W3HTMLElementConvertor {
   private val emptyNamespaceBinding = NamespaceBinding(null, null, null)
 }
 
-class W3HTMLElementConvertor(val name: String, val label: String, val textComponent: Boolean = false) {
+class W3HTMLElementConvertor(val name: String, val label: String, attr: List[Tuple2[String, String]] = List(), val textComponent: Boolean = false) {
   def convert(node: DisplayNode): Node = {
     val attributeTuples = attributes(node)
     val attributeMap = new mutable.HashMap[String, String]()
@@ -59,33 +59,46 @@ class W3HTMLElementConvertor(val name: String, val label: String, val textCompon
   }
 
   protected def attributes(node: DisplayNode): List[Tuple2[String, String]] = {
-    if (textComponent) {
-      val fontSize = node.fontSize match {
-        case DisplayNode.FontSize.TINY => "w3-tiny"
-        case DisplayNode.FontSize.SMALL => "w3-small"
-        case DisplayNode.FontSize.MEDIUM => "w3-medium"
-        case DisplayNode.FontSize.LARGE => "w3-large"
-        case DisplayNode.FontSize.XLARGE => "w3-xlarge"
-        case DisplayNode.FontSize.XXLARGE => "w3-xxlarge"
-        case DisplayNode.FontSize.XXXLARGE => "w3-xxxlarge"
-        case DisplayNode.FontSize.JUMBO => "w3-jumbo"
+    attr ++ List(("style", "background-color:#fffaaa")) ++ {
+      textComponent match {
+        case true => {
+          val fontSize = node.fontSize match {
+            case DisplayNode.FontSize.TINY => "w3-tiny"
+            case DisplayNode.FontSize.SMALL => "w3-small"
+            case DisplayNode.FontSize.MEDIUM => "w3-medium"
+            case DisplayNode.FontSize.LARGE => "w3-large"
+            case DisplayNode.FontSize.XLARGE => "w3-xlarge"
+            case DisplayNode.FontSize.XXLARGE => "w3-xxlarge"
+            case DisplayNode.FontSize.XXXLARGE => "w3-xxxlarge"
+            case DisplayNode.FontSize.JUMBO => "w3-jumbo"
+          }
+          List(("class", fontSize))
+        }
+        case false => List()
       }
-      List(("class", fontSize))
-    } else List()
+    }
   }
 
   protected def children(node: DisplayNode): Array[Node] = {
     val cs = node.children.map(W3HTMLDisplay.createW3HTML).toArray
-    if (textComponent) cs ++ {
-      Array[Node](Text(node.text))
-    } else cs
+    if (textComponent) cs ++ Array[Node]({
+      val text = Text(node.text)
+      node.fontStyle match {
+        case DisplayNode.FontStyle.PLAIN => text
+        case DisplayNode.FontStyle.BOLD => Elem(null, "b", Node.NoAttributes, W3HTMLElementConvertor.emptyNamespaceBinding, false, text)
+        case DisplayNode.FontStyle.ITALIC => Elem(null, "i", Node.NoAttributes, W3HTMLElementConvertor.emptyNamespaceBinding, false, text)
+        case DisplayNode.FontStyle.BOLD_ITALIC =>
+          Elem(null, "b", Node.NoAttributes, W3HTMLElementConvertor.emptyNamespaceBinding, false,
+            Elem(null, "i", Node.NoAttributes, W3HTMLElementConvertor.emptyNamespaceBinding, false, text))
+      }
+    }) else cs
   }
 }
 
 object DefaultW3HTMLElementConvertors {
   val defaultConverters = List(
     new W3HTMLElementConvertor("IFDisplay", "div"),
-    new W3HTMLElementConvertor("container", "div"),
-    new W3HTMLElementConvertor("label", "p", true)
+    new W3HTMLElementConvertor("container", "div", List(("class", "w3-container"))),
+    new W3HTMLElementConvertor("label", "p", textComponent = true)
   )
 }

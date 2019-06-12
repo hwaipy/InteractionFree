@@ -2,7 +2,6 @@ package com.interactionfree.display
 
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicReference
-import scala.collection.mutable
 import scala.xml._
 import scala.language.postfixOps
 
@@ -14,13 +13,42 @@ class Display(rootNode: Node) {
   val root = DisplayNode.create(rootNode)
   if (root isnot "ifdisplay") throw new DisplayNodeException("The root element should be IFDisplay")
   val title = root.getAttribute("title").headOption.map(_.strip)
-
-  //println(root.children(0).children(0).children(0).name)
-  //println(root.children(0).children(0).children(0).fontSize)
-  //println(root.children(0).children(0).children(0).fontStyle)
 }
 
 object DisplayNode {
+
+  val colors = Map(//name -> (code, isALightColor)  //true for 000, false for fff
+    "amber" -> (0xffc107, true),
+    "aqua" -> (0x00ffff, true),
+    "blue" -> (0x2196F3, false),
+    "light-blue" -> (0x87CEEB, true),
+    "brown" -> (0x795548, false),
+    "cyan" -> (0x00bcd4, true),
+    "blue-grey" -> (0x607d8b, false),
+    "green" -> (0x4CAF50, false),
+    "light-green" -> (0x8bc34a, true),
+    "indigo" -> (0x3f51b5, false),
+    "khaki" -> (0xf0e68c, true),
+    "lime" -> (0xcddc39, true),
+    "orange" -> (0xff9800, true),
+    "deep-orange" -> (0xff5722, false),
+    "pink" -> (0xe91e63, false),
+    "purple" -> (0x9c27b0, false),
+    "deep-purple" -> (0x673ab7, false),
+    "red" -> (0xf44336, false),
+    "sand" -> (0xfdf5e6, true),
+    "teal" -> (0x009688, false),
+    "yellow" -> (0xffeb3b, true),
+    "white" -> (0xffffff, true),
+    "black" -> (0x000000, false),
+    "grey" -> (0x9e9e9e, true),
+    "light-grey" -> (0xf1f1f1, true),
+    "dark-grey" -> (0x616161, false),
+    "pale-red" -> (0xffdddd, true),
+    "pale-green" -> (0xddffdd, true),
+    "pale-yellow" -> (0xffffcc, true),
+    "pale-blue" -> (0xddffff, true),
+  )
 
   def create(node: Node, parent: DisplayNode = null): DisplayNode = {
     val name = node.label.toLowerCase
@@ -63,7 +91,6 @@ object DisplayNode {
         case false => None
       }
   }
-
 }
 
 class DisplayNode(val name: String, val text: String, attributesO: Map[String, String], parentO: DisplayNode = null) {
@@ -77,6 +104,7 @@ class DisplayNode(val name: String, val text: String, attributesO: Map[String, S
       else if (fs.contains(DisplayNode.FontStyle.ITALIC)) DisplayNode.FontStyle.ITALIC else DisplayNode.FontStyle.PLAIN
     case None => DisplayNode.FontStyle.PLAIN
   }
+  lazy val backgroundColor = 
   val childrenRef = new AtomicReference[List[DisplayNode]](List())
   val parent = parentO match {
     case null => None
