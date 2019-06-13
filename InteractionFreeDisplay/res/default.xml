@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <IFDisplay title="Hello IFDisplay">
-    <container fonty="xlarge,bold" color="red">
-        <label fonty="Jumbo,italic">123</label>
+    <container font="xlarge,bold" color="red">
+        <label font="Jumbo,italic">123</label>
     </container>
 </IFDisplay>

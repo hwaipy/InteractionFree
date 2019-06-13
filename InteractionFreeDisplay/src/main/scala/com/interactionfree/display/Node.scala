@@ -17,7 +17,7 @@ class Display(rootNode: Node) {
 
 object DisplayNode {
 
-  val colors = Map(//name -> (code, isALightColor)  //true for 000, false for fff
+  val colors = Map( //name -> (code, isALightColor)  //true for 000, false for fff
     "amber" -> (0xffc107, true),
     "aqua" -> (0x00ffff, true),
     "blue" -> (0x2196F3, false),
@@ -91,6 +91,12 @@ object DisplayNode {
         case false => None
       }
   }
+
+  private def parseColor(colorString: String) = {
+    println(colorString)
+    ""
+  }
+
 }
 
 class DisplayNode(val name: String, val text: String, attributesO: Map[String, String], parentO: DisplayNode = null) {
@@ -104,7 +110,7 @@ class DisplayNode(val name: String, val text: String, attributesO: Map[String, S
       else if (fs.contains(DisplayNode.FontStyle.ITALIC)) DisplayNode.FontStyle.ITALIC else DisplayNode.FontStyle.PLAIN
     case None => DisplayNode.FontStyle.PLAIN
   }
-  lazy val backgroundColor = 
+  lazy val backgroundColor = getAttribute("color", true).headOption.map(DisplayNode.parseColor)
   val childrenRef = new AtomicReference[List[DisplayNode]](List())
   val parent = parentO match {
     case null => None
@@ -130,6 +136,7 @@ class DisplayNode(val name: String, val text: String, attributesO: Map[String, S
     case Some(fa) => fa.split(" *, *").toList.map(_.toLowerCase)
     case None => List[String]()
   }
+  println(backgroundColor)
 }
 
 class DisplayNodeException(message: String) extends Exception(message)

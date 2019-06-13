@@ -2,7 +2,7 @@ package com.interactionfree.core
 
 import java.awt.Desktop
 import java.io.{File, PrintWriter}
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicReference
 
 import com.interactionfree.display.Display
@@ -23,11 +23,13 @@ object Main extends App {
   html set (html.get.replaceFirst("#W3HTML_CONTENT#", w3HTMLDisplay.content))
   println(w3HTMLDisplay.content)
 
-  val testPageFile = new File("target/testpage/default.html")
-  val pw = new PrintWriter(testPageFile)
+  val testPageDirectory = Paths.get("target/testpage/")
+  if (Files.notExists(testPageDirectory)) Files.createDirectories(testPageDirectory)
+  val testPagePath = testPageDirectory.resolve("default.html")
+  val pw = new PrintWriter(testPagePath.toFile)
   pw.print(html)
   pw.close()
 
-  //Desktop.getDesktop
-  //Desktop.getDesktop.open(testPageFile)
+  Desktop.getDesktop
+  Desktop.getDesktop.open(testPagePath.toFile)
 }
