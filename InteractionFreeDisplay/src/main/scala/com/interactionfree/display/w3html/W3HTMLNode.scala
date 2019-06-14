@@ -1,9 +1,9 @@
 package com.interactionfree.display.w3html
 
-import com.interactionfree.display.{Display, DisplayNode, DisplayNodeException}
-
+import com.interactionfree.display._
 import scala.collection.mutable
 import scala.xml._
+import com.interactionfree.display.DisplayNode._
 
 object W3HTMLDisplay {
   private val htmlElementConverterMap = new mutable.HashMap[String, W3HTMLElementConvertor]()
@@ -26,20 +26,13 @@ class W3HTMLDisplay(val display: Display) {
   private def createW3HTML = W3HTMLDisplay.createW3HTML(display.root)
 }
 
-//object W3HTMLNode {
-//
-//  def create(node: Node): W3HTMLNode = {
-//    val name = node.label.toLowerCase
-//    val text = node.text
-//    val attributes = node.attributes.asAttrMap
-//    val child = node.child.filter(_.isInstanceOf[Elem]).map(create).toList
-//    new W3HTMLNode(name, text, attributes, child)
-//  }
-//
-//}
-
 object W3HTMLElementConvertor {
   private val emptyNamespaceBinding = NamespaceBinding(null, null, null)
+
+  private def attributeSeparator(key: String) = key match {
+    case "class" => " "
+    case _ => ";"
+  }
 }
 
 class W3HTMLElementConvertor(val name: String, val label: String, attr: List[Tuple2[String, String]] = List(), val textComponent: Boolean = false) {
@@ -47,7 +40,7 @@ class W3HTMLElementConvertor(val name: String, val label: String, attr: List[Tup
     val attributeTuples = attributes(node)
     val attributeMap = new mutable.HashMap[String, String]()
     attributeTuples.map(t => t._1).toSet.foreach(key =>
-      attributeMap(key) = attributeTuples.filter(_._1 == key).map(_._2).mkString(" "))
+      attributeMap(key) = attributeTuples.filter(_._1 == key).map(_._2).mkString(W3HTMLElementConvertor.attributeSeparator(key)))
     val attr: List[MetaData] = attributeMap.map(z => new UnprefixedAttribute(z._1, z._2, Node.NoAttributes)).toList
     val att = attr.size match {
       case 0 => Node.NoAttributes
@@ -59,24 +52,21 @@ class W3HTMLElementConvertor(val name: String, val label: String, attr: List[Tup
   }
 
   protected def attributes(node: DisplayNode): List[Tuple2[String, String]] = {
-    attr ++ List(("style", "background-color:#fffaaa")) ++ {
-      textComponent match {
-        case true => {
-          val fontSize = node.fontSize match {
-            case DisplayNode.FontSize.TINY => "w3-tiny"
-            case DisplayNode.FontSize.SMALL => "w3-small"
-            case DisplayNode.FontSize.MEDIUM => "w3-medium"
-            case DisplayNode.FontSize.LARGE => "w3-large"
-            case DisplayNode.FontSize.XLARGE => "w3-xlarge"
-            case DisplayNode.FontSize.XXLARGE => "w3-xxlarge"
-            case DisplayNode.FontSize.XXXLARGE => "w3-xxxlarge"
-            case DisplayNode.FontSize.JUMBO => "w3-jumbo"
-          }
-          List(("class", fontSize))
-        }
-        case false => List()
-      }
-    }
+    val buffer = new mutable.ArrayBuffer[Tuple2[String, String]]()
+    buffer ++= attr
+    node.backgroundColor.foreach(backgroundColor => buffer += (("style", s"background-color:${backgroundColor.toWebString()}")))
+    node.textColor.foreach(textColor => buffer += (("style", s"color:${textColor.toWebString()}")))
+    if (textComponent) buffer += (("class", node.fontSize match {
+      case DisplayNode.FontSize.TINY => "w3-tiny"
+      case DisplayNode.FontSize.SMALL => "w3-small"
+      case DisplayNode.FontSize.MEDIUM => "w3-medium"
+      case DisplayNode.FontSize.LARGE => "w3-large"
+      case DisplayNode.FontSize.XLARGE => "w3-xlarge"
+      case DisplayNode.FontSize.XXLARGE => "w3-xxlarge"
+      case DisplayNode.FontSize.XXXLARGE => "w3-xxxlarge"
+      case DisplayNode.FontSize.JUMBO => "w3-jumbo"
+    }))
+    buffer.toList
   }
 
   protected def children(node: DisplayNode): Array[Node] = {

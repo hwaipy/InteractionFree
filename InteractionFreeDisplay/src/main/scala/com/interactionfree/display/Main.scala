@@ -30,6 +30,6 @@ object Main extends App {
   pw.print(html)
   pw.close()
 
-  Desktop.getDesktop
-  Desktop.getDesktop.open(testPagePath.toFile)
+  //Desktop.getDesktop
+  //Desktop.getDesktop.open(testPagePath.toFile)
 }

@@ -25,8 +25,14 @@ $(document).ready(function () {
 });
 
 function fetchServiceList(){
-  session.getServiceListWithMeta().onSuccess(function (response) {
+  console.log("fetching service list ---------------------------------------------------------------")
+  invoke = session.getServiceListWithMeta()
+  invoke.onSuccess(function (response) {
     updateServiceList(response)
+  })
+  invoke.onFailure(function (error) {
+      console.log("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+      console.log(error)
   })
 }
 
@@ -77,10 +83,10 @@ function testService() {
         }
     }
 
-    service = HttpSession.create('/message', function () {
-    }, new Target('target1'), 'target1')
-    service2 = HttpSession.create('/message', function () {
-    }, new Target('target2'), 'target2')
+//    service = HttpSession.create('/message', function () {
+//    }, new Target('target1'), 'target1')
+//    service2 = HttpSession.create('/message', function () {
+//    }, new Target('target2'), 'target2')
     // client = HttpSession.create('/message', function () {
     //     client.target1.fetchNo().onSuccess(function (response) {
     //         console.log(response)

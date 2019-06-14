@@ -15,21 +15,24 @@ import scala.util.{Failure, Success}
 import akka.util.ByteString
 
 /**
-  * This controller creates an `Action` to handle HTTP requests to the
-  * application's home page.
-  */
+ * This controller creates an `Action` to handle HTTP requests to the
+ * application's home page.
+ */
 @Singleton
 class HomeController @Inject()(cc: ControllerComponents) extends AbstractController(cc) {
 
   implicit val ec = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor())
+  val manager = new MessageSessionManager
+  val service = new StatelessMessageService(manager)
+  val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor())
 
   /**
-    * Create an Action to render an HTML page.
-    *
-    * The configuration in the `routes` file means that this method
-    * will be called when the application receives a `GET` request with
-    * a path of `/`.
-    */
+   * Create an Action to render an HTML page.
+   *
+   * The configuration in the `routes` file means that this method
+   * will be called when the application receives a `GET` request with
+   * a path of `/`.
+   */
   def index() = Action { implicit request: Request[AnyContent] =>
     Ok(views.html.index())
   }
@@ -45,10 +48,6 @@ class HomeController @Inject()(cc: ControllerComponents) extends AbstractControl
   def tutorial() = Action { implicit request: Request[AnyContent] =>
     Ok(views.html.tutorial())
   }
-
-  val manager = new MessageSessionManager
-  val service = new StatelessMessageService(manager)
-  val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor())
 
   def message() = Action.async { implicit request: Request[AnyContent] => {
     try {
@@ -69,7 +68,7 @@ class HomeController @Inject()(cc: ControllerComponents) extends AbstractControl
       //        }
       //      }"
       val machineID = "MachineID"
-      val newToken = contentLength match {
+      val newTokenOption = contentLength match {
         case l if l > 0 => {
           val message = {
             contentType.toLowerCase match {
@@ -91,11 +90,24 @@ class HomeController @Inject()(cc: ControllerComponents) extends AbstractControl
             case Some(msg) => msg
           }
 //          println(s"---> $message")
-          service.messageDispatch(message, new StatelessSessionProperties(machineID, token))
+          Some(service.messageDispatch(message, new StatelessSessionProperties(machineID, token)))
         }
-        case _ => token.get
+        case _ => token
       }
-      val future = service.fetchNewMessage(newToken)
+      val future = newTokenOption match {
+        case Some(newToken) => service.fetchNewMessage(newToken)
+        case None => Future[Option[Message]] {
+          None
+        }(new ExecutionContext {
+          def execute(runnable: Runnable): Unit = {
+            runnable.run()
+          }
+
+          def reportFailure(cause: Throwable): Unit = {
+            println(s"mm:$cause")
+          }
+        })
+      }
       val futureResult: Future[Result] = future.map {
         messageOption => {
           val content = messageOption match {
@@ -118,9 +130,9 @@ class HomeController @Inject()(cc: ControllerComponents) extends AbstractControl
             header = ResponseHeader(200),
             body = HttpEntity.Strict(ByteString(content), Some(contentType.toLowerCase))
           )
-          token == Some(newToken) match {
+          token == newTokenOption match {
             case true => result
-            case false => result.withHeaders("InteractionFree-Token" -> newToken)
+            case false => if (newTokenOption.isDefined) result.withHeaders("InteractionFree-Token" -> newTokenOption.get) else result
           }
         }
       }

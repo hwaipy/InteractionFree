@@ -246,9 +246,14 @@ class HttpSession {
         this.onReady = onReady
         this.onUncaughtError = onUncaughtError
         this.waitingMap = {}
+        this.onReconnecting = false
     }
 
     start() {
+        this.register()
+    }
+
+    register() {
         if (this.serviceName === "" || this.serviceName == null || this.serviceName == undefined) {
             var startFuture = this.asynchronousInvoker().ping()
         } else {
@@ -256,8 +261,8 @@ class HttpSession {
         }
         var session = this
         startFuture.onSuccess(function (response) {
+            session.startAjaxLoop()
             if (session.onReady) {
-                session.startAjaxLoop()
                 session.onReady()
                 session.onReady = undefined
             }
@@ -304,21 +309,34 @@ class HttpSession {
             if (this.status == 200) {
                 var data = this.response
                 var newToken = this.getResponseHeader("InteractionFree-Token")
-                if (newToken) session.token = newToken
+                if (newToken) {
+                    session.token = newToken
+                    if(session.onReconnecting){
+                        session.onReconnecting = false
+                    }
+                }
                 var binary = new Uint8Array(data)
                 if (binary.length > 0) {
                     var msg = Message.unpack(binary)
                     session.messageDeal(msg)
                 }
             } else if (this.status == 499){
-                session.token = None
+                console.log("499!!!")
+                session.token = undefined
+                session.onReconnecting = true
+                session.register()
             } else {
+//                console.log("wrong!!!!!!! {}".format(r.status_code))
                 throw 'hehehe'
-                //             print("wrong!!!!!!! {}".format(r.status_code))
-//             import random
-//             time.sleep(random.Random().random())
             }
-            if (returned) returned(this.status)
+            if (returned && session.token) returned(this.status)
+        }
+        xhr.onerror = function () {
+            console.log("Connection failed. Try reconnect in 3 seconds.")
+            setTimeout(function() {
+//                session.startAjaxLoop()
+
+            }, 3000);
         }
         xhr.send(bytes)
     }
@@ -326,14 +344,13 @@ class HttpSession {
     startAjaxLoop() {
         var session = this
 
-        function doAjax(status) {
-            if (status && status != 200) {
-                throw 'not 200 here!'
-            }
+        function doAjax() {
             var future = session.sendMessage()
             future.onSuccess(doAjax)
+            future.onFailure(function(){
+                setTimeout(doAjax, 2000)
+            })
         }
-
         doAjax()
     }
 
@@ -381,24 +398,6 @@ class HttpSession {
             }
         })
     }
-
-//     def __getattr__(self, item):
-//         item = u'{}'.format(item)
-//         def invoke(*args, **kwargs):
-//             builder = Message.newBuilder().asRequest(item, args, kwargs)
-//             if self.__target is not None:
-//                 builder.to(self.__target)
-//             if self.__objectID is not 0:
-//                 builder.objectID(self.__objectID)
-//             message = builder.create()
-//             if self.__toMessage:
-//                 return message
-//             elif self.__blocking:
-//                 return self.__session.__sendMessage__(message).sync(self.__timeout)
-//             else:
-//                 return self.__session.__sendMessage__(message)
-//
-//         return invoke
 }
 
 class RuntimeInovker {
@@ -439,28 +438,3 @@ class InvokeFuture {
         return this
     }
 }
-
-// class InvokeTarget {
-//     def __init__(self, session, item):
-//         self.session = session
-//         self.name = item
-//
-//     def __getattr__(self, item):
-//         item = u'{}'.format(item)
-//         return self.session.blockingInvoker(self.name, self.session.defaultblockingInvokerTimeout).__getattr__(item)
-//
-//     def __call__(self, *args, **kwargs):
-//         invoker = self.session.blockingInvoker(None, self.session.defaultblockingInvokerTimeout)
-//         func = invoker.__getattr__(self.name)
-//         return func(*args, **kwargs)
-// }
-
-
-// module.exports = {
-//     Message,
-//     MessageBuilder,
-//     MessageType,
-//     ProtocolException,
-//     RuntimeInovker,
-//     HttpSession
-// };
