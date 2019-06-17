@@ -51,7 +51,8 @@ class HomeController @Inject()(cc: ControllerComponents) extends AbstractControl
 
   def message() = Action.async { implicit request: Request[AnyContent] => {
     try {
-//      println(request.headers)
+//      println("------------------------------------------------------------")
+      println(request.headers.get("InteractionFree-Token"))
       val contentLength: Int = request.headers("Content-Length").toInt
       if (contentLength > 10000000) throw new IllegalArgumentException("To much data!")
       val contentType = request.headers("Content-Type")
@@ -89,7 +90,7 @@ class HomeController @Inject()(cc: ControllerComponents) extends AbstractControl
             case None => throw new IllegalArgumentException
             case Some(msg) => msg
           }
-//          println(s"---> $message")
+          println(s"---> $message")
           Some(service.messageDispatch(message, new StatelessSessionProperties(machineID, token)))
         }
         case _ => token
