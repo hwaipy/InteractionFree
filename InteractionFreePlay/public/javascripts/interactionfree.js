@@ -368,6 +368,9 @@ class HttpSession {
     xhr.onerror = function() {
       session.httpRequestOnError(-1)
     }
+    xhr.ontimeout = function(e) {
+      session.httpRequestOnError(-2)
+    }
     xhr.send(bytes)
   }
 
@@ -375,7 +378,7 @@ class HttpSession {
     var session = this
 
     function doAjax() {
-      console.log("do Ajax");
+      console.log("do Ajax " + new Date());
       var keys = session.waitingMap.keys()
       while (true) {
         var nextKey = keys.next().value
