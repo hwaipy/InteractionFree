@@ -21,10 +21,10 @@ $(document).ready(function() {
       }
     }]
   });
-  // session = HttpSession.create('/message', function() {
-  //   fetchServiceList()
-  //   window.setInterval(fetchServiceList, 2000)
-  // })
+   session = HttpSession.create('/message', function() {
+     fetchServiceList()
+     window.setInterval(fetchServiceList, 2000)
+   })
   testService()
 });
 
@@ -86,8 +86,8 @@ function testService() {
     }
   }
 
-  service = HttpSession.create('/message', function() {}, new Target('target1'),
-      'target1')
+//  service = HttpSession.create('/message', function() {}, new Target('target1'),
+//      'target1')
     // service2 = HttpSession.create('/message', function() {}, new Target('target2'),
     //     'target2')
     // client = HttpSession.create('/message', function () {

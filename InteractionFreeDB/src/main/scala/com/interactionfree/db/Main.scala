@@ -1,17 +1,25 @@
 package com.interactionfree.db
 
-import java.util.Date
+import com.interactionfree.core.MessageClient
+
+import scala.xml.XML
 
 object TestMain extends App {
-  val rs = new RegistryService()
-  val registryName = "TestRe3g.sub.sub"
-  //  rs.setRegistry(registryName, "key1", "value1")
-  //  rs.setRegistry(registryName, "set1.set2.key3", "value1")
+  private val registryConf = XML.loadFile("registry.conf")
+  private val dbConf = registryConf \ "mongodb"
+  private val dbURL = (dbConf \ "url").text
+  private val dbName = (dbConf \ "db").text
+  private val dbCollection = (dbConf \ "collection").text
+  private val ifConf = registryConf \ "interactionfree"
+  private val ifURL = (ifConf \ "url").text
+  private val ifServiceName = (ifConf \ "servicename").text
 
-  val key = "set1.set2.set3.key1"
+  val registryService = new RegistryService(dbURL, dbName, dbCollection)
+  //  val client = MessageClient.createHttpClient(ifURL, ifServiceName, registryService)
 
-//  rs.setRegistry(registryName, key, List(1.02, 2, Map("1" -> 3, "2" -> "not hello"), 4, new Date().toString))
-  println(rs.getRegistry(registryName, key))
+  registryService.getWholeRegistry("TestRe3g.sub.sub")
 
   Thread.sleep(1000)
+  registryService.close
+  //  client.close
 }
