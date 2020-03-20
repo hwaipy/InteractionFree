@@ -22,7 +22,7 @@ __email__ = 'gst-py@a-nugget.de'
 import zmq
 from zmq.eventloop.ioloop import IOLoop
 
-from ZMQ.worker import MDPWorker
+from worker import MDPWorker
 
 ###
 
