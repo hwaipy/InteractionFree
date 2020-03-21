@@ -223,7 +223,12 @@ def mdp_request(socket, service, msg, timeout=None):
 ### End:
 
 
-
+def mdp_test(socket, service, msg):
+    if type(msg) in (bytes, str):
+        msg = [msg]
+    to_send = [PROTO_VERSION, service]
+    to_send.extend(msg)
+    socket.send_multipart(to_send)
 
 class MyClient(MDPClient):
 
@@ -240,17 +245,29 @@ class MyClient(MDPClient):
 ###
 
 if __name__ == '__main__':
-    context = zmq.Context()
-    socket = context.socket(zmq.REQ)
-    socket.setsockopt(zmq.LINGER, 0)
-    socket.connect("tcp://127.0.0.1:5034")
-    res = mdp_request(socket, b'echo', [b'TEST'], 2.0)
-    if res:
-        print("Reply:", repr(res))
-    else:
-        print('Timeout!')
-    socket.close()
-#
+    c = 0
+
+    def run():
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.setsockopt(zmq.LINGER, 0)
+        socket.connect("tcp://127.0.0.1:5034")
+        res = mdp_test(socket, b'echo', [b'TEST'])
+        import time
+        time.sleep(1)
+        if res:
+            print("Reply:", repr(res))
+        else:
+            print('Timeout!')
+        socket.close()
+
+
+    import threading
+    while True:
+        threading.Thread(target=run).start()
+        import time
+        # time.sleep(0.03)
+        break
 
 ### Local Variables:
 ### buffer-file-coding-system: utf-8

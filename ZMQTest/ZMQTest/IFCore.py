@@ -4,14 +4,13 @@ __email__ = 'hwaipy@gmail.com'
 
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
-from zmq.eventloop.ioloop import PeriodicCallback, DelayedCallback, IOLoop
+from zmq.eventloop.ioloop import PeriodicCallback, IOLoop
 
 HB_INTERVAL = 1000  #: in milliseconds
 HB_LIVENESS = 5  #: HBs to miss before connection counts as dead
 
 
 def split_address(msg):
-    print('spliting {}'.format(msg))
     """Function to split return Id and message received by ROUTER socket.
 
     Returns 2-tuple with return Id and remaining message parts.
@@ -19,7 +18,6 @@ def split_address(msg):
     """
     ret_ids = []
     for i, p in enumerate(msg):
-        print('it, {}, {}'.format(i, p))
         if p:
             ret_ids.append(p)
         else:
@@ -398,7 +396,7 @@ class MDPBroker(object):
         return
 
     def on_message(self, msg):
-        print('on msg  ', msg)
+        print('on msg  ', msg, )
         """Processes given message.
 
         Decides what kind of message it is -- client or worker -- and
@@ -411,6 +409,9 @@ class MDPBroker(object):
         :rtype: None
         """
         rp, msg = split_address(msg)
+
+        # print(', '.join(['{}'.format(b) for b in rp[0]]))
+
         # dispatch on first frame after path
         t = msg.pop(0)
         if t.startswith(b'MDPW'):
