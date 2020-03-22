@@ -251,7 +251,7 @@ if __name__ == '__main__':
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
         socket.setsockopt(zmq.LINGER, 0)
-        socket.connect("tcp://127.0.0.1:5034")
+        socket.connect("tcp://127.0.0.1:5055")
         res = mdp_test(socket, b'echo', [b'TEST'])
         import time
         time.sleep(1)

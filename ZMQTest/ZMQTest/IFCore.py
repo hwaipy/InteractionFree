@@ -530,7 +530,7 @@ class ServiceQueue(object):
 
 if __name__ == '__main__':
     context = zmq.Context()
-    broker = MDPBroker(context, "tcp://127.0.0.1:5034")
+    broker = MDPBroker(context, "tcp://127.0.0.1:5055")
     IOLoop.instance().start()
     # never reach here
     broker.shutdown()

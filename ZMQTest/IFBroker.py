@@ -6,7 +6,7 @@ import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 from zmq.eventloop.ioloop import PeriodicCallback
 from tornado.ioloop import IOLoop
-from util import IFDefinition
+from IFCore import IFDefinition, IFException, Invocation, Message
 
 
 # HB_INTERVAL = 1000  #: in milliseconds
@@ -16,7 +16,7 @@ class IFBroker(object):
     def __init__(self, binding):
         socket = zmq.Context().socket(zmq.ROUTER)
         socket.bind(binding)
-        self.main_stream = ZMQStream(socket)
+        self.main_stream = ZMQStream(socket, IOLoop.current())
         self.main_stream.on_recv(self.__onMessage)
         # self.client_stream = self.main_stream
         # self._workers = {}
@@ -29,26 +29,43 @@ class IFBroker(object):
         # self.hb_check_timer = PeriodicCallback(self.on_timer, HB_INTERVAL)
         # self.hb_check_timer.start()
 
+    def close(self):
+        self.main_stream.on_recv(None)
+        self.main_stream.socket.setsockopt(zmq.LINGER, 0)
+        self.main_stream.socket.close()
+        self.main_stream.close()
+        self.main_stream = None
+
     def __onMessage(self, msg):
+        # print(msg)
         sourcePoint, msg = msg[0], msg[1:]
 
         f0 = msg.pop(0)
         # print(msg, ' from ', sourcePoint)
         protocol = str(msg.pop(0), 'UTF-8')
-        if protocol != IFDefinition.PROTOCOL: raise RuntimeError('Protocol {} not supported.'.format(protocol))
+        if protocol != IFDefinition.PROTOCOL: raise IFException('Protocol {} not supported.'.format(protocol))
+        messageID = msg.pop(0)
         distributingMode = msg.pop(0)
         distributionAddress = msg.pop(0)
         if distributingMode == IFDefinition.DISTRIBUTING_MODE_BROKER:
-            self.__onMessageDistributeLocal(msg)
+            self.__onMessageDistributeLocal(sourcePoint, messageID, msg)
         elif distributingMode == IFDefinition.DISTRIBUTING_MODE_DIRECT:
-            self.__onMessageDistributeDirect(distributionAddress, msg)
+            self.__onMessageDistributeDirect(sourcePoint, messageID, distributionAddress, msg)
         elif distributingMode == IFDefinition.DISTRIBUTING_MODE_SERVICE:
-            self.__onMessageDistributeService(distributionAddress, msg)
+            self.__onMessageDistributeService(sourcePoint, messageID, distributionAddress, msg)
         else:
-            raise RuntimeError('Distributing mode {} not supported.'.format(distributingMode))
+            raise IFException('Distributing mode {} not supported.'.format(distributingMode))
 
-    def __onMessageDistributeLocal(self, msg):
+    def __onMessageDistributeLocal(self, sourcePoint, messageID, msg):
         print('local')
+        print(sourcePoint)
+        print(messageID)
+        print(msg)
+        try:
+            raise RuntimeError('Error Inf.')
+        except BaseException as e:
+            errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(messageID, str(e)))
+            self.main_stream.send_multipart([sourcePoint] + errorMsg)
 
 
 if __name__ == '__main__':
