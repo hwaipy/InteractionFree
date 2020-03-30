@@ -1,23 +1,28 @@
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
-from zmq.eventloop.ioloop import DelayedCallback, PeriodicCallback
 from tornado.ioloop import IOLoop
-from IFCore import IFDefinition, IFException, Message, Invocation
+from IFCore import IFException, Message, Invocation, IFLoop
+import time
+import threading
 
 
 class IFWorker(object):
     # HB_INTERVAL = 1000  # in milliseconds
     # HB_LIVENESS = 3  # HBs to miss before connection counts as dead
 
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, blocking=True, timeout=None):
         self.endpoint = endpoint
         socket = zmq.Context().socket(zmq.DEALER)
         self.stream = ZMQStream(socket, IOLoop.current())
         self.stream.on_recv(self.__onMessage)
         self.stream.socket.setsockopt(zmq.LINGER, 0)
         self.stream.connect(self.endpoint)
+        self.__waitingMap = {}
+        self.__waitingMapLock = threading.Lock()
+        self.blocking = blocking
+        self.timeout = timeout
 
-        print(self.registerAs('First Service'))
+        # print(self.registerAs('First Service'))
         # print(self.blockingInvoker('target').function(1, 2, yes='no'))
         # registerMsg = Message.newBrokerMessage(None)
         # [b'', IFDefinition.PROTOCOL, IFDefinition.DISTRIBUTING_MODE_BROKER, b'', 'Register', 'TestWorkerService']
@@ -32,14 +37,81 @@ class IFWorker(object):
         # self.ticker = PeriodicCallback(self._tick, self.HB_INTERVAL)
         # self._send_ready()
         # self.ticker.start()
+        IFLoop.tryStart()
 
     def __onMessage(self, msg):
-        print('msg get: {}'.format(msg))
-        pass
+        try:
+            message = Message(msg)
+            # print('msg get: {}'.format(message))
+            invocation = message.getInvocation()
+            if invocation.isRequest():
+                self.__onRequest(message)
+            elif invocation.isResponse():
+                self.__onResponse(message)
+        except BaseException as e:
+            import traceback
+            exstr = traceback.format_exc()
+            print(exstr)
+
+    def __onRequest(self, message):
+        raise RuntimeError('not imp')
+
+        # (name, args, kwargs) = message.requestContent()
+        # try:
+        #     objectID = message.getObjectID()
+        #     if objectID is None:
+        #         objectID = 0
+        #     if not self.__remoteReferenceKeyMap.__contains__(objectID):
+        #         raise IndexError()
+        #     invoker = self.__remoteReferenceKeyMap[objectID][0]
+        #     # method = invoker.__getattribute__(name)
+        #     method = getattr(invoker, name)
+        #     noResponse = message.get(Message.KeyNoResponse)
+        #     if callable(method):
+        #         try:
+        #             result = method(*args, **kwargs)
+        #             response = message.response(result)
+        #             if noResponse is not True:
+        #                 self.communicator.sendLater(response)
+        #         except BaseException as e:
+        #             error = message.error(e.__str__())
+        #             self.communicator.sendLater(error)
+        #         return
+        # except BaseException as e:
+        #     response = message.error('InvokeError: Command {} not found.'.format(name))
+        #     self.communicator.sendLater(response)
+
+    def __onResponse(self, message):
+        # print('get a response message: ', message)
+        invocation = message.getInvocation()
+        correspondingID = invocation.getResponseID()
+        self.__waitingMapLock.acquire()
+        if self.__waitingMap.__contains__(correspondingID):
+            (futureEntry, runnable) = self.__waitingMap.pop(correspondingID)
+            if invocation.isError():
+                futureEntry['error'] = invocation.getError()
+            else:
+                futureEntry['result'] = invocation.getResult()
+            if invocation.hasWarning():
+                futureEntry['warning'] = invocation.getWarning()
+            # print('ready to run')
+            runnable()
+        else:
+            print('ResponseID not recognized: {}'.format(message))
+        self.__waitingMapLock.release()
 
     def send(self, msg):
-        print('sending: {}'.format(msg))
-        self.stream.send_multipart(msg)
+        # print('sending: {}'.format(msg))
+        self.stream.send_multipart(msg.getContent())
+
+        id = msg.messageID
+        (future, onFinish, resultMap) = InvokeFuture.newFuture()
+        self.__waitingMapLock.acquire()
+        if self.__waitingMap.__contains__(id):
+            raise IFException("MessageID have been used.")
+        self.__waitingMap[id] = (resultMap, onFinish)
+        self.__waitingMapLock.release()
+        return future
 
     def toMessageInvoker(self, target=None):
         return DynamicRemoteObject(None, toMessage=True, blocking=False, target=target, timeout=None)
@@ -52,7 +124,7 @@ class IFWorker(object):
 
     @classmethod
     def start(cls):
-        IOLoop.current().start()
+        IOLoop.instance().start()
 
     def __getattr__(self, item):
         return InvokeTarget(self, item)
@@ -60,17 +132,23 @@ class IFWorker(object):
 
 class InvokeTarget:
     def __init__(self, worker, item):
-        self.worker = worker
-        self.name = item
+        self.__worker = worker
+        self.__name = item
 
     def __getattr__(self, item):
         item = u'{}'.format(item)
-        return self.worker.blockingInvoker(self.name, self.worker.defaultblockingInvokerTimeout).__getattr__(item)
+        return self.__defaultInvoker(self.__name).__getattr__(item)
 
     def __call__(self, *args, **kwargs):
-        invoker = self.worker.blockingInvoker('', self.worker.defaultblockingInvokerTimeout)
-        func = invoker.__getattr__(self.name)
+        invoker = self.__defaultInvoker('')
+        func = invoker.__getattr__(self.__name)
         return func(*args, **kwargs)
+
+    def __defaultInvoker(self, target):
+        if self.__worker.blocking:
+            return self.__worker.blockingInvoker(target, self.__worker.timeout)
+        else:
+            return self.__worker.asynchronousInvoker(target)
 
 
 class RemoteObject(object):
@@ -96,16 +174,16 @@ class DynamicRemoteObject(RemoteObject):
 
         def invoke(*args, **kwargs):
             invocation = Invocation.newRequest(item, args, kwargs)
-            if self.__target == '':
+            if self.__target == '' or self.__target == None:
                 message = Message.newBrokerMessage(invocation)
             else:
                 message = Message.newServiceMessage(self.__target, invocation)
             if self.__toMessage:
                 return message
             elif self.__blocking:
-                return self.__worker.send(message)  # .sync(self.__timeout)
+                return self.__worker.send(message).sync(self.__timeout)
             else:
-                return self.__session.__send(message)
+                return self.__worker.send(message)
 
         return invoke
 
@@ -113,13 +191,102 @@ class DynamicRemoteObject(RemoteObject):
         return "DynamicRemoteObject[{}]".format(self.name)
 
 
+class InvokeFuture:
+    @classmethod
+    def newFuture(cls):
+        future = InvokeFuture()
+        return (future, future.__onFinish, future.__resultMap)
+
+    def __init__(self):
+        self.__done = False
+        self.__result = None
+        self.__exception = None
+        self.__warning = None
+        self.__onComplete = None
+        self.__metux = threading.Lock()
+        self.__resultMap = {}
+        self.__awaitSemaphore = threading.Semaphore(0)
+
+    def isDone(self):
+        return self.__done
+
+    def isSuccess(self):
+        return self.__exception is None
+
+    def result(self):
+        return self.__result
+
+    def exception(self):
+        return self.__exception
+
+    def warning(self):
+        return self.__warning
+
+    def onComplete(self, func):
+        self.__metux.acquire()
+        self.__onComplete = func
+        if self.__done:
+            self.__onComplete()
+        self.__metux.release()
+
+    def waitFor(self, timeout=None):
+        # For Python 3 only.
+        # if self.__awaitSemaphore.acquire(True, timeout):
+        #     self.__awaitSemaphore.release()
+        #     return True
+        # else:
+        #     return False
+
+        # For Python 2 & 3
+        timeStep = 0.1 if timeout is None else timeout / 10
+        startTime = time.time()
+        while True:
+            acq = self.__awaitSemaphore.acquire(False)
+            if acq:
+                return acq
+            else:
+                passedTime = time.time() - startTime
+                if (timeout is not None) and (passedTime >= timeout):
+                    return False
+                time.sleep(timeStep)
+
+    def sync(self, timeout=None):
+        if self.waitFor(timeout):
+            if self.isSuccess():
+                return self.__result
+            elif isinstance(self.__exception, BaseException):
+                raise self.__exception
+            else:
+                raise IFException('Error state in InvokeFuture.')
+        else:
+            raise IFException('Time out!')
+
+    def __onFinish(self):
+        self.__done = True
+        if self.__resultMap.__contains__('result'):
+            self.__result = self.__resultMap['result']
+        if self.__resultMap.__contains__('warning'):
+            self.__warning = self.__resultMap['warning']
+        if self.__resultMap.__contains__('error'):
+            self.__exception = IFException(self.__resultMap['error'])
+        if self.__onComplete is not None:
+            self.__onComplete()
+        self.__awaitSemaphore.release()
+
+
 if __name__ == '__main__':
     import threading
+    import IFCore
 
-    worker = IFWorker("tcp://127.0.0.1:5034")
+    worker = IFWorker("tcp://127.0.0.1:5034", timeout=1)
 
-    IFWorker.start()
-    worker.shutdown()
+    while True:
+        time.sleep(1)
+        try:
+            print(worker.protocol())
+        except BaseException as e:
+            print(e)
+    # worker.shutdown()
 
     # def _tick(self):
     #     """Method called every HB_INTERVAL milliseconds.

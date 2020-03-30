@@ -4,25 +4,13 @@ __email__ = 'hwaipy@gmail.com'
 
 import threading
 import msgpack
+import re
+from tornado.ioloop import IOLoop
+from threading import Thread
 
-
-# def split_address(msg):
-#     """Function to split return Id and message received by ROUTER socket.
-#
-#     Returns 2-tuple with return Id and remaining message parts.
-#     Empty frames after the Id are stripped.
-#     """
-#     ret_ids = []
-#     for i, p in enumerate(msg):
-#         if p:
-#             ret_ids.append(p)
-#         else:
-#             break
-#     return (ret_ids, msg[i + 1:])
-#
 
 class IFDefinition:
-    PROTOCOL = 'IF1'
+    PROTOCOL = b'IF1'
     DISTRIBUTING_MODE_BROKER = b'Broker'
     DISTRIBUTING_MODE_DIRECT = b'Direct'
     DISTRIBUTING_MODE_SERVICE = b'Service'
@@ -36,6 +24,45 @@ class IFException(Exception):
     def __str__(self):
         return self.description
 
+
+class IFLoop:
+    __loopLock = threading.Lock()
+    __running = False
+    __loopingThread = None
+
+    @classmethod
+    def start(cls, background=True):
+        if not IFLoop.__runIfNot(): raise IFException('IFLoop is already running.')
+        if background:
+            thread = Thread(target=IOLoop.current().start)
+            thread.setDaemon(True)
+            thread.start()
+            IFLoop.__loopingThread = thread
+        else:
+            IFLoop.__loopingThread = threading.current_thread()
+            IOLoop.current().start()
+
+    @classmethod
+    def tryStart(cls):
+        if IFLoop.__runIfNot():
+            thread = Thread(target=IOLoop.current().start)
+            thread.setDaemon(True)
+            thread.start()
+            IFLoop.__loopingThread = thread
+
+    @classmethod
+    def __runIfNot(cls):
+        IFLoop.__loopLock.acquire()
+        if IFLoop.__running:
+            IFLoop.__loopLock.release()
+            return False
+        IFLoop.__running = True
+        IFLoop.__loopLock.release()
+        return True
+
+    @classmethod
+    def join(cls):
+        IFLoop.__loopingThread.join()
 
 class Message:
     MessageIDs = 0
@@ -60,7 +87,7 @@ class Message:
         id = msgpack.packb(id)
         msg = [b'', IFDefinition.PROTOCOL, id, distributingMode, distributingAddress,
                serialization, invocation.serialize(serialization)]
-        return [Message.__messagePartToBytes(m) for m in msg]
+        return Message([Message.__messagePartToBytes(m) for m in msg])
 
     @classmethod
     def newFromBrokerMessage(cls, fromAddress, invocation, serialization='Msgpack'):
@@ -82,7 +109,60 @@ class Message:
     def __messagePartToBytes(self, p):
         if isinstance(p, bytes): return p
         if isinstance(p, str): return bytes(p, 'UTF-8')
+        if p == None: return b''
         raise IFException('Data type not transportable: {}'.format(type(p)))
+
+    def __init__(self, msgc):
+        self.__content = msgc
+        self.__protocol = msgc[1]
+        self.messageID = msgc[2]
+        if self.isOutgoingMessage():
+            self.__distributingMode = msgc[3]
+            self.distributingAddress = msgc[4]
+            self.serialization = msgc[5]
+            self.__invocationContent = msgc[6]
+        else:
+            self.__distributingMode = b'Received'
+            self.fromAddress = msgc[3]
+            self.serialization = msgc[4]
+            self.__invocationContent = msgc[5]
+        self.__invocation = None
+
+    def isProtocolValid(self):
+        return self.__protocol == IFDefinition.PROTOCOL
+
+    def isOutgoingMessage(self):
+        return len(self.__content) == 7
+
+    def isBrokerMessage(self):
+        return self.isOutgoingMessage() and self.__distributingMode == IFDefinition.DISTRIBUTING_MODE_BROKER
+
+    def isServiceMessage(self):
+        return self.isOutgoingMessage() and self.__distributingMode == IFDefinition.DISTRIBUTING_MODE_SERVICE
+
+    def isDirectMessage(self):
+        return self.isOutgoingMessage() and self.__distributingMode == IFDefinition.DISTRIBUTING_MODE_DIRECT
+
+    def getInvocation(self, decoded=True):
+        if not decoded:
+            return self.__invocationContent
+        if not self.__invocation:
+            self.__invocation = Invocation.deserialize(self.__invocationContent, self.serialization)
+        return self.__invocation
+
+    def getContent(self):
+        return self.__content
+
+    def __str__(self):
+        if self.isBrokerMessage():
+            return 'Broker: [id={}] {}'.format(self.messageID, self.getInvocation())
+        if self.isServiceMessage():
+            return 'Service [{}]: [id={}] {}'.format(self.distributingAddress, self.messageID, self.getInvocation())
+        if self.isDirectMessage():
+            return 'Direct [{}]: [id={}] {}'.format(self.distributingAddress, self.messageID, self.getInvocation())
+        else:
+            return 'Receive from [{}]: [id={}] {}'.format('Broker' if self.fromAddress == b'' else self.fromAddress,
+                                                          self.messageID, self.getInvocation())
 
 
 class Invocation:
@@ -174,6 +254,14 @@ class Invocation:
         })
 
     @classmethod
+    def newResponse(cls, messageID, result):
+        return Invocation({
+            Invocation.KeyType: Invocation.ValueTypeResponse,
+            Invocation.KeyRespopnseID: messageID,
+            Invocation.KeyResult: result
+        })
+
+    @classmethod
     def newError(cls, messageID, description):
         return Invocation({
             Invocation.KeyType: Invocation.ValueTypeResponse,
@@ -187,20 +275,13 @@ class Invocation:
         else:
             raise IFException('Bad serialization: {}'.format(serialization))
 
-    #     def __str__(self):
-    #         content = ', '.join(['{}: {}'.format(k, self.__content[k]) for k in self.__content.keys()])
-    #         return "Message [{}]".format(content)
-    #
-    #     def __add__(self, other):
-    #         if isinstance(other, dict):
-    #             content = self.__content.copy()
-    #             content.update(other)
-    #             return Message(content)
-    #         raise TypeError
+    def __str__(self):
+        content = ', '.join(['{}: {}'.format(k, self.__content[k]) for k in self.__content.keys()])
+        return "Invocation [{}]".format(content)
 
     @classmethod
     def deserialize(cls, bytes, serialization='Msgpack', contentOnly=False):
-        if serialization == 'Msgpack':
+        if str(serialization, encoding='UTF-8') == 'Msgpack':
             unpacker = msgpack.Unpacker(raw=False)
             unpacker.feed(bytes)
             content = unpacker.__next__()
@@ -208,81 +289,47 @@ class Invocation:
         else:
             raise IFException('Bad serialization: {}'.format(serialization))
 
-# class InvokeFuture:
-#     @classmethod
-#     def newFuture(cls):
-#         future = InvokeFuture()
-#         return (future, future.__onFinish, future.__resultMap)
-#
-#     def __init__(self):
-#         self.__done = False
-#         self.__result = None
-#         self.__exception = None
-#         self.__onComplete = None
-#         self.__metux = threading.Lock()
-#         self.__resultMap = {}
-#         self.__awaitSemaphore = threading.Semaphore(0)
-#
-#     def isDone(self):
-#         return self.__done
-#
-#     def isSuccess(self):
-#         return self.__exception is None
-#
-#     def result(self):
-#         return self.__result
-#
-#     def exception(self):
-#         return self.__exception
-#
-#     def onComplete(self, func):
-#         self.__metux.acquire()
-#         self.__onComplete = func
-#         if self.__done:
-#             self.__onComplete()
-#         self.__metux.release()
-#
-#     def waitFor(self, timeout=None):
-#         # For Python 3 only.
-#         # if self.__awaitSemaphore.acquire(True, timeout):
-#         #     self.__awaitSemaphore.release()
-#         #     return True
-#         # else:
-#         #     return False
-#
-#         # For Python 2 & 3
-#         timeStep = 0.1 if timeout is None else timeout / 10
-#         startTime = time.time()
-#         while True:
-#             acq = self.__awaitSemaphore.acquire(False)
-#             if acq:
-#                 return acq
-#             else:
-#                 passedTime = time.time() - startTime
-#                 if (timeout is not None) and (passedTime >= timeout):
-#                     return False
-#                 time.sleep(timeStep)
-#
-#     def sync(self, timeout=None):
-#         if self.waitFor(timeout):
-#             if self.isSuccess():
-#                 return self.__result
-#             elif isinstance(self.__exception, BaseException):
-#                 raise self.__exception
-#             else:
-#                 raise ProtocolException('Error state in InvokeFuture.')
-#         else:
-#             raise ProtocolException('Time out!')
-#
-#     def __onFinish(self):
-#         self.__done = True
-#         if self.__resultMap.__contains__('result'):
-#             self.__result = self.__resultMap['result']
-#         if self.__resultMap.__contains__('error'):
-#             self.__exception = ProtocolException(self.__resultMap['error'])
-#         if self.__onComplete is not None:
-#             self.__onComplete()
-#         self.__awaitSemaphore.release()
+    # sourcePoint only available for Broker.
+    def perform(self, target, serialization, sourcePoint=None):
+        try:
+            method = getattr(target, self.getFunction())
+        except BaseException as e:
+            raise IFException('Function [{}] not available for Broker.'.format(self.getFunction()))
+        if not callable(method):
+            raise IFException('Function [{}] not available for Broker.'.format(self.getFunction()))
+        args = self.getArguments()
+        kwargs = self.getKeywordArguments()
+        if sourcePoint:
+            args = [sourcePoint] + args
+        try:
+            result = method(*args, **kwargs)
+            return result
+        except BaseException as e:
+            matchEargs = re.search("takes ([0-9]+) positional arguments but ([0-9]+) were given", str(e))
+            if matchEargs:
+                minus = 2 if sourcePoint else 1
+                raise IFException('Function [{}] expects [{}] arguments, but [{}] were given.'
+                                  .format(self.getFunction(),
+                                          int(matchEargs.group(1)) - minus,
+                                          int(matchEargs.group(2)) - minus))
+            matchEkwargs = re.search("got an unexpected keyword argument '(.+)'", str(e))
+            if matchEkwargs:
+                raise IFException(
+                    'Keyword Argument [{}] not availabel for function [{}].'.format(matchEkwargs.group(1),
+                                                                                    self.getFunction()))
+            raise e
+
+        # noResponse = message.get(Message.KeyNoResponse)
+        # if callable(method):
+        #     try:
+        #         result = method(*args, **kwargs)
+        #         response = message.response(result)
+        #         if noResponse is not True:
+        #             self.communicator.sendLater(response)
+        #     except BaseException as e:
+        #         error = message.error(e.__str__())
+        #         self.communicator.sendLater(error)
+        #     return
 
 # class Session:
 

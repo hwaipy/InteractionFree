@@ -71,7 +71,7 @@ With InteractionFree, one can invoke a function on a remote program by sending M
 |      Error       | string | Error message. When non emply, the Result value should be ignored |
 |     Warning      | string |                       Warning message                        |
 
-The serialization of invocation could be Messagepack or JSON for the current version. The Worker shoul guarantee that the Response have the same serialization method with the corresponding Request.
+The serialization of invocation could be Messagepack or JSON for the current version. It is the Worker's responsibility to guarantee that the Response have the same serialization method with the corresponding Request.
 
 
 
