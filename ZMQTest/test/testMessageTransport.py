@@ -95,44 +95,21 @@ class MessageTransportTest(unittest.TestCase):
         self.assertEqual(future1.exception().description,
                          "Function [protocol] expects [0] arguments, but [3] were given.")
 
-    # def testRegisterAsService(self):
-    #     worker = IFWorker(MessageTransportTest.brokerAddress)
-    #     invoker = worker.asynchronousInvoker()
-    #     future = invoker.registerAsService()
-    #
-    #     # def testRegisterClient(self):
-    #     #     mc1 = Session((MessageTransportTest.addr, MessageTransportTest.port), None)
-    #     #     f1 = mc1.start()
-    #     #     invoker1 = mc1.asynchronousInvoker()
-    #     #     future1 = invoker1.connect("TestClient1")
-    #     #     self.assertTrue(future1.waitFor(1))
-    #     #     self.assertTrue(future1.isDone())
-    #     #     self.assertTrue(future1.isSuccess())
-    #     #     self.assertEqual(future1.result(), None)
-    #     #     mc1.stop()
-    #     #     mc2 = Session((MessageTransportTest.addr, MessageTransportTest.port), None)
-    #     #     mc2.start()
-    #     #     invoker2 = mc2.blockingInvoker()
-    #     #     r2 = invoker2.connect("TestClient2")
-    #     #     self.assertEqual(r2, None)
-    #     #     self.assertRaises(ProtocolException, lambda: invoker2.connect('TestClient2'))
-    #     #     mc2.stop()
-    #
-    #     def testInvokeOtherClient(self):
-    #         class Target:
-    #             def v8(self): return "V8 great!"
-    #
-    #             def v9(self): raise ProtocolException("V9 not good.")
-    #
-    #             def v10(self): raise IOError("V10 have problems.")
-    #
-    #             def v(self, i, b): return "OK"
-    #
-    #         mc1 = Session((MessageTransportTest.addr, MessageTransportTest.port), Target(), name="T1-Benz")
-    #         mc1.start()
-    #         checker = Session.newSession((MessageTransportTest.addr, MessageTransportTest.port), None, "T1-Checher")
-    #         benzChecker = checker.blockingInvoker(u"T1-Benz", 10)
-    #         v8r = benzChecker.v8()
+    def testInvokeOtherClient(self):
+        class Target:
+            def v8(self): return "V8 great!"
+
+            def v9(self): raise IFException("V9 not good.")
+
+            def v10(self): raise IOError("V10 have problems.")
+
+            def v(self, i, b): return "OK"
+
+        worker1 = IFWorker(MessageTransportTest.brokerAddress, serviceObject=Target(), serviceName="T1-Benz")
+        checker = IFWorker(MessageTransportTest.brokerAddress)
+        benzChecker = checker.blockingInvoker("T1-Benz", 10)
+        v8r = benzChecker.v8()
+
     #         self.assertEqual(v8r, "V8 great!")
     #         try:
     #             benzChecker.v9()

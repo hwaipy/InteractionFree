@@ -1,26 +1,27 @@
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 from tornado.ioloop import IOLoop
-from IFCore import IFException, Message, Invocation, IFLoop
+from IFCore import IFException, Message, Invocation, IFLoop, IFDefinition
 import time
 import threading
 
 
 class IFWorker(object):
-    # HB_INTERVAL = 1000  # in milliseconds
-    # HB_LIVENESS = 3  # HBs to miss before connection counts as dead
-
-    def __init__(self, endpoint, blocking=True, timeout=None):
-        self.endpoint = endpoint
+    def __init__(self, endpoint, serviceName=None, serviceObject=None, interfaces=[], blocking=True, timeout=None):
+        self.__endpoint = endpoint
         socket = zmq.Context().socket(zmq.DEALER)
-        self.stream = ZMQStream(socket, IOLoop.current())
-        self.stream.on_recv(self.__onMessage)
-        self.stream.socket.setsockopt(zmq.LINGER, 0)
-        self.stream.connect(self.endpoint)
+        self.__stream = ZMQStream(socket, IOLoop.current())
+        self.__stream.on_recv(self.__onMessage)
+        self.__stream.socket.setsockopt(zmq.LINGER, 0)
+        self.__stream.connect(self.__endpoint)
         self.__waitingMap = {}
         self.__waitingMapLock = threading.Lock()
         self.blocking = blocking
         self.timeout = timeout
+        self.__isService = serviceName != None
+        self.__serviceName = serviceName
+        self.__serviceObject = serviceObject
+        self.__interfaces = interfaces
 
         # print(self.registerAs('First Service'))
         # print(self.blockingInvoker('target').function(1, 2, yes='no'))
@@ -37,7 +38,21 @@ class IFWorker(object):
         # self.ticker = PeriodicCallback(self._tick, self.HB_INTERVAL)
         # self._send_ready()
         # self.ticker.start()
+
+        threading.Thread(target=self.__hbLoop, daemon=True).start()
         IFLoop.tryStart()
+        if self.__isService:
+            self.registerAsService(self.__serviceName, self.__interfaces)
+
+    def __hbLoop(self):
+        while True:
+            time.sleep(IFDefinition.HEARTBEAT_LIVETIME / 5)
+            try:
+                if not self.blockingInvoker(timeout=IFDefinition.HEARTBEAT_LIVETIME / 5).heartbeat() \
+                        and self.__isService:
+                    self.registerAsService(self.__serviceName, self.__interfaces)
+            except BaseException as e:
+                print('Heartbeat: {}'.format(e))
 
     def __onMessage(self, msg):
         try:
@@ -45,6 +60,7 @@ class IFWorker(object):
             # print('msg get: {}'.format(message))
             invocation = message.getInvocation()
             if invocation.isRequest():
+                print(msg)
                 self.__onRequest(message)
             elif invocation.isResponse():
                 self.__onResponse(message)
@@ -54,6 +70,7 @@ class IFWorker(object):
             print(exstr)
 
     def __onRequest(self, message):
+        print(message)
         raise RuntimeError('not imp')
 
         # (name, args, kwargs) = message.requestContent()
@@ -102,7 +119,7 @@ class IFWorker(object):
 
     def send(self, msg):
         # print('sending: {}'.format(msg))
-        self.stream.send_multipart(msg.getContent())
+        self.__stream.send_multipart(msg.getContent())
 
         id = msg.messageID
         (future, onFinish, resultMap) = InvokeFuture.newFuture()
@@ -278,15 +295,16 @@ if __name__ == '__main__':
     import threading
     import IFCore
 
-    worker = IFWorker("tcp://127.0.0.1:5034", timeout=1)
-
-    while True:
-        time.sleep(1)
-        try:
-            print(worker.protocol())
-        except BaseException as e:
-            print(e)
+    worker = IFWorker("tcp://127.0.0.1:5034", serviceName='TestService', serviceObject=None,
+                      interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    # while True:
+    #     time.sleep(1)
+    #     try:
+    #         print(worker.protocol())
+    #     except BaseException as e:
+    #         print(e)
     # worker.shutdown()
+    IFLoop.join()
 
     # def _tick(self):
     #     """Method called every HB_INTERVAL milliseconds.

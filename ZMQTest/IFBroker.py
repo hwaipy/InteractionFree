@@ -7,6 +7,9 @@ from zmq.eventloop.zmqstream import ZMQStream
 from zmq.eventloop.ioloop import PeriodicCallback
 from IFCore import IFDefinition, IFException, Invocation, Message, IFLoop
 from tornado.ioloop import IOLoop
+import time
+from threading import Timer
+import sched
 
 
 class IFBroker(object):
@@ -30,12 +33,13 @@ class IFBroker(object):
         protocol = msg[1]
         if protocol != IFDefinition.PROTOCOL: raise IFException('Protocol {} not supported.'.format(protocol))
         distributingMode = msg[3]
+        distributingAddress = msg[4]
         if distributingMode == IFDefinition.DISTRIBUTING_MODE_BROKER:
             self.__onMessageDistributeLocal(sourcePoint, msg)
         elif distributingMode == IFDefinition.DISTRIBUTING_MODE_DIRECT:
-            self.__onMessageDistributeDirect(sourcePoint, msg)
+            self.__onMessageDistributeDirect(sourcePoint, distributingAddress, msg)
         elif distributingMode == IFDefinition.DISTRIBUTING_MODE_SERVICE:
-            self.__onMessageDistributeService(sourcePoint, msg)
+            self.__onMessageDistributeService(sourcePoint, distributingAddress, msg)
         else:
             raise IFException('Distributing mode {} not supported.'.format(distributingMode))
 
@@ -43,27 +47,72 @@ class IFBroker(object):
         try:
             message = Message(msg)
             invocation = message.getInvocation()
-            result = invocation.perform(self.manager, message.serialization, sourcePoint)
+            result = self.manager.heartbeat(sourcePoint)
+            if invocation.getFunction() != 'heartbeat':
+                result = invocation.perform(self.manager, message.serialization, sourcePoint)
             responseMessage = Message.newFromBrokerMessage(b'', Invocation.newResponse(message.messageID, result))
             self.main_stream.send_multipart([sourcePoint] + responseMessage)
         except BaseException as e:
             errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(message.messageID, str(e)))
             self.main_stream.send_multipart([sourcePoint] + errorMsg)
 
+    def __onMessageDistributeService(self, sourcePoint, distributingAddress, msg):
+        distributingAddress = str(distributingAddress, encoding='UTF-8')
+        try:
+            targetAddress = self.manager.getAddressOfService(distributingAddress)
+            if not targetAddress: raise IFException('Service not exist.')
+            self.main_stream.send_multipart([targetAddress] + msg[:2] + [sourcePoint] + msg[4:])
+        except BaseException as e:
+            errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(Message(msg).messageID, str(e)))
+            self.main_stream.send_multipart([sourcePoint] + errorMsg)
+
+    def __onMessageDistributeDirect(self, sourcePoint, distributingAddress, msg):
+        print('direct')
+
 
 class Manager:
     def __init__(self, broker):
         self.broker = broker
-        # self.__workers = []
+        self.__workers = {}
         self.__services = {}
+        self.__activities = {}
+        IOLoop.current().call_later(2, self.__check)
 
     def registerAsService(self, sourcePoint, name, interfaces=[]):
         if self.__services.__contains__(name):
-            raise IFException('')
-        print('registering')
+            raise IFException('Service name [{}] occupied.'.format(name))
+        if self.__workers.__contains__(sourcePoint):
+            raise IFException('The current worker has registered as [{}].'.format(name))
+        self.__services[name] = [sourcePoint, interfaces]
+        self.__workers[sourcePoint] = name
+        print('Service [{}] registered as {}.'.format(name, interfaces))
+
+    def unregister(self, sourcePoint):
+        if self.__workers.__contains__(sourcePoint):
+            serviceName = self.__workers.pop(sourcePoint)
+            self.__services.pop(serviceName)
+            print('Service [{}] unregistered.'.format(serviceName))
 
     def protocol(self, sourcePoint):
         return str(IFDefinition.PROTOCOL, encoding='UTF-8')
+
+    def heartbeat(self, sourcePoint):
+        self.__activities[sourcePoint] = time.time()
+        return self.__workers.__contains__(sourcePoint)
+
+    def getAddressOfService(self, serviceName):
+        if self.__services.__contains__(serviceName):
+            return self.__services.get(serviceName)[0]
+        return None
+
+    def __check(self):
+        currentTime = time.time()
+        for key in self.__activities.keys():
+            lastActiviteTime = self.__activities[key]
+            timeDiff = currentTime - lastActiviteTime
+            if timeDiff > IFDefinition.HEARTBEAT_LIVETIME:
+                self.unregister(key)
+        IOLoop.current().call_later(2, self.__check)
 
 
 if __name__ == '__main__':
