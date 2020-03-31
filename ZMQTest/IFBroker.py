@@ -49,7 +49,7 @@ class IFBroker(object):
             invocation = message.getInvocation()
             result = self.manager.heartbeat(sourcePoint)
             if invocation.getFunction() != 'heartbeat':
-                result = invocation.perform(self.manager, message.serialization, sourcePoint)
+                result = invocation.perform(self.manager, sourcePoint)
             responseMessage = Message.newFromBrokerMessage(b'', Invocation.newResponse(message.messageID, result))
             self.main_stream.send_multipart([sourcePoint] + responseMessage)
         except BaseException as e:
@@ -59,15 +59,19 @@ class IFBroker(object):
     def __onMessageDistributeService(self, sourcePoint, distributingAddress, msg):
         distributingAddress = str(distributingAddress, encoding='UTF-8')
         try:
-            targetAddress = self.manager.getAddressOfService(distributingAddress)
+            targetAddress = self.manager.getAddressOfService(sourcePoint, distributingAddress)
             if not targetAddress: raise IFException('Service not exist.')
-            self.main_stream.send_multipart([targetAddress] + msg[:2] + [sourcePoint] + msg[4:])
+            self.main_stream.send_multipart([targetAddress] + msg[:3] + [sourcePoint] + msg[5:])
         except BaseException as e:
             errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(Message(msg).messageID, str(e)))
             self.main_stream.send_multipart([sourcePoint] + errorMsg)
 
     def __onMessageDistributeDirect(self, sourcePoint, distributingAddress, msg):
-        print('direct')
+        try:
+            self.main_stream.send_multipart([distributingAddress] + msg[:3] + [sourcePoint] + msg[5:])
+        except BaseException as e:
+            errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(Message(msg).messageID, str(e)))
+            self.main_stream.send_multipart([sourcePoint] + errorMsg)
 
 
 class Manager:
@@ -100,10 +104,13 @@ class Manager:
         self.__activities[sourcePoint] = time.time()
         return self.__workers.__contains__(sourcePoint)
 
-    def getAddressOfService(self, serviceName):
+    def getAddressOfService(self, sourcePoint, serviceName):
         if self.__services.__contains__(serviceName):
             return self.__services.get(serviceName)[0]
         return None
+
+    def listServiceNames(self, sourcePoint):
+        return list(self.__services.keys())
 
     def __check(self):
         currentTime = time.time()

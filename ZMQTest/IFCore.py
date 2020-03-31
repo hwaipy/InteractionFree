@@ -78,6 +78,10 @@ class Message:
         return Message.newMessage(IFDefinition.DISTRIBUTING_MODE_SERVICE, serviceName, invocation, serialization)
 
     @classmethod
+    def newDirectMessage(cls, address, invocation, serialization='Msgpack'):
+        return Message.newMessage(IFDefinition.DISTRIBUTING_MODE_DIRECT, address, invocation, serialization)
+
+    @classmethod
     def newMessage(cls, distributingMode, distributingAddress, invocation, serialization='Msgpack'):
         if (distributingMode != IFDefinition.DISTRIBUTING_MODE_BROKER) and (
                 distributingMode != IFDefinition.DISTRIBUTING_MODE_DIRECT) and (
@@ -282,23 +286,24 @@ class Invocation:
         return "Invocation [{}]".format(content)
 
     @classmethod
-    def deserialize(cls, bytes, serialization='Msgpack', contentOnly=False):
-        if str(serialization, encoding='UTF-8') == 'Msgpack':
+    def deserialize(cls, data, serialization='Msgpack', contentOnly=False):
+        if isinstance(serialization, bytes): serialization = str(serialization, encoding='UTF-8')
+        if serialization == 'Msgpack':
             unpacker = msgpack.Unpacker(raw=False)
-            unpacker.feed(bytes)
+            unpacker.feed(data)
             content = unpacker.__next__()
             return content if contentOnly else Invocation(content)
         else:
             raise IFException('Bad serialization: {}'.format(serialization))
 
     # sourcePoint only available for Broker.
-    def perform(self, target, serialization, sourcePoint=None):
+    def perform(self, target, sourcePoint=None):
         try:
             method = getattr(target, self.getFunction())
         except BaseException as e:
-            raise IFException('Function [{}] not available for Broker.'.format(self.getFunction()))
+            raise IFException('Function [{}] not available.'.format(self.getFunction()))
         if not callable(method):
-            raise IFException('Function [{}] not available for Broker.'.format(self.getFunction()))
+            raise IFException('Function [{}] not available.'.format(self.getFunction()))
         args = self.getArguments()
         kwargs = self.getKeywordArguments()
         if sourcePoint:

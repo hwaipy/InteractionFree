@@ -56,7 +56,7 @@ class MessageTransportTest(unittest.TestCase):
         latch1.acquire()
         self.assertTrue(future1.isDone())
         self.assertFalse(future1.isSuccess())
-        self.assertEqual(future1.exception().description, "Function [co] not available for Broker.")
+        self.assertEqual(future1.exception().description, "Function [co] not available.")
 
         future1 = invoker1.protocol(a=1, b=2)
         latch1 = threading.Semaphore(0)
@@ -97,6 +97,9 @@ class MessageTransportTest(unittest.TestCase):
 
     def testInvokeOtherClient(self):
         class Target:
+            def __init__(self):
+                self.notFunction = 100
+
             def v8(self): return "V8 great!"
 
             def v9(self): raise IFException("V9 not good.")
@@ -107,85 +110,37 @@ class MessageTransportTest(unittest.TestCase):
 
         worker1 = IFWorker(MessageTransportTest.brokerAddress, serviceObject=Target(), serviceName="T1-Benz")
         checker = IFWorker(MessageTransportTest.brokerAddress)
-        benzChecker = checker.blockingInvoker("T1-Benz", 10)
+        benzChecker = checker.blockingInvoker("T1-Benz", 1)
         v8r = benzChecker.v8()
+        self.assertEqual(v8r, "V8 great!")
+        try:
+            benzChecker.v9()
+            self.assertTrue(False)
+        except IFException as e:
+            self.assertEqual(e.__str__(), "V9 not good.")
+        try:
+            benzChecker.v10()
+            self.assertTrue(False)
+        except Exception as e:
+            self.assertEqual(e.__str__(), "V10 have problems.")
+        self.assertEqual(benzChecker.v(1, False), "OK")
+        try:
+            benzChecker.v11()
+            self.assertTrue(False)
+        except IFException as e:
+            self.assertEqual(e.__str__(), "Function [v11] not available.")
+        try:
+            benzChecker.notFunction()
+            self.assertTrue(False)
+        except IFException as e:
+            self.assertEqual(e.__str__(), "Function [notFunction] not available.")
 
-    #         self.assertEqual(v8r, "V8 great!")
-    #         try:
-    #             benzChecker.v9()
-    #             self.assertTrue(False)
-    #         except ProtocolException as e:
-    #             self.assertEqual(e.__str__(), "V9 not good.")
-    #         try:
-    #             benzChecker.v10()
-    #             self.assertTrue(False)
-    #         except ProtocolException as e:
-    #             self.assertEqual(e.__str__(), "V10 have problems.")
-    #         self.assertEqual(benzChecker.v(1, False), "OK")
-    #         try:
-    #             benzChecker.v11()
-    #             self.assertTrue(False)
-    #         except ProtocolException as e:
-    #             self.assertEqual(e.__str__(), "InvokeError: Command v11 not found.")
-    #         mc1.stop()
-    #         checker.stop()
-    #
-    #     def testClientNameDuplicated(self):
-    #         mc1 = Session((MessageTransportTest.addr, MessageTransportTest.port), None, name="T2-ClientDuplicated")
-    #         mc1.start()
-    #         mc2 = Session((MessageTransportTest.addr, MessageTransportTest.port), None, name="T2-ClientDuplicated")
-    #         self.assertRaises(ProtocolException, lambda: mc2.start())
-    #         mc1.stop()
-    #         time.sleep(0.5)
-    #         mc2.blockingInvoker().connect(u"T2-ClientDuplicated")
-    #         mc2.stop()
-    #
-    #     # def testInvokeAndReturnObject(self):
-    #     #     class Target:
-    #     #         class T:
-    #     #             def change(self):
-    #     #                 return 'Haha'
-    #     #
-    #     #         def func(self):
-    #     #             return Target.T()
-    #     #
-    #     #     oc = Session.newSession((MessageTransportTest.addr, MessageTransportTest.port), Target(), "T3-Benz")
-    #     #     checker = Session.newSession((MessageTransportTest.addr, MessageTransportTest.port), None, "T3-Checher")
-    #     #     getter = checker.blockingInvoker(u"T3-Benz", 2)
-    #     #     result = getter.func()
-    #         # self.assertEqual(result.change(), 'Haha')
-    #         # checker.stop()
-    #         #
-    #         # class Target2:
-    #         #     def rGet(self):
-    #         #         checker3 = Session.newSession((MessageTransportTest.addr, MessageTransportTest.port), None,
-    #         #                                       "T3-Checher3")
-    #         #         r = checker3.blockingInvoker("T3-Benz").func()
-    #         #         checker3.stop()
-    #         #         return r
-    #         #
-    #         # checker2 = Session.newSession((MessageTransportTest.addr, MessageTransportTest.port), Target2(), "T3-Checher2")
-    #         # checker4 = Session.newSession((MessageTransportTest.addr, MessageTransportTest.port), None, "T3-Checher4")
-    #         # getter2 = checker4.blockingInvoker("T3-Checher2")
-    #         # self.assertEqual(getter2.rGet().name, 'T3-Benz')
-    #         # checker2.stop()
-    #         # checker4.stop()
-    #         # oc.stop()
-    #
-    #     '''
-    #   test("Test Session Listening") {
-    #     val lc = MessageClient.newClient("localhost", port, "T5-Monitor")
-    #     val latch = new CountDownLatch(2)
-    #     lc.addSessionListener(new SessionListener {
-    #       def sessionConnected(session: String) { latch.countDown }
-    #       def sessionDisconnected(session: String) { latch.countDown }
-    #     })
-    #     val rc = MessageClient.newClient("localhost", port, "T5-Rabit")
-    #     rc.stop.sync
-    #     latch.await(2, java.util.concurrent.TimeUnit.SECONDS)
-    #     lc.stop
-    #   }
-    # '''
+    def testServiceDuplicated(self):
+        worker1 = IFWorker(MessageTransportTest.brokerAddress, serviceName="T2-ClientDuplicated")
+        try:
+            worker2 = IFWorker(MessageTransportTest.brokerAddress, serviceName="T2-ClientDuplicated")
+        except IFException as e:
+            self.assertEqual(e.__str__(), "Service name [T2-ClientDuplicated] occupied.")
 
     def tearDown(self):
         pass
