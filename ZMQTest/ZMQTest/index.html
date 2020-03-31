@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>tornado WebSocket + protobuf + zmq example</title>
+  <title>tornado WebSocket + protobuf + zmq example + modify</title>
   <link href="bootstrap-combined.no-icons.min.css" rel="stylesheet">
   <script type="text/javascript" src="jquery.min.js"></script>
   <script type="text/javascript" src="Long.min.js"></script>
   <script type="text/javascript" src="ByteBuffer.min.js"></script>
   <script type="text/javascript" src="ProtoBuf.min.js"></script>
-  <script>
-   var ProtoBuf = dcodeIO.ProtoBuf;
-   var Message = ProtoBuf.protoFromFile("example.proto").build("Message");
+  <script type="text/javascript" src="JSMQ.js"></script>
+  var ProtoBuf = dcodeIO.ProtoBuf;
+  var Message = ProtoBuf.protoFromFile("example.proto").build("Message");
   </script>
 </head>
 <body>
   <div class="container">
-    <h1>tornado WebSocket + protobuf + zmq example</h1>
+    <h1>tornado WebSocket + protobuf + zmq example + modify22</h1>
     <hr>
       WebSocket status : <span id="message"></span>
     <hr>
@@ -73,46 +73,63 @@
       </div>
 
     <hr>
-    <h3>Description</h3>
   <script>
-    var ws = new WebSocket('ws://localhost:8888/ws');
-    var $message = $('#message');
+    // var ws = new WebSocket('ws://localhost:8888/ws');
+    // var $message = $('#message');
+    // console.log("on init")
+    //
+    // ws.onopen = function(){
+    //   console.log("on open")
+    //   $message.attr("class", 'label label-success');
+    //   $message.text('open');
+    // };
+    //
+    // ws.onmessage = function(ev){
+    //   console.log("on message")
+    //
+    //   $message.attr("class", 'label label-info');
+    //   $message.hide();
+    //   $message.fadeIn("slow");
+    //   m = Message.decode(ev.data)
+    //   $message.text('received message');
+    //
+    //   $('#' + m.no).hide();
+    //   $('#' + m.no).fadeIn("slow");
+    //   $('#' + m.no).text(m.value);
+    //
+    //   var $rowid = $('#row' + m.id);
+    //   if(m.value > 500){
+    //     $rowid.attr("class", "error");
+    //   }
+    //   else if(m.value > 200){
+    //     $rowid.attr("class", "warning");
+    //   }
+    //   else{
+    //     $rowid.attr("class", "");
+    //   }
+    // };
+    // ws.onclose = function(ev){
+    //   console.log("on close")
+    //   $message.attr("class", 'label label-important');
+    //   $message.text('closed');
+    // };
+    // ws.onerror = function(ev){
+    //   console.log("on error")
+    //   $message.attr("class", 'label label-warning');
+    //   $message.text('error occurred');
+    // };
 
-    ws.onopen = function(){
-      $message.attr("class", 'label label-success');
-      $message.text('open');
-    };
-    ws.onmessage = function(ev){
+    // var dealer = new JSMQ.Dealer();
+    // dealer.connect("ws://localhost:8888/ws");
+    // dealer.sendReady = function() {
+    //   console.log("Send Ready");
+    //   var message = new JSMQ.Message();
+    //   message.addString("sendstr~");
+    //   message.addString("m1");
+    //   message.addString("m2");
+    //   dealer.send(message);
+    // };
 
-      $message.attr("class", 'label label-info');
-      $message.hide();
-      $message.fadeIn("slow");
-      m = Message.decode(ev.data)
-      $message.text('received message');
-
-      $('#' + m.no).hide();
-      $('#' + m.no).fadeIn("slow");
-      $('#' + m.no).text(m.value);
-
-      var $rowid = $('#row' + m.id);
-      if(m.value > 500){
-        $rowid.attr("class", "error");
-      }
-      else if(m.value > 200){
-        $rowid.attr("class", "warning");
-      }
-      else{
-        $rowid.attr("class", "");
-      }
-    };
-    ws.onclose = function(ev){
-      $message.attr("class", 'label label-important');
-      $message.text('closed');
-    };
-    ws.onerror = function(ev){
-      $message.attr("class", 'label label-warning');
-      $message.text('error occurred');
-    };
 
   </script>
 </body>
