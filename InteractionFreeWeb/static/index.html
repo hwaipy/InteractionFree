@@ -1,8 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>tornado WebSocket + protobuf + zmq example + modify</title>
-  <link href="/static/res/stylesheets/bootstrap-combined.no-icons.min.css" rel="stylesheet">
+  <title>InteractionFree</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" media="screen" href="/static/res/stylesheets/w3.css">
+  <link rel="stylesheet" media="screen" href="/static/res/fontawesome-5.8.1/css/all.min.css">
+  <link rel="stylesheet" media="screen" href="/static/res/stylesheets/default.css">
+  <link rel="shortcut icon" type="image/png" href="/static/res/images/favicon.png">
+  <!-- <link href="/static/res/stylesheets/bootstrap-combined.no-icons.min.css" rel="stylesheet"> -->
   <script type="text/javascript" src="/static/res/javascripts/jquery-3.2.1.min.js"></script>
   <!-- <script type="text/javascript" src="/static/res/javascripts/Long.min.js"></script> -->
   <!-- <script type="text/javascript" src="/static/res/javascripts/ByteBuffer.min.js"></script> -->
@@ -10,10 +16,44 @@
   <script type="text/javascript" src="/static/res/javascripts/JSMQ.js"></script>
   <!-- <script type="text/javascript" src="/static/res/javascripts/IF.js"></script> -->
   <script type="text/javascript" src="/static/res/javascripts/msgpack.min.js"></script>
+  <script src="/static/res/javascripts/main.js" type="text/javascript"></script>
   </script>
 </head>
 <body>
-  <div class="container">
-    <h1>InteractionFree</h1>
-</body>
+  <div class="w3-top">
+      <div class="w3-bar w3-black w3-card">
+          <a class="w3-bar-item w3-button w3-padding-large w3-hide-medium w3-hide-large w3-right"
+             href="javascript:void(0)" onclick="onClickTopMenu()" title="Toggle Navigation Menu"><i
+                  class="fas fa-bars"></i></a>
+          <a href="/" class="w3-bar-item w3-button w3-padding-large"><i class="far fa-object-ungroup"></i> InteractionFree</a>
+          <div class="w3-right w3-hide-small">
+              <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">
+                  <i class="fas fa-tachometer-alt"></i> Dashboard</a>
+              <a href="https://github.com/hwaipy/InteractionFree" target="view_window"
+                 class="w3-bar-item w3-button w3-padding-large w3-hide-small"><i class="fab fa-github"></i> GitHub</a>
+              <!--<div class="w3-dropdown-hover w3-hide-small">-->
+              <!--<button class="w3-padding-large w3-button" title="More">MORE <i class="fas fa-caret-down"></i></button>-->
+              <!--<div class="w3-dropdown-content w3-bar-block w3-card-4">-->
+              <!--<a href="#" class="w3-bar-item w3-button">Merchandise</a>-->
+              <!--<a href="#" class="w3-bar-item w3-button">Extras</a>-->
+              <!--<a href="#" class="w3-bar-item w3-button">Media</a>-->
+              <!--</div>-->
+              <!--</div>-->
+          </div>
+      </div>
+  </div>
+
+  <!-- Navbar on small screens (remove the onclick attribute if you want the navbar to always show on top of the content when clicking on the links) -->
+  <div id="navDemo" class="w3-bar-block w3-black w3-hide w3-hide-large w3-hide-medium w3-top" style="margin-top:46px">
+      <a href="/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="onClickTopMenu()">
+          <i class="fas fa-tachometer-alt"></i> Dashboard</a>
+      <a href="https://github.com/hwaipy/InteractionFree" target="view_window" class="w3-bar-item w3-button w3-padding-large"
+         onclick="onClickTopMenu()"><i class="fab fa-github"></i> GitHub</a>
+  </div>
+
+  <div class="w3-content" style="max-width:2000px;margin-top:46px">
+      content
+      {% import time %}
+      {{ time.time()}}
+  </div>
 </html>

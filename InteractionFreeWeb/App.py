@@ -3,7 +3,9 @@ import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 from tornado.ioloop import IOLoop
 from IFBroker import IFBroker
+from IFWorker import IFWorker
 from IFCore import IFLoop
+
 
 class IndexHandler(web.RequestHandler):
     def get(self):
@@ -44,4 +46,12 @@ if __name__ == '__main__':
     handlers_array = [(r'/', IndexHandler), (r'/ws', WebSocketHandler)]
     app = web.Application(handlers_array, debug=True, static_path='static')
     app.listen(8080)
+
+    # worker1 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService', serviceObject=None,
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    # worker2 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService2', serviceObject=None,
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    # worker3 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService3', serviceObject=None,
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+
     IFLoop.join()

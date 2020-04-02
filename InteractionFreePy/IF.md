@@ -80,7 +80,7 @@ The serialization of invocation could be Messagepack or JSON for the current ver
 After connected to the Broker, a Worker can register it self as a Service for the visibility to other workers. Just simply invoke the registerAsService function in Broker:
 
 ```
-registerAsService: None (serviceName: String, serviceObject: Any, interfaces: List[String])
+registerAsService: None (serviceName: String, interfaces: List[String])
 ```
 
 

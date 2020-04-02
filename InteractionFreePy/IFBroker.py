@@ -27,6 +27,7 @@ class IFBroker(object):
 
     def __onMessage(self, msg):
         sourcePoint, msg = msg[0], msg[1:]
+        # self.main_stream.send_multipart([sourcePoint] + [b'', b'IF1', b'123', b'abcdef'])
         protocol = msg[1]
         if protocol != IFDefinition.PROTOCOL: raise IFException('Protocol {} not supported.'.format(protocol))
         distributingMode = msg[3]
@@ -43,12 +44,15 @@ class IFBroker(object):
     def __onMessageDistributeLocal(self, sourcePoint, msg):
         try:
             message = Message(msg)
+            print(msg)
             invocation = message.getInvocation()
+            print(invocation)
             result = self.manager.heartbeat(sourcePoint)
             if invocation.getFunction() != 'heartbeat':
                 result = invocation.perform(self.manager, sourcePoint)
             responseMessage = Message.newFromBrokerMessage(b'', Invocation.newResponse(message.messageID, result))
             self.main_stream.send_multipart([sourcePoint] + responseMessage)
+            print('Responsing: ', responseMessage)
         except BaseException as e:
             errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(message.messageID, str(e)))
             self.main_stream.send_multipart([sourcePoint] + errorMsg)
