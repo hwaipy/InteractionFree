@@ -91,6 +91,7 @@ class Message:
         # if serialization == 'Plain' or serialization == 'Default' or serialization == 'ZMQ': serialization = b''
         id = Message.__getAndIncrementID()
         id = msgpack.packb(id)
+        # id = str(id)
         msg = [b'', IFDefinition.PROTOCOL, id, distributingMode, distributingAddress,
                serialization, invocation.serialize(serialization)]
         return Message([Message.__messagePartToBytes(m) for m in msg])
@@ -99,6 +100,7 @@ class Message:
     def newFromBrokerMessage(cls, fromAddress, invocation, serialization='Msgpack'):
         id = Message.__getAndIncrementID()
         id = msgpack.packb(id)
+        # id = str(id)
         msg = [b'', IFDefinition.PROTOCOL, id, fromAddress, serialization, invocation.serialize(serialization)]
         return [Message.__messagePartToBytes(m) for m in msg]
 
@@ -176,7 +178,7 @@ class Invocation:
     KeyFunciton = u'Function'
     KeyArguments = u'Arguments'
     KeyKeyworkArguments = u'KeyworkArguments'
-    KeyRespopnseID = u'RespopnseID'
+    KeyRespopnseID = u'ResponseID'
     KeyResult = u'Result'
     KeyError = u'Error'
     KeyWarning = u'Warning'

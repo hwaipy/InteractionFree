@@ -5,6 +5,7 @@ from IFCore import IFException, Message, Invocation, IFLoop, IFDefinition
 import time
 import threading
 
+
 class IFWorker(object):
     def __init__(self, endpoint, serviceName=None, serviceObject=None, interfaces=[], blocking=True, timeout=None):
         self.__endpoint = endpoint
@@ -63,6 +64,7 @@ class IFWorker(object):
     def __onResponse(self, message):
         invocation = message.getInvocation()
         correspondingID = invocation.getResponseID()
+        # if isinstance(correspondingID, str): correspondingID = correspondingID.encode('UTF-8')
         self.__waitingMapLock.acquire()
         if self.__waitingMap.__contains__(correspondingID):
             (futureEntry, runnable) = self.__waitingMap.pop(correspondingID)

@@ -32,7 +32,7 @@ class IFWorker {
   }
 
   onResponse(content) {
-    var responseIDBuffer = content["RespopnseID"]
+    var responseIDBuffer = content["ResponseID"]
     var responseID = StringUtility.Uint8ArrayToString(responseIDBuffer);
     var result = content["Result"]
     var error = content["Error"]
@@ -80,63 +80,3 @@ class IFWorker {
     }
   }
 }
-
-testWorker = new IFWorker("ws://localhost:8888/ws", function() {
-  testWorker.request("", "protocol", [], {}, function(result) {
-    console.log("result: " + result);
-  }, function(error) {
-    console.log("error: " + error);
-  })
-})
-
-// KeyRespopnseID = u''
-// KeyResult = u''
-// KeyError = u'Error'
-// KeyWarning = u'Warning'
-
-
-// var ws = new WebSocket('ws://localhost:8888/ws');
-// var $message = $('#message');
-// console.log("on init")
-//
-// ws.onopen = function() {
-//   console.log("on open")
-//   $message.attr("class", 'label label-success');
-//   $message.text('open');
-//   ws.send("123")
-// };
-//
-// ws.onmessage = function(ev) {
-//   console.log("on message")
-//     //
-//     //   $message.attr("class", 'label label-info');
-//     //   $message.hide();
-//     //   $message.fadeIn("slow");
-//     //   m = Message.decode(ev.data)
-//     //   $message.text('received message');
-//     //
-//     //   $('#' + m.no).hide();
-//     //   $('#' + m.no).fadeIn("slow");
-//     //   $('#' + m.no).text(m.value);
-//     //
-//     //   var $rowid = $('#row' + m.id);
-//     //   if(m.value > 500){
-//     //     $rowid.attr("class", "error");
-//     //   }
-//     //   else if(m.value > 200){
-//     //     $rowid.attr("class", "warning");
-//     //   }
-//     //   else{
-//     //     $rowid.attr("class", "");
-//     //   }
-// };
-// ws.onclose = function(ev) {
-//   console.log("on close")
-//   $message.attr("class", 'label label-important');
-//   $message.text('closed');
-// };
-// ws.onerror = function(ev) {
-//   console.log("on error")
-//   $message.attr("class", 'label label-warning');
-//   $message.text('error occurred');
-// };

@@ -1,7 +1,8 @@
 from tornado import web
 from IFBroker import IFBroker
+from IFWorker import IFWorker
 from IFCore import IFLoop
-from WebSocket import WebSocketZMQBridgeHandler
+from Bridge import WebSocketZMQBridgeHandler, ArduinoZMQBridge
 from AppHandler import IFAppHandler, IFAppResourceHandler
 import UIModules as uimodules
 
@@ -32,10 +33,12 @@ if __name__ == '__main__':
     app.listen(8080)
 
     # worker1 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=5)
     # worker2 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService2', serviceObject=None,
     #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
     # worker3 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService3', serviceObject=None,
     #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+
+    # ArduinoZMQBridge.start()
 
     IFLoop.join()

@@ -9,9 +9,7 @@ class IFAppHandler(web.RequestHandler):
 
 
 class IFAppResourceHandler(web.RequestHandler):
-    def get(self, p, q):
-        items = ["Item 1", "Item 2", "Item 3"]
-        print('r')
-        print(p)
-        print(q)
-        self.render("app/main.html", title="My title", items=items)
+    def get(self, appName, resource):
+        path = 'app/{}/{}'.format(appName, resource)
+        if not os.path.exists(path): raise RuntimeError('404')
+        self.render(path)
