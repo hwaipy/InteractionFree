@@ -8,7 +8,6 @@ class IFWorker {
     this.waitingList = new Map()
   }
 
-  self = this
   request(target, functionName, args, kwargs, onResponse, onError) {
     var content = {
       Type: "Request",

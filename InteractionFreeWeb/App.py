@@ -5,24 +5,33 @@ from IFCore import IFLoop
 from Bridge import WebSocketZMQBridgeHandler, ArduinoZMQBridge
 from AppHandler import IFAppHandler, IFAppResourceHandler
 import UIModules as uimodules
+from IFLocalFileService import FileDistributor
 
-
-class IndexHandler(web.RequestHandler):
-    def get(self):
-        # self.render("static/index.html")
-        return IFAppHandler(self.application, self.request).get('main')
+#
+# class IndexHandler(web.RequestHandler):
+#     def get(self):
+#         # self.render("static/index.html")
+#         return IFAppHandler(self.application, self.request).get('main')
 
 
 if __name__ == '__main__':
-    broker = IFBroker('tcp://*:224')
+    brokerHost = '127.0.0.1'
+    brokerPort = 224
+    brokerURL = 'tcp://{}:{}'.format(brokerHost, brokerPort)
+    webHost = brokerHost
+    webPort = 8080
+    IFLocalFilesPath = '../InteractionFreeLocal'
+
+    broker = IFBroker('tcp://*:{}'.format(brokerPort))
 
     handlers_array = [
-        (r'/', IndexHandler),
+        (r'/', IFAppHandler),
         (r'/ws', WebSocketZMQBridgeHandler),
         # (r'/app/main', IFAppHandler),
         # (r'/app/dashboard', IFAppHandler)
         (r'/app/(.+?)/(.+)', IFAppResourceHandler),
         (r'/app/(.+)', IFAppHandler),
+        (r"/IFLocalFiles/(.*)", web.StaticFileHandler, {'path': IFLocalFilesPath}),
     ]
     settings = {
         'debug': True,
@@ -30,15 +39,17 @@ if __name__ == '__main__':
         'ui_modules': uimodules
     }
     app = web.Application(handlers_array, **settings)
-    app.listen(8080)
+    app.listen(webPort)
 
-    # worker1 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=5)
-    # worker2 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService2', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
-    # worker3 = IFWorker("tcp://127.0.0.1:224", serviceName='TestService3', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    worker1 = IFWorker(brokerURL, serviceName='TestService', serviceObject=None,
+                       interfaces=['TestInterface 1', 'TestInterface 2'], timeout=5)
+    worker2 = IFWorker(brokerURL, serviceName='TestService2', serviceObject=None,
+                       interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    worker3 = IFWorker(brokerURL, serviceName='TestService3', serviceObject=None,
+                       interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
 
+    fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
+        IFLocalFilesPath, 'http://{}:{}/IFLocalFiles'.format(webHost, webPort)))
     # ArduinoZMQBridge.start()
 
     IFLoop.join()

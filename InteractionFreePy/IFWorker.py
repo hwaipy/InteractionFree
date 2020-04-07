@@ -4,6 +4,7 @@ from tornado.ioloop import IOLoop
 from IFCore import IFException, Message, Invocation, IFLoop, IFDefinition
 import time
 import threading
+import asyncio
 
 
 class IFWorker(object):
@@ -161,6 +162,20 @@ class DynamicRemoteObject(RemoteObject):
             elif self.__blocking:
                 return self.__worker.send(message).sync(self.__timeout)
             else:
+                # TODO use coroutine
+                # invokeFuture = self.__worker.send(message)
+                # queue = asyncio.Queue()
+                # aw = queue.get()
+                #
+                # def onComplete():
+                #     if invokeFuture.isSuccess():
+                #         queue.put_nowait(invokeFuture.result())
+                #     else:
+                #         aw.throw(invokeFuture.exception())
+                #         # aw.close()
+                #
+                # invokeFuture.onComplete(onComplete)
+                # return aw
                 return self.__worker.send(message)
 
         return invoke
@@ -253,8 +268,44 @@ class InvokeFuture:
 
 
 if __name__ == '__main__':
-    import threading
+    #     # import threading
+    #     #
+    #     # worker = IFWorker("tcp://127.0.0.1:25034", serviceObject=None, interfaces=['TestInterface 1', 'TestInterface 2'],
+    #     #                   timeout=1)
+    #     # print(worker.listServiceNames())
 
-    worker = IFWorker("tcp://127.0.0.1:25034", serviceObject=None, interfaces=['TestInterface 1', 'TestInterface 2'],
-                      timeout=1)
-    print(worker.listServiceNames())
+    class Target:
+        def waitFor(self, timeToWait):
+            time.sleep(timeToWait)
+            return 'OK'
+
+
+    IFWorker('tcp://localhost:224', serviceName='DelayService', serviceObject=Target())
+    worker1 = IFWorker('tcp://localhost:224', blocking=False, timeout=1.5)
+
+
+    async def ayncTest():
+        invoker = worker1.asynchronousInvoker('DelayService')
+        handler = invoker.waitFor(1)
+        print(handler)
+        queue = asyncio.Queue()
+
+        def onComplete():
+            queue.put_nowait(handler.result())
+
+        handler.onComplete(onComplete)
+        await queue.get()
+        print('waited')
+
+
+    async def worker():
+        print('Start worker')
+        await asyncio.sleep(1)
+        print('1')
+
+
+    asyncio.ensure_future(worker())
+    asyncio.ensure_future(worker())
+    asyncio.ensure_future(ayncTest())
+
+    IFLoop.join()

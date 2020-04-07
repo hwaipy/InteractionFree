@@ -91,7 +91,7 @@ class Manager:
             raise IFException('Service name [{}] occupied.'.format(name))
         if self.__workers.__contains__(sourcePoint):
             raise IFException('The current worker has registered as [{}].'.format(name))
-        self.__services[name] = [sourcePoint, interfaces]
+        self.__services[name] = [sourcePoint, interfaces, time.time()]
         self.__workers[sourcePoint] = name
         print('Service [{}] registered as {}.'.format(name, interfaces))
 
@@ -115,6 +115,14 @@ class Manager:
 
     def listServiceNames(self, sourcePoint):
         return list(self.__services.keys())
+
+    def listServiceMeta(self, sourcePoint):
+        results = []
+        currentTime = time.time()
+        for s in self.__services:
+            meta = self.__services[s]
+            results.append([s, meta[0], meta[1], currentTime - meta[2]])
+        return results
 
     def __check(self):
         currentTime = time.time()

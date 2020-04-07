@@ -4,7 +4,7 @@ import sys
 import unittest
 import msgpack
 from random import Random
-from ZMQTest.IFCore import Invocation
+from IFCore import Invocation
 
 
 class InvocationSerializationTest(unittest.TestCase):

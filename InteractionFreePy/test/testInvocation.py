@@ -2,7 +2,7 @@ __author__ = 'Hwaipy'
 
 import sys
 import unittest
-from ZMQTest.IFCore import Invocation, IFException
+from IFCore import Invocation, IFException
 
 
 class InvocationTest(unittest.TestCase):

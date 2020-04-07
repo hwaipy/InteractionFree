@@ -2,11 +2,13 @@ __author__ = 'Hwaipy'
 
 import unittest
 import time
-from ZMQTest.IFBroker import IFBroker
-from ZMQTest.IFWorker import IFWorker
-from ZMQTest.IFCore import Message, IFException
+from IFBroker import IFBroker
+from IFWorker import IFWorker
+from IFCore import Message, IFException
 from tornado.ioloop import IOLoop
 import threading
+import asyncio
+import queue
 
 
 class MessageTransportTest(unittest.TestCase):
@@ -139,6 +141,35 @@ class MessageTransportTest(unittest.TestCase):
             worker2 = IFWorker(MessageTransportTest.brokerAddress, serviceName="T2-ClientDuplicated")
         except IFException as e:
             self.assertEqual(e.__str__(), "Service name [T2-ClientDuplicated] occupied.")
+
+    # def testAsyncInvoke(self):
+    #     class Target:
+    #         def waitFor(self, timeToWait):
+    #             time.sleep(timeToWait)
+    #             return 'OK'
+    #
+    #     IFWorker(MessageTransportTest.brokerAddress, serviceName='DelayService', serviceObject=Target())
+    #     worker1 = IFWorker(MessageTransportTest.brokerAddress, blocking=False, timeout=1.5)
+    #
+    #     batch = queue.Queue()
+    #
+    #     async def asyncInvokeTest():
+    #         invoker = worker1.asynchronousInvoker('DelayService')
+    #         print('123')
+    #         try:
+    #             result1 = invoker.waitFor()
+    #         except BaseException as e:
+    #             print(1, e)
+    #         print(result1)
+    #         # self.assertEqual(result1, 'OK')
+    #         # result2 = await invoker.waitFor()
+    #         time.sleep(2)
+    #         print(await result1)
+    #
+    #         batch.put_nowait('')
+    #
+    #     asyncio.ensure_future(asyncInvokeTest())
+    #     batch.get()
 
     def tearDown(self):
         pass

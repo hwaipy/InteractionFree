@@ -3,7 +3,8 @@ import os
 
 
 class IFAppHandler(web.RequestHandler):
-    def get(self, name):
+    def get(self, name=None):
+        if name == None: name = 'main'
         if not os.path.exists('app/{}'.format(name)): raise RuntimeError('404')
         self.render("app/main.html", name=name)
 
