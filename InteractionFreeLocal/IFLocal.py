@@ -11,3 +11,4 @@ class IFLocal:
 
 if __name__ == '__main__':
     import threading
+    import os

@@ -10,12 +10,15 @@ import time
 
 
 class IFBroker(object):
-    def __init__(self, binding):
+    def __init__(self, binding, manager=None):
         socket = zmq.Context().socket(zmq.ROUTER)
         socket.bind(binding)
         self.main_stream = ZMQStream(socket, IOLoop.current())
         self.main_stream.on_recv(self.__onMessage)
-        self.manager = Manager(self)
+        if manager == None:
+            self.manager = Manager(self)
+        else:
+            self.manager = manager
         IFLoop.tryStart()
 
     def close(self):

@@ -31,39 +31,13 @@
           <div class="w3-right w3-hide-small">
               <a href="/app/dashboard" class="w3-bar-item w3-button w3-padding-large w3-hide-small">
                   <i class="fas fa-tachometer-alt"></i> Dashboard</a>
-              <a href="https://github.com/hwaipy/InteractionFree" target="view_window"
-                 class="w3-bar-item w3-button w3-padding-large w3-hide-small"><i class="fab fa-github"></i> GitHub</a>
-              <!--<div class="w3-dropdown-hover w3-hide-small">-->
-              <!--<button class="w3-padding-large w3-button" title="More">MORE <i class="fas fa-caret-down"></i></button>-->
-              <!--<div class="w3-dropdown-content w3-bar-block w3-card-4">-->
-              <!--<a href="#" class="w3-bar-item w3-button">Merchandise</a>-->
-              <!--<a href="#" class="w3-bar-item w3-button">Extras</a>-->
-              <!--<a href="#" class="w3-bar-item w3-button">Media</a>-->
-              <!--</div>-->
-              <!--</div>-->
+<!--              <a href="https://github.com/hwaipy/InteractionFree" target="view_window"-->
+<!--                 class="w3-bar-item w3-button w3-padding-large w3-hide-small"><i class="fab fa-github"></i> GitHub</a>-->
           </div>
       </div>
-  </div>
-  <!-- Navbar on small screens (remove the onclick attribute if you want the navbar to always show on top of the content when clicking on the links) -->
-  <div id="navDemo" class="w3-bar-block w3-black w3-hide w3-hide-large w3-hide-medium w3-top" style="margin-top:46px">
-      <a href="/app/dashboard" class="w3-bar-item w3-button w3-padding-large" onclick="onClickTopMenu()">
-          <i class="fas fa-tachometer-alt"></i> Dashboard</a>
-      <a href="https://github.com/hwaipy/InteractionFree" target="view_window" class="w3-bar-item w3-button w3-padding-large"
-         onclick="onClickTopMenu()"><i class="fab fa-github"></i> GitHub</a>
   </div>
   <div class="w3-content" style="max-width:2000px;margin-top:46px">
     {% module AppContent(name=name) %}
   </div>
-  <script type="text/javascript">
-    // Used to toggle the menu on small screens when clicking on the menu button
-    function onClickTopMenu() {
-      var x = document.getElementById("navDemo");
-      if (x.className.indexOf("w3-show") == -1) {
-        x.className += " w3-show";
-      } else {
-        x.className = x.className.replace(" w3-show", "");
-      }
-    }
-  </script>
 </body>
 </html>

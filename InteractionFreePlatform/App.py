@@ -6,8 +6,8 @@ from Bridge import WebSocketZMQBridgeHandler, ArduinoZMQBridge
 from AppHandler import IFAppHandler, IFAppResourceHandler
 import UIModules as uimodules
 from IFLocalFileService import FileDistributor
+from MongoDBContext import MongoDBContext
 
-#
 # class IndexHandler(web.RequestHandler):
 #     def get(self):
 #         # self.render("static/index.html")
@@ -27,8 +27,6 @@ if __name__ == '__main__':
     handlers_array = [
         (r'/', IFAppHandler),
         (r'/ws', WebSocketZMQBridgeHandler),
-        # (r'/app/main', IFAppHandler),
-        # (r'/app/dashboard', IFAppHandler)
         (r'/app/(.+?)/(.+)', IFAppResourceHandler),
         (r'/app/(.+)', IFAppHandler),
         (r"/IFLocalFiles/(.*)", web.StaticFileHandler, {'path': IFLocalFilesPath}),
@@ -51,5 +49,7 @@ if __name__ == '__main__':
     fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
         IFLocalFilesPath, 'http://{}:{}/IFLocalFiles'.format(webHost, webPort)))
     # ArduinoZMQBridge.start()
+
+    # print(MongoDBContext.IFConfig.userManager.hasUser('123@456.com'))
 
     IFLoop.join()
