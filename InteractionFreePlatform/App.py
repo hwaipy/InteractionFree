@@ -6,7 +6,7 @@ from Bridge import WebSocketZMQBridgeHandler, ArduinoZMQBridge
 from AppHandler import IFAppHandler, IFAppResourceHandler
 import UIModules as uimodules
 from IFLocalFileService import FileDistributor
-from MongoDBContext import MongoDBContext
+# from MongoDBContext import MongoDBContext
 
 # class IndexHandler(web.RequestHandler):
 #     def get(self):
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     brokerPort = 224
     brokerURL = 'tcp://{}:{}'.format(brokerHost, brokerPort)
     webHost = brokerHost
-    webPort = 8080
+    webPort = 8081
     IFLocalFilesPath = '../InteractionFreeLocal'
 
     broker = IFBroker('tcp://*:{}'.format(brokerPort))

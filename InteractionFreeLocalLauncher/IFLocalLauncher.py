@@ -23,7 +23,7 @@ class IFLocalLauncher:
                 version = self.__worker.IFLocalFileMeta.getFilesVersion()
                 if version != self.__fileVersion:
                     self.__updateStatus = 'NEED UPDATE'
-                    if self.__updateOnNextLoop or True:
+                    if self.__updateOnNextLoop:
                         self.__updateOnNextLoop = False
                         self.__updateStatus = 'UPDATING'
                         self.__doUpdate()
@@ -31,6 +31,18 @@ class IFLocalLauncher:
             except BaseException as e:
                 print(e)
             time.sleep(1)
+
+    def needUpdate(self):
+        return self.__updateStatus == 'NEED UPDATE'
+
+    def isUpdating(self):
+        return self.__updateStatus == 'UPDATING'
+
+    def getFileVersion(self):
+        return self.__fileVersion
+
+    def updateASAP(self):
+        self.__updateOnNextLoop = True
 
     def __doUpdate(self):
         print('update')
