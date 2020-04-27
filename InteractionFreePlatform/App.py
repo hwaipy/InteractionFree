@@ -19,7 +19,7 @@ if __name__ == '__main__':
     brokerPort = 224
     brokerURL = 'tcp://{}:{}'.format(brokerHost, brokerPort)
     webHost = brokerHost
-    webPort = 8081
+    webPort = 80
     IFLocalFilesPath = '../InteractionFreeLocal'
 
     broker = IFBroker('tcp://*:{}'.format(brokerPort))
@@ -39,15 +39,15 @@ if __name__ == '__main__':
     app = web.Application(handlers_array, **settings)
     app.listen(webPort)
 
-    worker1 = IFWorker(brokerURL, serviceName='TestService', serviceObject=None,
-                       interfaces=['TestInterface 1', 'TestInterface 2'], timeout=5)
-    worker2 = IFWorker(brokerURL, serviceName='TestService2', serviceObject=None,
-                       interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
-    worker3 = IFWorker(brokerURL, serviceName='TestService3', serviceObject=None,
-                       interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    # worker1 = IFWorker(brokerURL, serviceName='TestService', serviceObject=None,
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=5)
+    # worker2 = IFWorker(brokerURL, serviceName='TestService2', serviceObject=None,
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
+    # worker3 = IFWorker(brokerURL, serviceName='TestService3', serviceObject=None,
+    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
 
     fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
-        IFLocalFilesPath, 'http://{}:{}/IFLocalFiles'.format(webHost, webPort)))
+        IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
     # ArduinoZMQBridge.start()
 
     # print(MongoDBContext.IFConfig.userManager.hasUser('123@456.com'))

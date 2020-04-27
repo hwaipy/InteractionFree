@@ -204,5 +204,5 @@ class MongoDBContext:
         # self.__IFConfig.get_collection('C').update_one({}).modified_count
 
 
-MongoDBContextTest = MongoDBContext(True)
-MongoDBContext = MongoDBContext()
+# MongoDBContextTest = MongoDBContext(True)
+# MongoDBContext = MongoDBContext()
