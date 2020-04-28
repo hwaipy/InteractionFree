@@ -1,11 +1,13 @@
 __author__ = 'Hwaipy'
 
 import unittest
+import os
+
+os.chdir('..')
 from MongoDBContext.MongoDBContext import MongoDBContextTest, UserManager
 from IFCore import IFException
 import hashlib
 from tornado.ioloop import IOLoop
-import time
 
 
 class IFConfigContextUserManagerTest(unittest.TestCase):

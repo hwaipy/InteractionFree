@@ -2,6 +2,7 @@
 from motor.motor_tornado import MotorClient
 from MongoDBContext.UserManager import UserManager
 from MongoDBContext.IFLocal import IFLocal
+from Config import Config
 
 
 class IFConfigContext:
@@ -12,8 +13,8 @@ class IFConfigContext:
     def getLoginSalt(self, id):
         return self.userManager.getSalt(id)
 
-    def login(self, username, password):
-        print('login')
+    # def login(self, username, password):
+    #     print('login')
 
 
 class IFDataContext:
@@ -24,13 +25,23 @@ class IFDataContext:
 
 class MongoDBContext:
     def __init__(self, isTest=False):
-        self.__IFConfigClient = MotorClient("mongodb://{}:{}@{}:{}/{}".format(
-            'IFConfigAdmin', 'jifwa8e923lfwa909iowafe', '172.16.60.199', 27019, 'IFConfig'))
+        self.__IFConfigClient = MotorClient('mongodb://{username}:{password}@{address}:{port}/{database}'.format(
+            username=Config['MongoDB.IFConfig'].Username.asString(),
+            password=Config['MongoDB.IFConfig'].Password.asString(),
+            address=Config['MongoDB'].Address.asString(),
+            port=Config['MongoDB'].Port.asInt(),
+            database='IFConfig'
+        ))
         self.__IFConfig = self.__IFConfigClient.get_database('IFConfig')
         if isTest:
             self.__IFConfig = self.__IFConfigClient.get_database('IFConfigTest')
-        self.__IFDataClient = MotorClient("mongodb://{}:{}@{}:{}/{}".format(
-            'IFDataAdmin', 'fwaejio8798fwjoiewf', '172.16.60.199', 27019, 'IFData'))
+        self.__IFDataClient = MotorClient('mongodb://{username}:{password}@{address}:{port}/{database}'.format(
+            username=Config['MongoDB.IFData'].Username.asString(),
+            password=Config['MongoDB.IFData'].Password.asString(),
+            address=Config['MongoDB'].Address.asString(),
+            port=Config['MongoDB'].Port.asInt(),
+            database='IFData'
+        ))
         self.__IFData = self.__IFDataClient.get_database('IFData')
         if isTest:
             self.__IFData = self.__IFDataClient.get_database('IFDataTest')

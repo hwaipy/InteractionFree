@@ -1,6 +1,9 @@
 __author__ = 'Hwaipy'
 
 import unittest
+import os
+
+os.chdir('..')
 from MongoDBContext.MongoDBContext import MongoDBContextTest
 from IFCore import IFException, IFLoop
 from tornado.ioloop import IOLoop
@@ -64,6 +67,7 @@ class IFDataContextIFLocalTest(unittest.TestCase):
         async def test():
             await IFDataContextIFLocalTest.IFLocal.createLauncher('TL')
             self.assertEqual(await IFDataContextIFLocalTest.IFLocal.getCommands('TL'), {})
+
         #
         #     IFDataContextIFLocalTest.IFLocal.setCommand('TL', 'CMD1', {})
         #     IFDataContextIFLocalTest.IFLocal.setCommand('TL', 'CMD1', {})

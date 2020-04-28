@@ -142,13 +142,9 @@ class MessageTransportTest(unittest.TestCase):
         queue = Queue()
 
         class WorkerObject:
-            def returnIn(self, t):
-                time.sleep(t)
-                return 'rin'
-
             async def popQueue(self):
-                # return await queue.get()
-                return
+                g = await queue.get()
+                return g
 
             def returnImmediatly(self):
                 return 'rim'
@@ -156,18 +152,11 @@ class MessageTransportTest(unittest.TestCase):
         worker = IFWorker(MessageTransportTest.brokerAddress, serviceName="TimeCostWorker", serviceObject=WorkerObject())
         client = IFWorker(MessageTransportTest.brokerAddress)
         client.asynchronousInvoker('TimeCostWorker').popQueue()
-
-        def tar():
-            time.sleep(2)
-            IOLoop.current().add_callback_from_signal(queue.put, 1)
-
-        # await queue.put(1)
-
-        threading.Thread(target=tar).start()
+        IOLoop.current().call_at(IOLoop.current().time() + 2, queue.put, 'lock')
         startTime = time.time()
         self.assertEqual(client.TimeCostWorker.returnImmediatly(), 'rim')
         stopTime = time.time()
-        # self.assertLess(stopTime - startTime, 1)
+        self.assertLess(stopTime - startTime, 1)
 
     def tearDown(self):
         pass

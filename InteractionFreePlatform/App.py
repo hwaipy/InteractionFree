@@ -2,25 +2,25 @@ from tornado import web
 from IFBroker import IFBroker
 from IFWorker import IFWorker
 from IFCore import IFLoop
-from Bridge import WebSocketZMQBridgeHandler, ArduinoZMQBridge
+from Bridge import WebSocketZMQBridgeHandler
 from AppHandler import IFAppHandler, IFAppResourceHandler
 import UIModules as uimodules
 from IFLocalFileService import FileDistributor
-# from MongoDBContext import MongoDBContext
+from MongoDBContext import MongoDBContext
+from Config import Config
 
 # class IndexHandler(web.RequestHandler):
 #     def get(self):
 #         # self.render("static/index.html")
 #         return IFAppHandler(self.application, self.request).get('main')
 
-
 if __name__ == '__main__':
-    brokerHost = '127.0.0.1'
-    brokerPort = 224
+    brokerHost = Config['IFBroker'].Address.asString()
+    brokerPort = Config['IFBroker'].Port.asInt()
     brokerURL = 'tcp://{}:{}'.format(brokerHost, brokerPort)
-    webHost = brokerHost
-    webPort = 80
-    IFLocalFilesPath = '../InteractionFreeLocal'
+    webHost = Config['Web'].Address.asString()
+    webPort = Config['Web'].Port.asInt()
+    IFLocalFilesPath = Config['IFLocal'].FilePath.asString()
 
     broker = IFBroker('tcp://*:{}'.format(brokerPort))
 

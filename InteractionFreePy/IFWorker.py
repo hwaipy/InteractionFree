@@ -98,6 +98,9 @@ class IFWorker(object):
     def asynchronousInvoker(self, target=None):
         return DynamicRemoteObject(self, toMessage=False, blocking=False, target=target, timeout=None)
 
+    def asyncInvoker(self, target=None):
+        return AsyncRemoteObject(self, target=target, timeout=30)
+
     def blockingInvoker(self, target=None, timeout=None):
         return DynamicRemoteObject(self, toMessage=False, blocking=True, target=target, timeout=timeout)
 
@@ -162,26 +165,51 @@ class DynamicRemoteObject(RemoteObject):
             elif self.__blocking:
                 return self.__worker.send(message).sync(self.__timeout)
             else:
-                # TODO use coroutine
-                # invokeFuture = self.__worker.send(message)
-                # queue = asyncio.Queue()
-                # aw = queue.get()
-                #
-                # def onComplete():
-                #     if invokeFuture.isSuccess():
-                #         queue.put_nowait(invokeFuture.result())
-                #     else:
-                #         aw.throw(invokeFuture.exception())
-                #         # aw.close()
-                #
-                # invokeFuture.onComplete(onComplete)
-                # return aw
                 return self.__worker.send(message)
 
         return invoke
 
     def __str__(self):
         return "DynamicRemoteObject[{}]".format(self.name)
+
+
+class AsyncRemoteObject(RemoteObject):
+    def __init__(self, worker, target, timeout):
+        super(AsyncRemoteObject, self).__init__(target)
+        self.__worker = worker
+        self.__target = target
+        self.__timeout = timeout
+        self.name = target
+
+    def __getattr__(self, item):
+        item = u'{}'.format(item)
+
+        async def invoke(*args, **kwargs):
+            invocation = Invocation.newRequest(item, args, kwargs)
+            if self.__target == '' or self.__target == None:
+                message = Message.newBrokerMessage(invocation)
+            else:
+                message = Message.newServiceMessage(self.__target, invocation)
+            invokeFuture = self.__worker.send(message)
+            queue = asyncio.Queue()
+            aw = queue.get()
+
+            def onComplete():
+                if invokeFuture.isSuccess():
+                    queue.put_nowait(invokeFuture.result())
+                else:
+                    print('exception:', invokeFuture.exception())
+                    # aw.throw(invokeFuture.exception())
+                    aw.close()
+
+            invokeFuture.onComplete(onComplete)
+            return await aw
+            # return self.__worker.send(message)
+
+        return invoke
+
+    def __str__(self):
+        return "AsyncRemoteObject[{}]".format(self.name)
 
 
 class InvokeFuture:
