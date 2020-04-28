@@ -7,8 +7,9 @@ import requests
 
 
 class IFLocalLauncher:
-    def __init__(self, brokerEndpoint, name, localPath):
+    def __init__(self, brokerEndpoint, name, localPath, httpPrefix):
         self.__localPath = localPath
+        self.__httpPrefix = httpPrefix
         if not os.path.exists(self.__localPath): os.mkdir(self.__localPath)
         self.__fileVersion = ''
         self.__excluded = {'__pycache__', '.DS_Store', '.idea'}
@@ -67,7 +68,7 @@ class IFLocalLauncher:
             localDir = localPath[:localPath.rindex('/')]
             if not os.path.exists(localDir):
                 os.makedirs(localDir)
-            r = requests.get(prefix + remoteFile)
+            r = requests.get(self.__httpPrefix + prefix + remoteFile)
             with open(self.__localPath + remoteFile, "wb") as code:
                 code.write(r.content)
 
@@ -89,6 +90,7 @@ class IFLocalLauncher:
 
 
 if __name__ == '__main__':
-    ifll = IFLocalLauncher('tcp://127.0.0.1:224', 'testIFLL', '.IFLocal')
+    ifll = IFLocalLauncher('tcp://172.16.60.199:224', 'testIFLL', '.IFLocal', 'http://172.16.60.199')
+    ifll.updateASAP()
     # print(worker.IFLocalFileMeta.getFilesVersion())
     # print(worker.IFLocalFileMeta.getFilesMeta())

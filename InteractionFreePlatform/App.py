@@ -50,6 +50,4 @@ if __name__ == '__main__':
         IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
     # ArduinoZMQBridge.start()
 
-    # print(MongoDBContext.IFConfig.userManager.hasUser('123@456.com'))
-
     IFLoop.join()

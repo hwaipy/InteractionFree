@@ -7,6 +7,7 @@ import msgpack
 import re
 from tornado.ioloop import IOLoop
 from threading import Thread
+import types
 
 
 class IFDefinition:
@@ -299,7 +300,7 @@ class Invocation:
             raise IFException('Bad serialization: {}'.format(serialization))
 
     # sourcePoint only available for Broker.
-    def perform(self, target, sourcePoint=None):
+    async def perform(self, target, sourcePoint=None):
         try:
             method = getattr(target, self.getFunction())
         except BaseException as e:
@@ -312,7 +313,10 @@ class Invocation:
             args = [sourcePoint] + args
         try:
             result = method(*args, **kwargs)
-            return result
+            if (isinstance(result, types.CoroutineType)):
+                return await result
+            else:
+                return result
         except BaseException as e:
             matchEargs = re.search("takes ([0-9]+) positional arguments but ([0-9]+) were given", str(e))
             if matchEargs:

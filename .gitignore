@@ -24,3 +24,4 @@ project/plugins/project/
 __pycache__/
 node_modules
 .IFLocal
+_gsdata_

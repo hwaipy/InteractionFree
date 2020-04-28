@@ -43,7 +43,7 @@ class IFWorker(object):
             message = Message(msg)
             invocation = message.getInvocation()
             if invocation.isRequest():
-                self.__onRequest(message)
+                IOLoop.current().add_callback(self.__onRequest, message)
             elif invocation.isResponse():
                 self.__onResponse(message)
         except BaseException as e:
@@ -51,11 +51,11 @@ class IFWorker(object):
             exstr = traceback.format_exc()
             print(exstr)
 
-    def __onRequest(self, message):
+    async def __onRequest(self, message):
         sourcePoint = message.fromAddress
         invocation = message.getInvocation()
         try:
-            result = invocation.perform(self.__serviceObject)
+            result = await invocation.perform(self.__serviceObject)
             responseMessage = Message.newDirectMessage(sourcePoint, Invocation.newResponse(message.messageID, result))
             self.__stream.send_multipart(responseMessage.getContent())
         except BaseException as e:

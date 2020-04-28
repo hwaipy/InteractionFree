@@ -37,7 +37,7 @@ class IFBroker(object):
             distributingMode = msg[3]
             distributingAddress = msg[4]
             if distributingMode == IFDefinition.DISTRIBUTING_MODE_BROKER:
-                self.__onMessageDistributeLocal(sourcePoint, msg)
+                IOLoop.current().add_callback(self.__onMessageDistributeLocal, sourcePoint, msg)
             elif distributingMode == IFDefinition.DISTRIBUTING_MODE_DIRECT:
                 self.__onMessageDistributeDirect(sourcePoint, distributingAddress, msg)
             elif distributingMode == IFDefinition.DISTRIBUTING_MODE_SERVICE:
@@ -47,7 +47,7 @@ class IFBroker(object):
         except BaseException as e:
             print(e)
 
-    def __onMessageDistributeLocal(self, sourcePoint, msg):
+    async def __onMessageDistributeLocal(self, sourcePoint, msg):
         try:
             message = Message(msg)
             # print(msg)
@@ -55,7 +55,7 @@ class IFBroker(object):
             # print(invocation)
             result = self.manager.heartbeat(sourcePoint)
             if invocation.getFunction() != 'heartbeat':
-                result = invocation.perform(self.manager, sourcePoint)
+                result = await invocation.perform(self.manager, sourcePoint)
             responseMessage = Message.newFromBrokerMessage(b'', Invocation.newResponse(message.messageID, result))
             self.main_stream.send_multipart([sourcePoint] + responseMessage)
             # print('Responsing: ', responseMessage)

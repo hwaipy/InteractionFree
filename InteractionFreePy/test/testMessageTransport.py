@@ -7,8 +7,7 @@ from IFWorker import IFWorker
 from IFCore import Message, IFException
 from tornado.ioloop import IOLoop
 import threading
-import asyncio
-import queue
+from asyncio import Queue
 
 
 class MessageTransportTest(unittest.TestCase):
@@ -64,16 +63,14 @@ class MessageTransportTest(unittest.TestCase):
         latch1.acquire()
         self.assertTrue(future1.isDone())
         self.assertFalse(future1.isSuccess())
-        self.assertEqual(future1.exception().description,
-                         "Keyword Argument [a] not availabel for function [protocol].")
+        self.assertEqual(future1.exception().description, "Keyword Argument [a] not availabel for function [protocol].")
         future1 = invoker1.protocol(1, 2, 3)
         latch1 = threading.Semaphore(0)
         future1.onComplete(lambda: latch1.release())
         latch1.acquire()
         self.assertTrue(future1.isDone())
         self.assertFalse(future1.isSuccess())
-        self.assertEqual(future1.exception().description,
-                         "Function [protocol] expects [0] arguments, but [3] were given.")
+        self.assertEqual(future1.exception().description, "Function [protocol] expects [0] arguments, but [3] were given.")
 
     def testRemoteInvokeAndSync(self):
         worker = IFWorker(MessageTransportTest.brokerAddress)
@@ -92,8 +89,7 @@ class MessageTransportTest(unittest.TestCase):
         latch1.acquire()
         self.assertTrue(future1.isDone())
         self.assertFalse(future1.isSuccess())
-        self.assertEqual(future1.exception().description,
-                         "Function [protocol] expects [0] arguments, but [3] were given.")
+        self.assertEqual(future1.exception().description, "Function [protocol] expects [0] arguments, but [3] were given.")
 
     def testInvokeOtherClient(self):
         class Target:
@@ -142,34 +138,36 @@ class MessageTransportTest(unittest.TestCase):
         except IFException as e:
             self.assertEqual(e.__str__(), "Service name [T2-ClientDuplicated] occupied.")
 
-    # def testAsyncInvoke(self):
-    #     class Target:
-    #         def waitFor(self, timeToWait):
-    #             time.sleep(timeToWait)
-    #             return 'OK'
-    #
-    #     IFWorker(MessageTransportTest.brokerAddress, serviceName='DelayService', serviceObject=Target())
-    #     worker1 = IFWorker(MessageTransportTest.brokerAddress, blocking=False, timeout=1.5)
-    #
-    #     batch = queue.Queue()
-    #
-    #     async def asyncInvokeTest():
-    #         invoker = worker1.asynchronousInvoker('DelayService')
-    #         print('123')
-    #         try:
-    #             result1 = invoker.waitFor()
-    #         except BaseException as e:
-    #             print(1, e)
-    #         print(result1)
-    #         # self.assertEqual(result1, 'OK')
-    #         # result2 = await invoker.waitFor()
-    #         time.sleep(2)
-    #         print(await result1)
-    #
-    #         batch.put_nowait('')
-    #
-    #     asyncio.ensure_future(asyncInvokeTest())
-    #     batch.get()
+    def testTimeCostInvocation(self):
+        queue = Queue()
+
+        class WorkerObject:
+            def returnIn(self, t):
+                time.sleep(t)
+                return 'rin'
+
+            async def popQueue(self):
+                # return await queue.get()
+                return
+
+            def returnImmediatly(self):
+                return 'rim'
+
+        worker = IFWorker(MessageTransportTest.brokerAddress, serviceName="TimeCostWorker", serviceObject=WorkerObject())
+        client = IFWorker(MessageTransportTest.brokerAddress)
+        client.asynchronousInvoker('TimeCostWorker').popQueue()
+
+        def tar():
+            time.sleep(2)
+            IOLoop.current().add_callback_from_signal(queue.put, 1)
+
+        # await queue.put(1)
+
+        threading.Thread(target=tar).start()
+        startTime = time.time()
+        self.assertEqual(client.TimeCostWorker.returnImmediatly(), 'rim')
+        stopTime = time.time()
+        # self.assertLess(stopTime - startTime, 1)
 
     def tearDown(self):
         pass
