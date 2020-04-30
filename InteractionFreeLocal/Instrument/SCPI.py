@@ -2,9 +2,10 @@ __author__ = 'Hwaipy'
 
 
 class SCPI:
-    def __init__(self, query, write):
+    def __init__(self, query, write, queryB):
         self.query = query
         self.write = write
+        self.queryB = queryB
 
     def __getattr__(self, item):
         return SCPICommand(self, item)

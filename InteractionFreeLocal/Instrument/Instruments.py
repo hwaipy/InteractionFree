@@ -29,7 +29,10 @@ class VISAInstrument(Instrument):
         def stpWrite(*args):
             stp.invokeLater(self.resource.write, *args)
 
-        self.scpi = SCPI(stpQuery, stpWrite)
+        def stpQueryB(*args):
+            return stp.invokeAndWait(self.resource.query_binary_values, *args)
+
+        self.scpi = SCPI(stpQuery, stpWrite, stpQueryB)
         self.verifyIdentity()
 
     def getIdentity(self):
@@ -65,6 +68,9 @@ class VISAInstrument(Instrument):
         if channel >= 0 and channel < self.channelCount:
             return
         raise DeviceException('Channel {} out of range.'.format(channel))
+
+    def awaitOperation(self):
+        self.scpi._OPC.query()
 
     def getVersion(self):
         return self.scpi.System.Version.query()
