@@ -1,0 +1,17 @@
+name := "InteractionFreeScala"
+version := "0.1.0"
+scalaVersion := "2.13.2"
+organization := "com.interactionfree"
+libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.2"
+libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.13.2"
+libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
+libraryDependencies += "org.msgpack" % "msgpack-core" % "0.8.20"
+libraryDependencies += "org.msgpack" % "jackson-dataformat-msgpack" % "0.8.20"
+libraryDependencies += "org.zeromq" % "jeromq" % "0.5.1"
+//libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.6.5"
+libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.2"
+libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.13.2"
+libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.13.2"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.1" % "test"
+scalacOptions ++= Seq("-feature")
+scalacOptions ++= Seq("-deprecation")

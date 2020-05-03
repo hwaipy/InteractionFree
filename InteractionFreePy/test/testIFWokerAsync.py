@@ -27,7 +27,11 @@ class AsyncIFWorkerTest(unittest.TestCase):
 
         async def test():
             self.assertEqual(await invoker1.protocol(), 'IF1')
-            print(await invoker1.protocol2())
+            try:
+                await invoker1.protocol2()
+                self.fail('No exception raised.')
+            except IFException as e:
+                self.assertEqual(e.__str__(), 'Function [protocol2] not available.')
 
         IOLoop.current().add_callback(test)
 

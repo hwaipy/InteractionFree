@@ -195,16 +195,14 @@ class AsyncRemoteObject(RemoteObject):
             aw = queue.get()
 
             def onComplete():
-                if invokeFuture.isSuccess():
-                    queue.put_nowait(invokeFuture.result())
-                else:
-                    print('exception:', invokeFuture.exception())
-                    # aw.throw(invokeFuture.exception())
-                    aw.close()
+                queue.put_nowait(invokeFuture)
 
             invokeFuture.onComplete(onComplete)
-            return await aw
-            # return self.__worker.send(message)
+            invokeFuture = await aw
+            if invokeFuture.isSuccess():
+                return invokeFuture.result()
+            else:
+                raise invokeFuture.exception()
 
         return invoke
 
