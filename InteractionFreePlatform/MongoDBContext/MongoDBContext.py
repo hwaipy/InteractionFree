@@ -3,6 +3,7 @@ from motor.motor_tornado import MotorClient
 from MongoDBContext.UserManager import UserManager
 from MongoDBContext.IFLocal import IFLocal
 from Config import Config
+from MongoDBContext.Storage import Storage
 
 
 class IFConfigContext:
@@ -21,6 +22,7 @@ class IFDataContext:
     def __init__(self, db):
         self.db = db
         self.IFLocal = IFLocal(db.IFLocal)
+        self.storage = Storage(db)
 
 
 class MongoDBContext:

@@ -1,6 +1,5 @@
 from IFCore import IFException
 
-
 class IFLocal:
     LauncherName = 'LauncherName'
     Brief = 'Brief'

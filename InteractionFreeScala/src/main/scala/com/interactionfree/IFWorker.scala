@@ -3,11 +3,9 @@ package com.interactionfree
 import java.lang.Thread.UncaughtExceptionHandler
 import java.nio.charset.Charset
 import java.util.concurrent.{Executors, LinkedBlockingQueue, ThreadFactory}
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
-
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong}
 import scala.language.dynamics
 import org.zeromq.{SocketType, ZContext, ZMsg}
-
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
@@ -87,21 +85,23 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
   receivingExecutor.submit(new Runnable {
     private val charset = Charset.forName("UTF-8")
 
-    override def run(): Unit = while (!closed.get) {
-      try {
-        val zmsg = ZMsg.recvMsg(socket)
-        if (zmsg.size() != 6) throw new IFException("Invalid Message from Broker.")
-        val it = zmsg.iterator()
-        it.next()
-        assert(it.next().getString(charset) == IFDefinition.PROTOCOL)
-        val messageID = it.next().getData
-        val fromAddress = it.next().getData
-        val serialization = it.next().getString(charset)
-        val invocation = Invocation.deserialize(it.next().getData, serialization)
-        val msg = Message.newFromBrokerMessage(messageID, fromAddress, invocation, serialization)
-        if (invocation.isRequest) onRequest(msg) else onResponse(msg)
-      } catch {
-        case e: Throwable => if (!closed.get) println(e)
+    override def run(): Unit = {
+      while (!closed.get) {
+        try {
+          val zmsg = ZMsg.recvMsg(socket)
+          if (zmsg.size() != 6) throw new IFException("Invalid Message from Broker.")
+          val it = zmsg.iterator()
+          it.next()
+          assert(it.next().getString(charset) == IFDefinition.PROTOCOL)
+          val messageID = it.next().getData
+          val fromAddress = it.next().getData
+          val serialization = it.next().getString(charset)
+          val invocation = Invocation.deserialize(it.next().getData, serialization)
+          val msg = Message.newFromBrokerMessage(messageID, fromAddress, invocation, serialization)
+          if (invocation.isRequest) onRequest(msg) else onResponse(msg)
+        } catch {
+          case e: Throwable => if (!closed.get) println(e)
+        }
       }
     }
   })
@@ -130,6 +130,9 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
     if (isService) asynchronousInvoker().unregister()
     socket.close()
     context.close()
+    receivingExecutor.shutdown()
+    hbExecutor.shutdown()
+    localInvokingExecutor.shutdown()
   }
 
   private class FutureEntry(var result: Option[Any] = None, var cause: Option[Throwable] = None)
@@ -270,4 +273,10 @@ private class InvokeItem(worker: IFWorker, target: String, functionName: String)
   def requestMessage(timeout: Duration) = Await.result[Any](worker.send(toMessage), timeout)
 
   def toMessage = if (target == "") Message.newBrokerMessage(invocation) else Message.newServiceMessage(target, invocation)
+}
+
+object IFWorkerApp extends App {
+  val worker = IFWorker("tcp://localhost:224", "IFWorkerAppTest")
+  Thread.sleep(5000)
+  worker.close()
 }

@@ -39,15 +39,23 @@ if __name__ == '__main__':
     app = web.Application(handlers_array, **settings)
     app.listen(webPort)
 
-    # worker1 = IFWorker(brokerURL, serviceName='TestService', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=5)
-    # worker2 = IFWorker(brokerURL, serviceName='TestService2', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
-    # worker3 = IFWorker(brokerURL, serviceName='TestService3', serviceObject=None,
-    #                    interfaces=['TestInterface 1', 'TestInterface 2'], timeout=1)
-
     fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
         IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
+    stSer = IFWorker(brokerURL, serviceName='Storage', serviceObject=MongoDBContext.MongoDBContext.IFData.storage)
     # ArduinoZMQBridge.start()
+
+    # d1 = IFWorker(brokerURL).Storage.range('TDCLocal', '', '')
+    # print(d1)
+    # from datetime import datetime, tzinfo
+    # import time
+    # from dateutil import tz
+    #
+    # NYC = tz.gettz('Europe / Berlin')
+    # print(datetime.fromtimestamp(time.time(), NYC))
+    # print(d1['Data'].keys())
+    # d2 = IFWorker(brokerURL).Storage.latest('TDCLocal', time1)
+    # print(d2)
+    # d3 = IFWorker(brokerURL).Storage.latest('TDCLocal', '2020-05-04 00:21:21.605')
+    # print(d3)
 
     IFLoop.join()

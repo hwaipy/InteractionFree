@@ -23,7 +23,13 @@ class IFWorker {
     message.addString("")
     message.addString("IF1")
     message.addString(messageID)
-    message.addString("Broker")
+    if (target == "") {
+      message.addString("Broker")
+      message.addString("")
+    } else {
+      message.addString("Service")
+      message.addString(target)
+    }
     message.addString("Msgpack")
     message.addBuffer(contentBuffer)
     this.waitingList.set(messageID, [onResponse, onError])
