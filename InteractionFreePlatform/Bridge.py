@@ -19,7 +19,6 @@ class WebSocketZMQBridgeHandler(websocket.WebSocketHandler):
         self.__stream.connect(self.__endpoint)
 
     def on_close(self, *args, **kwargs):
-        print('close')
         self.__stream.close()
 
     def on_message(self, message):

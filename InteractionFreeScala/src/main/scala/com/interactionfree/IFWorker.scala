@@ -75,7 +75,6 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
   private val receivingExecutor = Executors.newSingleThreadExecutor()
   private val hbExecutor = Executors.newSingleThreadExecutor()
   private val localInvokingExecutor = Executors.newSingleThreadExecutor()
-  private val sendingQueue = new LinkedBlockingQueue[Message]()
   private val messageExpiration = new AtomicLong(2000)
   private val heartbeatInterval = IFDefinition.HEARTBEAT_LIVETIME / 5
   private val closed = new AtomicBoolean(false)
@@ -106,15 +105,21 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
     }
   })
   hbExecutor.submit(new Runnable {
+    private val needReReg = new AtomicBoolean(isService)
+
     override def run(): Unit = {
       while (!closed.get) {
         try {
+          if (needReReg.get) {
+            blockingInvoker().registerAsService(serviceName, interfaces)
+            needReReg set false
+          }
+          Thread.sleep(IFDefinition.HEARTBEAT_LIVETIME / 5)
           val hb = blockingInvoker("", timeout = (IFDefinition.HEARTBEAT_LIVETIME / 5) milliseconds).heartbeat().asInstanceOf[Boolean]
-          if (!hb && isService) blockingInvoker().registerAsService(serviceName, interfaces)
+          if (!hb && isService) needReReg set true
         } catch {
           case e: Throwable => if (!closed.get) println(s"Heartbeat: ${e.getMessage}")
         }
-        Thread.sleep(IFDefinition.HEARTBEAT_LIVETIME / 5)
       }
     }
   })
