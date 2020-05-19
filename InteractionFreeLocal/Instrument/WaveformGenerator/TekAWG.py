@@ -387,7 +387,8 @@ class TekAWG5014C(TekAWG):
         super().__init__(resourceID)
 
 if __name__ == "__main__":
-    awg = TekAWG5014C('TCPIP::172.16.20.111::INSTR')
+    # awg = TekAWG5014C('TCPIP::172.16.20.111::INSTR')
+    awg = TekAWG5014C('TCPIP::172.16.60.158::INSTR')
 
     from IFWorker import IFWorker
     from IFCore import IFLoop
