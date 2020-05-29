@@ -14,17 +14,12 @@ import os
 
 
 class Instrument:
-    visa_resources = {'AWG70002A': 'GPIB8::1::INSTR'}
-
     def __init__(self, instr_name=""):
         self.instr_name = instr_name
         self.rm = visa.ResourceManager()
         self._inited = False
-        if not instr_name in self.visa_resources:
-            print("Open resource: No Resource Named:'", instr_name, "' Found")
-            return
-        self.instr_handle = self.rm.open_resource(self.visa_resources[instr_name])
-        print("Open resource: Resource opened: ", self.instr_handle.query("*IDN?"))
+        self.instr_handle = self.rm.open_resource('GPIB8::1::INSTR')
+        # print("Open resource: Resource opened: ", self.instr_handle.query("*IDN?"))
         self._inited = True
 
     def __enter__(self):
@@ -33,11 +28,6 @@ class Instrument:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-        # if exc_tb is None:
-        #    print '[Exit %s]: Exited without exception.' % self.tag
-        # else:
-        #    print '[Exit %s]: Exited with exception raised.' % self.tag
-        #    return False   # 可以省略，缺省的None也是被看做是False
 
     def list_resource(self):
         resources = self.rm.list_resources()
@@ -61,31 +51,21 @@ class Instrument:
         ''' Return List values queried'''
         if self._is_valid():
             return self.instr_handle.query_ascii_values(msg)
-            # if we want numpy return, and hex format, with separater '$'
-            # return self.instr_handle.query_ascii_values(msg, container=numpy.array, converter='x', separator='$')
 
     def _query_binary(self, msg, datatype='B'):
         ''' Return List values queried in binary'''
         if self._is_valid():
             return self.instr_handle.query_binary_values(msg, datatype)
-            # if we have double 'd' in big endian:
-            # return self.instr_handle.query_binary_values(msg, datatype='d', is_big_endian=True)
 
     def _write_ascii(self, msg, values):
         ''' write values (a list)'''
         if self._is_valid():
             self.instr_handle.write_ascii_values(msg, values)
-            # if we want to convert to hex, and separate with '$'
-            # default converter = 'f', separator = ','
-            # self.instr_handle.write_ascii_values(msg, values, converter='x', separator='$')
 
     def _write_binary(self, msg, values, datatype='f', is_big_endian=False):
         ''' write values (a list)'''
         if self._is_valid():
             self.instr_handle.write_binary_values(msg, values, datatype, is_big_endian)
-            # if we have double 'd' in big endian:
-            # default converter = 'f', separator = ','
-            # self.instr_handle.write_ascii_values(msg, values, datatype='d', is_big_endian=True)
 
     def _write_raw(self, msg):
         if self._is_valid():
@@ -96,6 +76,7 @@ class Instrument:
             return self.instr_handle.read_raw()
 
     def close(self):
+        print('e')
         if self._is_valid():
             print('Close Resource: ', self.instr_name)
             self.instr_handle.close()
@@ -601,7 +582,7 @@ class ModulatorConfig:
             else:
                 waveform += waveformUnits[rn][:length]
             if len(waveform) >= self.waveformLength: break
-        delaySample = -int(self.delay * 25)
+        delaySample = -int(self.delay * 2.5)
         waveform = waveform[delaySample:] + waveform[:delaySample]
         return waveform[:self.waveformLength]
 
@@ -637,7 +618,7 @@ class ModulatorConfig:
 
 class AWGEncoder:
     def __init__(self):
-        self.sampleRate = 25e9
+        self.sampleRate = 25e8
         self.waveformLength = 10 * 10 * 25
         self.randomNumbers = [0] * 10
         self.firstPulseMode = False
@@ -650,10 +631,10 @@ class AWGEncoder:
         self.ampDecoyYSlope = 0
         self.ampDecoyO = 0
         self.ampPhase = 0.7
-        self.pulseWidthDecoy = 2
+        self.pulseWidthDecoy = 1.99
         self.pulseWidthLaser = 3
-        self.pulseWidthTime0 = 2
-        self.pulseWidthTime1 = 2
+        self.pulseWidthTime0 = 1.9
+        self.pulseWidthTime1 = 1.9
         self.pulseWidthPM = 2
         self.pulseWidthSync = 2
         self.interferometerDiff = 3
@@ -688,18 +669,18 @@ class AWGEncoder:
         else:
             return 0
 
-    # def _ampModTime(self, pulseIndex, randomNumber):    #decoy=0->vacuum->high level->pass
-    #     if pulseIndex == -1: return 0
-    #     decoy = int(randomNumber / 2)
-    #     if decoy == 0:
-    #         return 0
-    #     elif decoy == 1 or decoy == 2:
-    #         return 1
-    #     else:
-    #         return (pulseIndex == randomNumber % 2) * (
-    #             [self.betterAMTimeAmpPulse0, self.betterAMTimeAmpPulse1][pulseIndex])
+    def _ampModTime1(self, pulseIndex, randomNumber):    #decoy=0->vacuum->high level->pass
+        if pulseIndex == -1: return 0
+        decoy = int(randomNumber / 2)
+        if decoy == 0:
+            return 0
+        elif decoy == 1 or decoy == 2:
+            return 1
+        else:
+            return (pulseIndex == randomNumber % 2) * (
+                [self.betterAMTimeAmpPulse0, self.betterAMTimeAmpPulse1][pulseIndex])
 
-    def _ampModTime(self, pulseIndex, randomNumber):
+    def _ampModTime2(self, pulseIndex, randomNumber):
         if pulseIndex == -1: return 0
         decoy = int(randomNumber / 2)
         if decoy == 0:
@@ -742,9 +723,11 @@ class AWGEncoder:
 
         syncCount = self.waveformLength / waveformSyncPeriodLength
         if math.fabs(int(syncCount + 0.5) - syncCount) > 0.001:
-            raise RuntimeError('Sync period does not match the length of waveform.')
+            # raise RuntimeError('Sync period does not match the length of waveform.')
+            print('Sync period does not match the length of waveform.')
         if waveformSyncPeriodLength < waveformPeriodLength:
-            raise RuntimeError('Sync can not be faster then other signals.')
+            print('Sync can not be faster then other signals.')
+            # raise RuntimeError('Sync can not be faster then other signals.')
 
         modulatorConfigs = {
             'AMDecoy': ModulatorConfig(self.pulseWidthDecoy / waveformPeriod, self.delayDecoy,
@@ -752,14 +735,14 @@ class AWGEncoder:
                                        self.waveformLength, self._ampModDecoy, self._ampModDecoySlope),
             'AMTime1': ModulatorConfig(self.pulseWidthTime0 / waveformPeriod, self.delayTime1,
                                        self.interferometerDiff / waveformPeriod, waveformPeriodLength,
-                                       self.waveformLength, self._ampModTime),
+                                       self.waveformLength, self._ampModTime1),
             'AMTime2': ModulatorConfig(self.pulseWidthTime1 / waveformPeriod, self.delayTime2,
                                        self.interferometerDiff / waveformPeriod, waveformPeriodLength,
-                                       self.waveformLength, self._ampModTime),
-            'PM': ModulatorConfig(self.pulseWidthPM / waveformPeriod, self.delayPhase,
+                                       self.waveformLength, self._ampModTime2),
+            'PMII': ModulatorConfig(self.pulseWidthPM / waveformPeriod, self.delayPhase,
                                   self.interferometerDiff / waveformPeriod, waveformPeriodLength, self.waveformLength,
                                   self._ampModPhase),
-            'Laser': ModulatorConfig(self.pulseWidthLaser / waveformPeriod, self.delayLaser,
+            'PMI': ModulatorConfig(self.pulseWidthLaser / waveformPeriod, self.delayLaser,
                                      self.interferometerDiff / waveformPeriod, waveformPeriodLength,
                                      self.waveformLength, self._ampModLaser),
             'Sync': ModulatorConfig(self.pulseWidthSync / waveformSyncPeriod, self.delaySync,
@@ -771,7 +754,8 @@ class AWGEncoder:
         for waveformName in modulatorConfigs.keys():
             config = modulatorConfigs.get(waveformName)
             waveform = config.generateWaveform(self.randomNumbers,
-                                               'Laser'.__eq__(waveformName) and self.firstPulseMode)
+                                               #'Laser'.__eq__(waveformName) and
+                                               self.firstPulseMode)
             waveforms[waveformName] = np.array(waveform)
 
         return waveforms
@@ -878,11 +862,14 @@ class AWGDev:
         t2 = time.time()
 
         self.dev.writeWaveform("Waveform1", reformedWaveforms[0])
-        self.dev.addMarker('Waveform1', reformedWaveforms[1])
-        self.dev.writeWaveform("Waveform2", reformedWaveforms[2])
-        self.dev.addMarker('Waveform2', reformedWaveforms[3])
+        self.dev.writeWaveform("Waveform2", reformedWaveforms[1])
+        self.dev.writeWaveform("Waveform3", reformedWaveforms[2])
+        self.dev.writeWaveform("Waveform4", reformedWaveforms[3])
+        self.dev.addMarker('Waveform1', reformedWaveforms[4])
         self.dev.assignOutput(1, "Waveform1")
         self.dev.assignOutput(2, "Waveform2")
+        self.dev.assignOutput(3, "Waveform3")
+        self.dev.assignOutput(4, "Waveform4")
         self.dev._setOutput(1, True)
         self.dev._setOutput(2, True)
 
@@ -903,62 +890,64 @@ class AWGDev:
 
 def reformWaveforms(waveforms, betterAMTimeA):
     waveform1 = waveforms['AMDecoy']
-    marker11 = waveforms['Laser']
+    waveform2 = waveforms['PMI']
+    waveform3 = waveforms['PMII']
+    waveform4 = waveforms['AMTime1']
+    marker11 = waveforms['AMTime2']
     marker12 = waveforms['Sync']
-    waveform2 = waveforms['AMTime1']
-    marker21 = waveforms['PM']
-    marker22 = waveforms['AMTime2']
-
-    if not betterAMTimeA:
-        wft = waveform2
-        waveform2 = marker21
-        marker21 = wft
 
     waveform1 = waveform1 * 2 - 1
     waveform2 = waveform2 * 2 - 1
 
     marker11 = np.array(marker11 > 0, dtype=int)
     marker12 = np.array(marker12 > 0, dtype=int)
-    marker21 = np.array(marker21 > 0, dtype=int)
-    marker22 = np.array(marker22 > 0, dtype=int)
-    marker1 = np.column_stack((marker11, marker12))
-    marker2 = np.column_stack((marker21, marker22))
+    marker1 = np.column_stack((marker12, marker11))
+    print(marker1.shape)
 
-    return (waveform1, marker1, waveform2, marker2)
+    return (waveform1, waveform2, waveform3, waveform4, marker1)
 
 
 if __name__ == "__main__":
-    encoder = AWGEncoder()
-    encoder.randomNumbers = [6] * 8
-    encoder.waveformLength = len(encoder.randomNumbers) * 250
-    encoder.syncPeriod = 80
-    encoder.firstPulseMode = False
+    # encoder = AWGEncoder()
+    # encoder.randomNumbers = [0,1,2,3,4,5,6,7]
+    # encoder.waveformLength = len(encoder.randomNumbers) * 25
+    # encoder.syncPeriod = 80
+    # # encoder.firstPulseMode = True
     # encoder.pulsePairMode = False
-    encoder.pulsePairMode = True
-    encoder.pulseWidthTime0 = 1
-    startTime = time.time()
-    waveforms = encoder.generateWaveforms()
-    stopTime = time.time()
-    print('finished in {} s'.format(stopTime - startTime))
-
-    import matplotlib.pyplot as plt
-
-    # waveform = waveforms['AMDecoy']
-    waveform = waveforms['AMTime1']
+    # encoder.pulsePairMode = True
+    # encoder.pulseWidthTime0 = 1
+    # encoder.pulseWidthDecoy = 1.8
+    # encoder.pulseWidthTime0 = 1.9
+    # encoder.pulseWidthTime1 = 1.9
+    # startTime = time.time()
+    # waveforms = encoder.generateWaveforms()
+    # stopTime = time.time()
+    # print('finished in {} s'.format(stopTime - startTime))
+    #
+    # import matplotlib.pyplot as plt
+    #
+    # # waveform = waveforms['AMDecoy']
+    # # waveform = waveforms['AMTime1']
     # waveform = waveforms['AMTime2']
-    # waveform = waveforms['Sync']
-    # waveform = waveforms['Laser']
-    # waveform = waveforms['PM']
-    plt.plot([i for i in range(0, len(waveform))], waveform)
+    # # waveform = waveforms['Sync']
+    # # waveform = waveforms['Laser']
+    # # waveform = waveforms['PM']
+    # print(waveform)
+    # plt.plot([i for i in range(0, len(waveform))], waveform)
     # plt.show()
 
-    # import Pydra
+    import Pydra
     dev = AWGDev()
-    # session = Pydra.Session.newSession(('192.168.25.27',20102), dev, 'AWG-MDI-Alice')
-    randomNumbersAlice = [0 for i in range(100000)]
-    waveformLength = len(randomNumbersAlice) * 250
+    session = Pydra.Session.newSession(('192.168.25.27',20102), dev, 'AWG-MDI-David')
+    randomNumbersAlice = [0,1,2,3,4,5,6,7]
+    # randomNumbersAlice = [6,1,2,3,4,5,7,0]
+    waveformLength = len(randomNumbersAlice) * 25
     dev.configure("waveformLength", waveformLength)
-    dev.configure("syncPeriod", 250)
+    dev.configure("syncPeriod", 40)
     dev.configure("firstLaserPulseMode", False)
+    dev.configure("pulsePairMode", True)
     dev.setRandomNumbers(randomNumbersAlice)
     dev.generateNewWaveform()
+
+    # import time
+    # time.sleep(1)

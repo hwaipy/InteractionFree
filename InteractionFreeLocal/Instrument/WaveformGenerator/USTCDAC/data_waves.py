@@ -109,22 +109,22 @@ class waveform:
         unit = [start_addr,length,0,0]
         self.seq = unit*4096
 
-    def generate_count_seq(self, start_addr=0, length=5000, wait_cnt=30000):
+    def generate_count_seq(self, wait_cnt=30000):
         unit = [0,1250,wait_cnt,0x4<<11]*3
         unit = unit+[1250,10000,2,0x4<<11]
         self.seq = unit*(4096>>1)
 
-    def generate_trig_seq(self, loopcnt=16, repeat=2000, start_addr=0, length=200):
+    def generate_trig_seq(self, start_addr=0, length=200):
         length = length >> 3
         unit = [start_addr,length,0,0x8<<11]*4096
         self.seq = unit
         return unit
-        last = [start_addr,length,0,1<<15|0x8<<11]
+        # last = [start_addr,length,0,1<<15|0x8<<11]
         # if repeat < 2:
         #     self.seq = last*loopcnt
         # else:
 
-        self.seq = unit*(loopcnt-1)+last+[0,0,0,0]*8
+        # self.seq = unit*(loopcnt-1)+last+[0,0,0,0]*8
         # print('序列长度：',len(self.seq))
 
     def generate_squr(self, repeat=0, lowtime1=0, hightime=100, lowtime2=100, low=0, high=65535, pad=1):

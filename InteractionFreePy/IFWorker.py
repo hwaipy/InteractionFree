@@ -19,10 +19,9 @@ class IFWorker(object):
         self.__waitingMapLock = threading.Lock()
         self.blocking = blocking
         self.timeout = timeout
-        self.__isService = serviceName != None
-        self.__serviceName = serviceName
-        self.__serviceObject = serviceObject
-        self.__interfaces = interfaces
+        self.__isService = False
+        if serviceName != None:
+            self.bindService(serviceName, serviceObject, interfaces)
         threading.Thread(target=self.__hbLoop, daemon=True).start()
         IFLoop.tryStart()
         if self.__isService:
@@ -110,6 +109,17 @@ class IFWorker(object):
 
     def __getattr__(self, item):
         return InvokeTarget(self, item)
+
+    def close(self):
+        self.unregister()
+
+    def bindService(self, serviceName, serviceObject, interfaces=[]):
+        if self.__isService:
+            raise IFException('Service already bind.')
+        self.__isService = serviceName != None
+        self.__serviceName = serviceName
+        self.__serviceObject = serviceObject
+        self.__interfaces = interfaces
 
 
 class InvokeTarget:

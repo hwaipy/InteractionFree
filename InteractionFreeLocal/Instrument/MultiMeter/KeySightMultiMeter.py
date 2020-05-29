@@ -47,7 +47,7 @@ class KeySight_MultiMeter_34465A(VISAInstrument):
 
 
 class KeySight_MultiMeter_34470A(KeySight_MultiMeter_34465A):
-    manufacturer = 'Agilent Technologies'
+    manufacturer = 'Keysight Technologies'
     model = '34470A'
 
     def __init__(self, resourceID):

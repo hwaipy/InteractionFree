@@ -67,7 +67,7 @@ class IFBroker(object):
         distributingAddress = str(distributingAddress, encoding='UTF-8')
         try:
             targetAddress = self.manager.getAddressOfService(sourcePoint, distributingAddress)
-            if not targetAddress: raise IFException('Service not exist.')
+            if not targetAddress: raise IFException('Service {} not exist.'.format(distributingAddress))
             self.main_stream.send_multipart([targetAddress] + msg[:3] + [sourcePoint] + msg[5:])
         except BaseException as e:
             errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(Message(msg).messageID, str(e)))

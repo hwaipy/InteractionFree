@@ -1,6 +1,6 @@
 __author__ = 'Hwaipy'
 
-from Instruments import DeviceException, Instrument
+from Instrument.Instruments import DeviceException, Instrument
 from socket import *
 
 
@@ -51,7 +51,6 @@ class FTDC(Instrument):
 
 if __name__ == '__main__':
     import sys
-    import Pydra
     import random
     import math
 
@@ -66,10 +65,10 @@ if __name__ == '__main__':
     #     print(math.fabs(ret - vs[i])*1e6)
     # sys.exit(0)
 
-    session1 = Pydra.Session.newSession(('192.168.25.27', 20102), FTDC('192.168.25.4'), 'FTDC-Alice')
-    session2 = Pydra.Session.newSession(('192.168.25.27', 20102), FTDC('192.168.25.7'), 'FTDC-Bob')
-    for line in sys.stdin:
-        if line == 'q\n':
-            break
-    session1.stop()
-    session2.stop()
+    dev = FTDC('192.168.25.7')
+    print(dev.readCode(1))
+    dev.setCode(1, 919028)
+    print(dev.readCode(1))
+    # 919028
+    # print(dev.setVoltage(1, 0))
+    # print(dev.readVoltage(1))
