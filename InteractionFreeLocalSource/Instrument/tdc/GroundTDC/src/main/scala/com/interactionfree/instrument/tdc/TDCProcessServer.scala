@@ -5,10 +5,12 @@ import java.net.ServerSocket
 import java.nio.LongBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
+
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import com.interactionfree.NumberTypeConversions._
+import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
 
 class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter]) {
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
@@ -132,7 +134,8 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
   private def flush() = {
     val data = timeEvents.zipWithIndex.map(z => z._1.toArray.map(t => t + delays(z._2))).toArray
     timeEvents.foreach(_.clear)
-    dataBlocks += new DataBlock(data, System.currentTimeMillis(), unitEndTime - timeUnitSize, unitEndTime)
+    val creationTime = if (GroundTDC.LOCAL) LocalTDCDataFeeder.getNextLocalDataBlockCreationTime else System.currentTimeMillis()
+    dataBlocks += new DataBlock(data, creationTime, unitEndTime - timeUnitSize, unitEndTime)
     unitEndTime += timeUnitSize
   }
 }

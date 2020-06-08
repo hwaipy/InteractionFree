@@ -1,5 +1,7 @@
 package com.interactionfree.instrument.tdc
 
+import java.util.concurrent.atomic.AtomicLong
+
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
 

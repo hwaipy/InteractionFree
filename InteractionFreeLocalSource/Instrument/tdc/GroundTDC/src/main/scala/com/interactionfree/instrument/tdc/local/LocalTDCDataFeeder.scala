@@ -5,12 +5,15 @@ import java.nio.file.{Files, Paths}
 import java.util.concurrent.atomic.AtomicLong
 
 import com.interactionfree.IFWorker
+import com.interactionfree.instrument.tdc.GroundTDC
 
 import scala.jdk.CollectionConverters._
 
 object LocalTDCDataFeeder {
   private val localDataRoot = "/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501004200-004700-10k100M-all"
   private val localDataFiles = Files.list(Paths.get(localDataRoot)).iterator().asScala.toList.sorted
+  private val startTime = localDataFiles.head.getFileName.toString.split("-").head.toLong
+  private val dataBlockCount = new AtomicLong(0)
 
   def start(port: Int, dataRate: Int = 5000000) = {
     Thread.sleep(1000)
@@ -52,6 +55,9 @@ object LocalTDCDataFeeder {
     socket.close()
     worker.close()
   }
+
+  def getNextLocalDataBlockCreationTime = startTime + dataBlockCount.getAndIncrement() * 1000
+
 }
 
 //class MDIQKDReviewer(channelCount: Int) extends DataAnalyser {
