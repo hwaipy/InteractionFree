@@ -3,13 +3,15 @@ import math
 import numpy as np
 
 class ModulatorConfig:
-    def __init__(self, duty, delay, diff, waveformPeriodLength, waveformLength, ampMod):
+    def __init__(self, duty, delay, diff, waveformPeriodLength, waveformLength, sampleRate, randomNumberRange, ampMod):
         self.duty = duty
         self.delay = delay
         self.diff = diff
         self.waveformPeriodLength = waveformPeriodLength
         self.waveformLength = waveformLength
         self.ampMod = ampMod
+        self.sampleRate = sampleRate
+        self.randomNumberRange = randomNumberRange
 
     def generateWaveform(self, randomNumbers, firstPulseMode):
         waveformPositions = [i * self.waveformPeriodLength for i in range(0, len(randomNumbers))]
@@ -25,13 +27,13 @@ class ModulatorConfig:
             else:
                 waveform += waveformUnits[rn][:length]
             if len(waveform) >= self.waveformLength: break
-        delaySample = -int(self.delay * 2.5)
+        delaySample = -int(self.delay * (self.sampleRate/1e9))
         waveform = waveform[delaySample:] + waveform[:delaySample]
         return waveform[:self.waveformLength]
 
-    def generateWaveformUnits(self, ):
+    def generateWaveformUnits(self):
         waveforms = []
-        for i in range(0, 8):
+        for i in range(0, self.randomNumberRange):
             waveform = self._generateWaveformUnit(i)
             waveforms.append(waveform)
         return waveforms
@@ -52,13 +54,15 @@ class ModulatorConfig:
 
 
 class AWGEncoder:
-    def __init__(self, worker, awgNames):
+    def __init__(self, worker, awgName, channelMapping):
         self.worker = worker
-        self.awgNames = awgNames
-        self.awgs = [self.worker.asyncInvoker(name) for name in self.awgNames]
+        self.awgName = awgName
+        self.awg = self.worker.asyncInvoker(awgName)
         self.sampleRate = 2e9
         self.waveformLength = 10 * 10 * 25
         self.randomNumbers = [0] * 10
+        self.phaseRandomNumbers = [0] * 10
+        self.phaseRandomizationSlice = 32
         self.firstPulseMode = False
         self.specifiedRandomNumber = -1
         self.ampDecoyZ = 1
@@ -72,22 +76,19 @@ class AWGEncoder:
         self.pulseWidthTime0 = 1.9
         self.pulseWidthTime1 = 1.9
         self.pulseWidthPM = 2
-        self.pulseWidthPR = 2
         self.pulseDiff = 3
         self.delayDecoy = 0
         self.delayTime1 = 0
         self.delayTime2 = 0
         self.delayPM = 0
         self.delayPR = 0
-        self.channelMapping = {
-            'AMDecoy': [0, 3],
-            'AMTime1': [1, 1],
-            'AMTime2': [1, 3],
-            'PM': [0, 2],
-        }
+        self.channelMapping = channelMapping
 
     def setRandomNumbers(self, rns):
         self.randomNumbers = rns
+
+    def setPhaseRandomNumbers(self, rns):
+        self.phaseRandomNumbers = rns
 
     def configure(self, key, value):
         if 'waveformLength'.__eq__(key):
@@ -95,9 +96,9 @@ class AWGEncoder:
         elif 'delayDecoy'.__eq__(key):
             self.delayDecoy = value
         elif 'delayPM'.__eq__(key):
-            self.delayPhase = value
+            self.delayPM = value
         elif 'delayPR'.__eq__(key):
-            self.delayPhaseRandomization = value
+            self.delayPR = value
         elif 'delayTime0'.__eq__(key):
             self.delayTime1 = value
         elif 'delayTime1'.__eq__(key):
@@ -110,8 +111,6 @@ class AWGEncoder:
             self.pulseWidthTime1 = value
         elif 'pulseWidthPM'.__eq__(key):
             self.pulseWidthPM = value
-        elif 'pulseWidthPR'.__eq__(key):
-            self.pulseWidthPR = value
         elif 'pulseDiff'.__eq__(key):
             self.pulseDiff = value
         elif 'ampDecoyZ'.__eq__(key):
@@ -128,6 +127,8 @@ class AWGEncoder:
             self.ampPM = value
         elif 'ampPR'.__eq__(key):
             self.ampPR = value
+        elif 'phaseRandomizationSlice'.__eq__(key):
+            self.phaseRandomizationSlice = value
         elif 'firstLaserPulseMode'.__eq__(key):
             self.firstPulseMode = value
         elif 'specifiedRandomNumber'.__eq__(key):
@@ -163,11 +164,14 @@ class AWGEncoder:
 
     def __ampModPhase(self, pulseIndex, randomNumber):
         if pulseIndex == -1:
-            return 0.5
+            return 0
         else:
-            # return ((pulseIndex == 0) and (randomNumber % 2 == 1)) * self.ampPM
-            encode = randomNumber % 2
-            return 0.5 + self.ampPM / 2 * math.pow(-1, pulseIndex + encode)
+            return ((pulseIndex == 0) and (randomNumber % 2 == 1)) * self.ampPM
+            # encode = randomNumber % 2
+            # return 0.5 + self.ampPM / 2 * math.pow(-1, pulseIndex + encode)
+
+    def __ampModPR(self, pulseIndex, randomNumber):
+        return randomNumber / self.phaseRandomizationSlice * self.ampPR
 
     # Defination of Random Number:
     # parameter ``randomNumbers'' should be a list of RN
@@ -180,81 +184,165 @@ class AWGEncoder:
         modulatorConfigs = {
             'AMDecoy': ModulatorConfig(self.pulseWidthDecoy / waveformPeriod, self.delayDecoy,
                                        self.pulseDiff / waveformPeriod, waveformPeriodLength,
-                                       self.waveformLength, self.__ampModDecoy),
+                                       self.waveformLength, self.sampleRate, 8, self.__ampModDecoy),
             'AMTime1': ModulatorConfig(self.pulseWidthTime0 / waveformPeriod, self.delayTime1,
                                        self.pulseDiff / waveformPeriod, waveformPeriodLength,
-                                       self.waveformLength, self.__ampModTime1),
+                                       self.waveformLength, self.sampleRate, 8, self.__ampModTime1),
             'AMTime2': ModulatorConfig(self.pulseWidthTime1 / waveformPeriod, self.delayTime2,
                                        self.pulseDiff / waveformPeriod, waveformPeriodLength,
-                                       self.waveformLength, self.__ampModTime1),
+                                       self.waveformLength, self.sampleRate, 8, self.__ampModTime1),
             'PM': ModulatorConfig(self.pulseWidthPM / waveformPeriod, self.delayPM,
                                   self.pulseDiff / waveformPeriod, waveformPeriodLength, self.waveformLength,
-                                  self.__ampModPhase),
-            # 'PR': ModulatorConfig(self.pulseWidthPR / waveformPeriod, self.delayPR,
-            #                       self.pulseDiff / waveformPeriod, waveformPeriodLength, self.waveformLength,
-            #                       self.__ampModPR)
+                                  self.sampleRate, 8, self.__ampModPhase),
+            'PR': ModulatorConfig(1, self.delayPR,
+                                  self.pulseDiff / waveformPeriod, waveformPeriodLength, self.waveformLength,
+                                  self.sampleRate, self.phaseRandomizationSlice, self.__ampModPR)
         }
         waveforms = {}
         for waveformName in modulatorConfigs.keys():
             config = modulatorConfigs.get(waveformName)
-            waveform = config.generateWaveform(self.randomNumbers, self.firstPulseMode)
+            waveform = config.generateWaveform(self.randomNumbers if waveformName != 'PR' else self.phaseRandomNumbers, self.firstPulseMode)
             waveforms[waveformName] = waveform
         return waveforms
 
     async def generateNewWaveform(self, returnWaveform=False):
-        for awg in self.awgs:
-            await awg.beginSession()
-            await awg.turnOffAllChannels()
+        await self.awg.turnOffAllChannels()
         waveforms = self.generateWaveforms()
         for waveformName in waveforms:
             waveform = waveforms[waveformName]
             channelIndex = self.channelMapping[waveformName]
-            await self.awgs[channelIndex[0]].writeWaveform(channelIndex[1], [(2 * v - 1) * 32765 for v in waveform])
-        for awg in self.awgs:
-            await awg.endSession()
+            await self.awg.writeWaveform(channelIndex, waveform)
         if returnWaveform:
             return waveforms
 
-    async def startPlay(self):
-        for key in self.channelMapping:
-            v = self.channelMapping[key]
-            await self.awgs[v[0]].turnOn(v[1])
-        await self.awgs[0].sendTrigger(200e-6, 100000)
-        # self.dev._start()
+    async def startAllChannels(self):
+        await self.awg.turnOnAllChannels()
 
+    async def stopAllChannels(self):
+        await self.awg.turnOffAllChannels()
+
+    async def startChannel(self, name):
+        await self.__setChannelStatus(name, True)
+
+    async def stopChannel(self, name):
+        await self.__setChannelStatus(name, False)
+
+    async def __setChannelStatus(self, name, on):
+        if self.channelMapping.__contains__(name):
+            v = self.channelMapping[name]
+            if on:
+                await self.awg.turnOn(v)
+            else:
+                await self.awg.turnOff(v)
+        else:
+            raise RuntimeError('Channel {} not exists.'.format(name))
+
+    async def startTrigger(self):
+        await self.awg.sendTrigger(0, 1e-3, 60000, 1e-3, 60000)
+        print('Trigger started.')
+
+    # old
+    # async def generateNewWaveform(self, returnWaveform=False):
+    #     for awg in self.awgs:
+    #         await awg.beginSession()
+    #         await awg.turnOffAllChannels()
+    #     waveforms = self.generateWaveforms()
+    #     for waveformName in waveforms:
+    #         waveform = waveforms[waveformName]
+    #         channelIndex = self.channelMapping[waveformName]
+    #         await self.awgs[channelIndex[0]].writeWaveform(channelIndex[1], [(2 * v - 1) * 32765 for v in waveform])
+    #     for awg in self.awgs:
+    #         await awg.endSession()
+    #     if returnWaveform:
+    #         return waveforms
+    #
+    # async def startPlay(self):
+    #     for awg in self.awgs:
+    #         await awg.beginSession()
+    #     for key in self.channelMapping:
+    #         v = self.channelMapping[key]
+    #         await self.awgs[v[0]].turnOn(v[1])
+    #     for awg in self.awgs:
+    #         await awg.endSession()
+    #
+    # async def startChannel(self, name):
+    #     await self.__setChannelStatus(name, True)
+    #
+    # async def stopChannel(self, name):
+    #     await self.__setChannelStatus(name, False)
+    #
+    # async def __setChannelStatus(self, name, on):
+    #     if self.channelMapping.__contains__(name):
+    #         v = self.channelMapping[name]
+    #         await self.awgs[v[0]].beginSession()
+    #         if on:
+    #             await self.awgs[v[0]].turnOn(v[1])
+    #         else:
+    #             await self.awgs[v[0]].turnOff(v[1])
+    #         await self.awgs[v[0]].endSession()
+    #     else:
+    #         raise RuntimeError('Channel {} not exists.'.format(name))
+    #
+    # async def startTrigger(self):
+    #     awg = self.awgs[0]
+    #     await awg.beginSession()
+    #     await awg.sendTrigger(1e-3, 60000, 1e-3, 60000)
+    #     await awg.endSession()
+    #     print('Trigger started.')
 
 if __name__ == '__main__':
     from IFWorker import IFWorker
     from IFCore import IFLoop
 
-    worker = IFWorker('tcp://172.16.60.199:224')
-    dev = AWGEncoder(worker, ['USTCAWG_Test_1A', 'USTCAWG_Test_1B'])
-    worker.bindService('AWGEncoderTest', dev)
+    workerAlice = IFWorker('tcp://172.16.60.199:224')
+    workerBob = IFWorker('tcp://172.16.60.199:224')
+    # devAlice = AWGEncoder(workerAlice, ['USTCAWG_Test_A1', 'USTCAWG_Test_A2'])
+    # devBob = AWGEncoder(workerBob, ['USTCAWG_Test_B1', 'USTCAWG_Test_B2'])
+    # workerAlice.bindService('AWGEncoderTest-Alice', devAlice, {
+    #         'AMDecoy': [0, 3],
+    #         'AMTime1': [1, 1],
+    #         'AMTime2': [1, 3],
+    #         'PM': [0, 2],
+    #         'PR': [0, 1],
+    #     })
+    # workerBob.bindService('AWGEncoderTest-Bob', devBob, {
+    #         'AMDecoy': [0, 3],
+    #         'AMTime1': [1, 1],
+    #         'AMTime2': [1, 3],
+    #         'PM': [0, 2],
+    #         'PR': [0, 1],
+    #     })
+    devAlice = AWGEncoder(workerAlice, 'USTCAWG_Alice', {'AMDecoy': 2, 'AMTime1': 4, 'AMTime2': 6, 'PM': 1, 'PR': 0})
+    devBob = AWGEncoder(workerBob, 'USTCAWG_Bob', {'AMDecoy': 2, 'AMTime1': 4, 'AMTime2': 6, 'PM': 1, 'PR': 0})
+    workerAlice.bindService('MDIQKD_AWGEncoder_Alice', devAlice)
+    workerBob.bindService('MDIQKD_AWGEncoder_Bob', devBob)
     try:
         # randomNumbersAlice = [0, 1, 2, 3, 4, 5, 6, 7]
-        # dev.configure('firstLaserPulseMode', False)
-        # dev.configure('waveformLength', len(randomNumbersAlice) * 8)
-        # dev.configure('pulseWidthDecoy', 0.9)
-        # dev.configure('pulseWidthTime0', 1.9)
-        # dev.configure('pulseWidthTime1', 1.9)
-        # dev.configure('pulseWidthPM', 1.9)
-        # dev.configure('pulseWidthPR', 1.9)
-        # dev.configure('pulseDiff', 1.9)
-        # dev.configure('ampDecoyZ', 1)
-        # dev.configure('ampDecoyX', 0.4)
-        # dev.configure('ampDecoyY', 0.8)
-        # dev.configure('ampDecoyO', 0)
-        # dev.configure('ampTime', 1)
-        # dev.configure('ampPM', 1)
+        # devBob.configure('firstLaserPulseMode', False)
+        # devBob.configure('waveformLength', len(randomNumbersAlice) * 8)
+        # devBob.configure('pulseWidthDecoy', 0.9)
+        # devBob.configure('pulseWidthTime0', 1.9)
+        # devBob.configure('pulseWidthTime1', 1.9)
+        # devBob.configure('pulseWidthPM', 1.9)
+        # devBob.configure('pulseDiff', 1.9)
+        # devBob.configure('ampDecoyZ', 1)
+        # devBob.configure('ampDecoyX', 0.4)
+        # devBob.configure('ampDecoyY', 0.8)
+        # devBob.configure('ampDecoyO', 0)
+        # devBob.configure('ampTime', 1)
+        # devBob.configure('ampPM', 1)
         # # dev.configure('ampPR', 1)
-        # dev.configure('delayDecoy', 0)
-        # dev.configure('delayTime0', 0)
-        # dev.configure('delayTime1', 0)
-        # dev.configure('delayPM', 0)
-        # dev.configure('delayPR', 0)
-        # dev.setRandomNumbers(randomNumbersAlice)
-        # dev.generateNewWaveform()
-        # dev.startPlay()
+        # devBob.configure('delayDecoy', 0)
+        # devBob.configure('delayTime0', 0)
+        # devBob.configure('delayTime1', 0)
+        # devBob.configure('delayPM', 0)
+        # devBob.configure('delayPR', 0)
+        # devBob.setRandomNumbers(randomNumbersAlice)
+        # devBob.startPlay()
+        from tornado.ioloop import IOLoop
+        IOLoop.current().add_callback(devAlice.startTrigger)
+        IOLoop.current().add_callback(devBob.startTrigger)
         IFLoop.join()
     finally:
-        worker.close()
+        workerAlice.close()
+        workerBob.close()

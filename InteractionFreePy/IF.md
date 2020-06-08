@@ -49,7 +49,7 @@ Message send from the Broker is organized as follows:
 | :---------: | :---------: | :-------------------------------------------------------: |
 |      0      |    empty    |                     Defined in ZeroMQ                     |
 |      1      |    'IF1'    |              The version of InteractionFree               |
-|      2      |    bytes    |                    Identity Message ID                    |
+|      2      |    string    |                    Identity Message ID                    |
 |      3      |   address   | The address that the Message is send from. b'' for Broker |
 |      4      |   string    | The method of serialization for the content of invocation |
 |      5      |    bytes    |               The content of the invocation               |

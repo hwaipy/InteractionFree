@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 class USTCDACServer:
-    def __init__(self, ip, port):
+    def __init__(self, ip, port=80):
         self.ip = ip
         self.port = port
         self.dev = None
@@ -17,6 +17,7 @@ class USTCDACServer:
 
     def beginSession(self):
         self.dev = DABoard(id='{}:{}'.format(self.ip, self.port), ip=self.ip, port=self.port, batch_mode=False)
+        self.dev.connect()
 
     def endSession(self):
         self.dev.disconnect()
@@ -77,20 +78,72 @@ class USTCDACServer:
         self.dev.write_seq_fast(channel, seq=seq)
         self.dev.write_wave_fast(channel, wave=wave)
 
-    def sendTrigger(self, interval, count):
-        self.dev.set_trig_count_l1(count)
-        self.dev.set_trig_interval_l1(interval)
+    def sendTrigger(self, interval1, count1, interval2, count2):
+        self.dev.clear_trig_count()
+        self.dev.set_trig_count_l1(count1)
+        self.dev.set_trig_interval_l1(interval1)
+        self.dev.set_trig_count_l2(count2)
+        self.dev.set_trig_interval_l2(interval2)
         self.dev.send_int_trig()
+
+class MergedUSTCDACServer:
+    def __init__(self, awgs, channelMapping):
+        self.awgs = awgs
+        self.channelMapping = channelMapping
+
+    def turnOn(self, channel):
+        mappedChannel = self.channelMapping[channel]
+        self.awgs[mappedChannel[0]].beginSession()
+        self.awgs[mappedChannel[0]].turnOn(mappedChannel[1])
+        self.awgs[mappedChannel[0]].endSession()
+
+    def turnOff(self, channel):
+        mappedChannel = self.channelMapping[channel]
+        self.awgs[mappedChannel[0]].beginSession()
+        self.awgs[mappedChannel[0]].turnOff(mappedChannel[1])
+        self.awgs[mappedChannel[0]].endSession()
+
+    def turnOnAllChannels(self):
+        for awg in self.awgs:
+            awg.beginSession()
+            awg.turnOnAllChannels()
+            awg.endSession()
+
+    def turnOffAllChannels(self):
+        for awg in self.awgs:
+            awg.beginSession()
+            awg.turnOffAllChannels()
+            awg.endSession()
+
+    def writeWaveform(self, channel, wave):
+        mappedChannel = self.channelMapping[channel]
+        self.awgs[mappedChannel[0]].beginSession()
+        self.awgs[mappedChannel[0]].writeWaveform(mappedChannel[1], [(2 * v - 1) * 32765 for v in waveform])
+        self.awgs[mappedChannel[0]].endSession()
+
+    def sendTrigger(self, awgIndex, interval1, count1, interval2, count2):
+        dev = self.awgs[awgIndex]
+        dev.beginSession()
+        dev.sendTrigger(interval1, count1, interval2, count2)
+        dev.endSession()
 
 
 if __name__ == '__main__':
     from IFWorker import IFWorker
     from IFCore import IFLoop
 
-    awg1 = USTCDACServer('172.16.60.199', 40230)
-    awg2 = USTCDACServer('172.16.60.199', 40231)
-    IFWorker('tcp://172.16.60.199:224', 'USTCAWG_Test_1A', awg1)
-    IFWorker('tcp://172.16.60.199:224', 'USTCAWG_Test_1B', awg2)
+    awgA1 = USTCDACServer('192.168.25.232')
+    awgA2 = USTCDACServer('192.168.25.233')
+    awgB1 = USTCDACServer('192.168.25.230')
+    awgB2 = USTCDACServer('192.168.25.231')
+    mawgA = MergedUSTCDACServer([awgA1, awgA2], [[0,1],[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4]])
+    mawgB = MergedUSTCDACServer([awgB1, awgB2], [[0,1],[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4]])
+    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_A1', awgA1)
+    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_A2', awgA2)
+    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_B1', awgB1)
+    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_B2', awgB2)
+    IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Alice', mawgA)
+    IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Bob', mawgB)
     IFLoop.join()
 
     # awg1.turnOffAllChannels()

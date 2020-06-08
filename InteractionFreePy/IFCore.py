@@ -91,8 +91,7 @@ class Message:
         if distributingMode == IFDefinition.DISTRIBUTING_MODE_BROKER: distributingAddress = b''
         # if serialization == 'Plain' or serialization == 'Default' or serialization == 'ZMQ': serialization = b''
         id = Message.__getAndIncrementID()
-        id = msgpack.packb(id)
-        # id = str(id)
+        id = str(id)
         msg = [b'', IFDefinition.PROTOCOL, id, distributingMode, distributingAddress,
                serialization, invocation.serialize(serialization)]
         return Message([Message.__messagePartToBytes(m) for m in msg])
@@ -100,8 +99,7 @@ class Message:
     @classmethod
     def newFromBrokerMessage(cls, fromAddress, invocation, serialization='Msgpack'):
         id = Message.__getAndIncrementID()
-        id = msgpack.packb(id)
-        # id = str(id)
+        id = str(id)
         msg = [b'', IFDefinition.PROTOCOL, id, fromAddress, serialization, invocation.serialize(serialization)]
         return [Message.__messagePartToBytes(m) for m in msg]
 
@@ -124,7 +122,7 @@ class Message:
     def __init__(self, msgc):
         self.__content = msgc
         self.__protocol = msgc[1]
-        self.messageID = msgc[2]
+        self.messageID = msgc[2].decode('UTF-8')
         if self.isOutgoingMessage():
             self.__distributingMode = msgc[3]
             self.distributingAddress = msgc[4]

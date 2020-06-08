@@ -29,6 +29,7 @@ class IFBroker(object):
         self.main_stream = None
 
     def __onMessage(self, msg):
+        # print('---->    {}'.format(msg))
         # if len(msg) != 8: return
         try:
             sourcePoint, msg = msg[0], msg[1:]
@@ -49,36 +50,40 @@ class IFBroker(object):
 
     async def __onMessageDistributeLocal(self, sourcePoint, msg):
         try:
+            message = None
             message = Message(msg)
-            # print(msg)
             invocation = message.getInvocation()
-            # print(invocation)
             result = self.manager.heartbeat(sourcePoint)
             if invocation.getFunction() != 'heartbeat':
                 result = await invocation.perform(self.manager, sourcePoint)
             responseMessage = Message.newFromBrokerMessage(b'', Invocation.newResponse(message.messageID, result))
-            self.main_stream.send_multipart([sourcePoint] + responseMessage)
+            self.__sendMessage([sourcePoint] + responseMessage)
             # print('Responsing: ', responseMessage)
         except BaseException as e:
-            errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(message.messageID, str(e)))
-            self.main_stream.send_multipart([sourcePoint] + errorMsg)
+            if message:
+                errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(message.messageID, str(e)))
+                self.__sendMessage([sourcePoint] + errorMsg)
 
     def __onMessageDistributeService(self, sourcePoint, distributingAddress, msg):
         distributingAddress = str(distributingAddress, encoding='UTF-8')
         try:
             targetAddress = self.manager.getAddressOfService(sourcePoint, distributingAddress)
             if not targetAddress: raise IFException('Service {} not exist.'.format(distributingAddress))
-            self.main_stream.send_multipart([targetAddress] + msg[:3] + [sourcePoint] + msg[5:])
+            self.__sendMessage([targetAddress] + msg[:3] + [sourcePoint] + msg[5:])
         except BaseException as e:
             errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(Message(msg).messageID, str(e)))
-            self.main_stream.send_multipart([sourcePoint] + errorMsg)
+            self.__sendMessage([sourcePoint] + errorMsg)
 
     def __onMessageDistributeDirect(self, sourcePoint, distributingAddress, msg):
         try:
-            self.main_stream.send_multipart([distributingAddress] + msg[:3] + [sourcePoint] + msg[5:])
+            self.__sendMessage([distributingAddress] + msg[:3] + [sourcePoint] + msg[5:])
         except BaseException as e:
             errorMsg = Message.newFromBrokerMessage(b'', Invocation.newError(Message(msg).messageID, str(e)))
-            self.main_stream.send_multipart([sourcePoint] + errorMsg)
+            self.__sendMessage([sourcePoint] + errorMsg)
+
+    def __sendMessage(self, frames):
+        # print('<----    {}'.format(frames))
+        self.main_stream.send_multipart(frames)
 
 
 class Manager:
@@ -138,5 +143,5 @@ class Manager:
 
 
 if __name__ == '__main__':
-    broker = IFBroker("tcp://127.0.0.1:5034")
+    broker = IFBroker("tcp://*:224")
     IFLoop.join()

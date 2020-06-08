@@ -160,6 +160,7 @@ class RawBoard(object):
             try:
                 sent = self.sockfd.send(msg)
             except:
+                print(self.timeout)
                 self.timeout_cnt += 1
                 self.connect()
                 self.init_tcp()

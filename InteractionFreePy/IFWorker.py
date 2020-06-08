@@ -310,38 +310,43 @@ if __name__ == '__main__':
     #     #                   timeout=1)
     #     # print(worker.listServiceNames())
 
-    class Target:
-        def waitFor(self, timeToWait):
-            time.sleep(timeToWait)
-            return 'OK'
+    # class Target:
+    #     def waitFor(self, timeToWait):
+    #         time.sleep(timeToWait)
+    #         return 'OK'
+    #
+    #
+    # IFWorker('tcp://localhost:224', serviceName='DelayService', serviceObject=Target())
+    # worker1 = IFWorker('tcp://localhost:224', blocking=False, timeout=1.5)
+    #
+    #
+    # async def ayncTest():
+    #     invoker = worker1.asynchronousInvoker('DelayService')
+    #     handler = invoker.waitFor(1)
+    #     print(handler)
+    #     queue = asyncio.Queue()
+    #
+    #     def onComplete():
+    #         queue.put_nowait(handler.result())
+    #
+    #     handler.onComplete(onComplete)
+    #     await queue.get()
+    #     print('waited')
+    #
+    #
+    # async def worker():
+    #     print('Start worker')
+    #     await asyncio.sleep(1)
+    #     print('1')
+    #
+    #
+    # asyncio.ensure_future(worker())
+    # asyncio.ensure_future(worker())
+    # asyncio.ensure_future(ayncTest())
+    #
 
-
-    IFWorker('tcp://localhost:224', serviceName='DelayService', serviceObject=Target())
-    worker1 = IFWorker('tcp://localhost:224', blocking=False, timeout=1.5)
-
-
-    async def ayncTest():
-        invoker = worker1.asynchronousInvoker('DelayService')
-        handler = invoker.waitFor(1)
-        print(handler)
-        queue = asyncio.Queue()
-
-        def onComplete():
-            queue.put_nowait(handler.result())
-
-        handler.onComplete(onComplete)
-        await queue.get()
-        print('waited')
-
-
-    async def worker():
-        print('Start worker')
-        await asyncio.sleep(1)
-        print('1')
-
-
-    asyncio.ensure_future(worker())
-    asyncio.ensure_future(worker())
-    asyncio.ensure_future(ayncTest())
-
+    worker = IFWorker("tcp://127.0.0.1:224")
+    # print(worker.Name5.setClientName('Name5'))
+    print(worker.Name5.setFastGPIOMode('0', '0', '1'))
+    print(worker.Name5.writeFastGPIO('0', '0', '0'))
     IFLoop.join()

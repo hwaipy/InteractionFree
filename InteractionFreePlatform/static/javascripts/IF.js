@@ -37,8 +37,7 @@ class IFWorker {
   }
 
   onResponse(content) {
-    var responseIDBuffer = content["ResponseID"]
-    var responseID = StringUtility.Uint8ArrayToString(responseIDBuffer);
+    var responseID = content["ResponseID"];
     var result = content["Result"]
     var error = content["Error"]
     if (this.waitingList.has(responseID)) {
