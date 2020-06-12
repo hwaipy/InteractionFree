@@ -2,6 +2,7 @@ if __name__ == '__main__':
     from IFWorker import IFWorker
     from IFCore import IFLoop
     import time
+    import numpy as np
 
     worker = IFWorker('tcp://172.16.60.199:224')
 
@@ -20,8 +21,23 @@ if __name__ == '__main__':
         dc.setVoltage(0, v)
 
 
-    target = 0.3e-3
+    # voltages = np.linspace(0, 5, 20)
+    # currents = []
+    # for v in voltages:
+    #     setVoltage(v)
+    #     time.sleep(0.5)
+    #     power = readPower()
+    #     print(v, power)
+    #     currents.append(power)
+    #
+    # import matplotlib.pyplot as plt
+    # plt.plot(voltages, currents)
+    # plt.show()
+    # print(worker.EO_LaserDrive.test())
+
+    target = 0.5e-3
     voltage = dc.getVoltageSetpoints()[0]
+    voltage = 2.1
     step = -0.001
     while True:
         power = readPower()

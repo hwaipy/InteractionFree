@@ -26,7 +26,7 @@ object Message {
   def parse(content: Array[Array[Byte]]) = {
     val protocol = new String(content(1), "UTF-8")
     if (!IFDefinition.PROTOCOL.contains(protocol)) throw new IFException(s"Prorocol not available: ${protocol}")
-    val messageID = content(2)
+    val messageID = new String(content(2), "UTF-8")
     val isOutgoingMessage = content.size == 7
     val distributingMode = if (isOutgoingMessage) new String(content(3), "UTF-8") else "Received"
     val remoteAddress = if (isOutgoingMessage) content(4) else content(4)
@@ -35,7 +35,7 @@ object Message {
     new Message(messageID, isOutgoingMessage, distributingMode, remoteAddress, serialization, invocation)
   }
 
-  private def nextMesssageID = MessageIDs.getAndIncrement().toString.getBytes("UTF-8")
+  private def nextMesssageID = MessageIDs.getAndIncrement().toString
 
   def newBrokerMessage(invocation: Invocation, serialization: String = "Msgpack") = new Message(nextMesssageID, true, IFDefinition.DISTRIBUTING_MODE_BROKER, Array[Byte](), serialization, invocation)
 
@@ -43,10 +43,10 @@ object Message {
 
   def newDirectMessage(address: Array[Byte], invocation: Invocation, serialization: String = "Msgpack") = new Message(nextMesssageID, true, IFDefinition.DISTRIBUTING_MODE_DIRECT, address, serialization, invocation)
 
-  def newFromBrokerMessage(messageID: Array[Byte], fromAddress: Array[Byte], invocation: Invocation, serialization: String = "Msgpack") = new Message(messageID, false, IFDefinition.DISTRIBUTING_MODE_DIRECT, fromAddress, serialization, invocation)
+  def newFromBrokerMessage(messageID: String, fromAddress: Array[Byte], invocation: Invocation, serialization: String = "Msgpack") = new Message(messageID, false, IFDefinition.DISTRIBUTING_MODE_DIRECT, fromAddress, serialization, invocation)
 }
 
-class Message private(val messageID: Array[Byte], val isOutgoingMessage: Boolean, val distributingMode: String, val remoteAddress: Array[Byte], val serialization: String, val invocation: Invocation) {
+class Message private(val messageID: String, val isOutgoingMessage: Boolean, val distributingMode: String, val remoteAddress: Array[Byte], val serialization: String, val invocation: Invocation) {
   val protocol = "IF1"
   val isBrokerMessage = isOutgoingMessage && distributingMode == IFDefinition.DISTRIBUTING_MODE_BROKER
   val isServiceMessage = isOutgoingMessage && distributingMode == IFDefinition.DISTRIBUTING_MODE_SERVICE
@@ -55,7 +55,7 @@ class Message private(val messageID: Array[Byte], val isOutgoingMessage: Boolean
 
   def expired(lifetime: Long) = System.currentTimeMillis() - creationTime > lifetime
 
-  def messageIDasLong = new String(messageID, "UTF-8").toInt
+  def messageIDasLong = messageID.toLong
 
   override def toString: String = s"[$distributingMode - $remoteAddress] $invocation"
 }
@@ -96,10 +96,15 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
           val fromAddress = it.next().getData
           val serialization = it.next().getString(charset)
           val invocation = Invocation.deserialize(it.next().getData, serialization)
-          val msg = Message.newFromBrokerMessage(messageID, fromAddress, invocation, serialization)
+          val msg = Message.newFromBrokerMessage(new String(messageID, "UTF-8"), fromAddress, invocation, serialization)
           if (invocation.isRequest) onRequest(msg) else onResponse(msg)
         } catch {
-          case e: Throwable => if (!closed.get) println(e)
+          case e: Throwable => {
+            if (!closed.get) {
+              println(e)
+              e.printStackTrace()
+            }
+          }
         }
       }
     }
@@ -212,7 +217,7 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
 
   private def onResponse(msg: Message) = {
     val invocation = msg.invocation
-    val id = new String(invocation.getResponseID, "UTF-8").toLong
+    val id = invocation.getResponseID.toLong
     waitingMap.remove(id) match {
       case Some((futureEntry, runnable)) => {
         if (invocation.isError) futureEntry.cause = Some(new IFException(invocation.getError))

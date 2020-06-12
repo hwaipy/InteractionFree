@@ -7,36 +7,37 @@ import com.interactionfree.{BlockingIFWorker, IFWorker}
 import com.interactionfree.NumberTypeConversions._
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.language.postfixOps
-//import java.io.PrintWriter
-//import java.nio.file.{Files, Path, Paths, StandardCopyOption}
-//import java.text.SimpleDateFormat
-//import java.time.Duration
-//import java.util.Date
-//import java.util.concurrent.Executors
-//import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReference}
-//import com.hydra.core.MessageGenerator
-//import scala.collection.mutable.{ArrayBuffer, ListBuffer}
-//import scala.concurrent.{Await, ExecutionContext, Future}
-//import scala.concurrent.duration._
-//import scala.collection.JavaConverters._
 
 class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: LocalDateTime, ignoredChannel: Int = -1) {
-  private val qberSections = worker.Storage.range("TDCLocal", startTime.toString, stopTime.toString,
-    Map("Data.DataBlockCreationTime" -> 1, "Data.MDIQKDQBER.ChannelMonitorSync" -> 1)
-  ).asInstanceOf[List[Map[String, Any]]].map(meta => new QBERSection(meta))
-  private val qbersList = QBERs(qberSections)
+  def prepareDataPairs = {
+    val qberSections = worker.Storage.range("TDCLocal", startTime.toString, stopTime.toString,
+      Map("Data.DataBlockCreationTime" -> 1, "Data.MDIQKDQBER.ChannelMonitorSync" -> 1)
+    ).asInstanceOf[List[Map[String, Any]]].map(meta => new QBERSection(meta))
+    val qbersList = QBERs(qberSections)
 
-  private val channelSections = worker.Storage.range("MDIChannelMonitor", LocalDateTime.of(2020, 5, 5, 22, 22).toString, LocalDateTime.now().toString,
-    Map("Data.triggers" -> 1, "Data.timeFirstSample" -> 1, "Data.timeLastSample" -> 1)).asInstanceOf[List[Map[String, Any]]].map(meta => new ChannelSection(meta))
-  private val channelsList = Channels(channelSections)
+    val channelSections = worker.Storage.range("MDIChannelMonitor", LocalDateTime.of(2020, 6, 9, 12, 22).toString, LocalDateTime.of(2020, 6, 9, 12, 40).toString,
+      Map("Data.Triggers" -> 1, "Data.TimeFirstSample" -> 1, "Data.TimeLastSample" -> 1)).asInstanceOf[List[Map[String, Any]]].map(meta => new ChannelSection(meta))
+    val channelsList = Channels(channelSections)
 
-  val dataPairs = qbersList.map(qber => (qber, channelsList.filter(channel => Math.abs(qber.systemTime - channel.channelMonitorSyncs.head) < 3).headOption)).filter(_._2.isDefined).map(z => (z._1, z._2.get))
-  dataPairs.headOption.foreach(dataPair => {
-    val dpp = new DataPairParser(dataPair._1, dataPair._2)
-    dpp.parse()
-  })
+    qbersList.map(qber => (qber, channelsList.filter(channel => Math.abs(qber.systemTime - channel.channelMonitorSyncs.head) < 3).headOption)).filter(_._2.isDefined).map(z => (z._1, z._2.get))
+  }
+
+  val dataPairBuffer = prepareDataPairs.toBuffer
+  println(dataPairBuffer.size)
+  while (dataPairBuffer.nonEmpty) {
+    val dataPair = dataPairBuffer.head
+    try {
+      val dpp = new DataPairParser(dataPair._1, dataPair._2)
+      dpp.parse()
+      dataPairBuffer.remove(0)
+      println("parsed")
+    } catch {
+      case e: Throwable => println(e)
+    }
+
+  }
 
 
   object HOMandQBEREntry {
@@ -46,7 +47,7 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
       (bases.map(a => bases.map(b => List("Correct", "Wrong").map(cw => a + b + " " + cw))).flatten.flatten.mkString(", "))
   }
 
-  class HOMandQBEREntry(val threshold: Double, val ratio: Double, val powerOffsets: Tuple2[Double, Double] = (0, 0), val powerInvalidLimit: Double = 4.5) {
+  class HOMandQBEREntry(val ratioLow: Double, val ratioHigh: Double, val powerOffsets: Tuple2[Double, Double] = (0, 0), val powerInvalidLimit: Double = 4.5) {
     private val homCounts = new Array[Double](6)
     private val qberCounts = new Array[Int](32)
     private val validSectionCount = new AtomicInteger(0)
@@ -54,9 +55,9 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
     def ratioAcceptable(rawPower1: Double, rawPower2: Double) = {
       val power1 = rawPower1 - (if (ignoredChannel == 0) powerOffsets._1 else 0)
       val power2 = rawPower2 - (if (ignoredChannel == 1) powerOffsets._2 else 0)
-      val actualRatio = if (power2 == 0) 0 else power1 / power2 * ratio
+      val actualRatio = if (power2 == 0) 0 else power1 / power2
       if (power1 > powerInvalidLimit || power2 > powerInvalidLimit) false
-      else (actualRatio > threshold) && (actualRatio < (1 / threshold))
+      else (actualRatio >= ratioLow) && (actualRatio < ratioHigh)
     }
 
     def append(qberEntry: QBEREntry) = {
@@ -70,7 +71,7 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
       validSectionCount.incrementAndGet
     }
 
-    def toData(): Array[Double] = Array[Double](threshold, ratio, validSectionCount.get) ++ homCounts ++ qberCounts.map(_.toDouble)
+    def toData(): Array[Double] = Array[Double](ratioLow, ratioHigh, validSectionCount.get) ++ homCounts ++ qberCounts.map(_.toDouble)
   }
 
   class DataPairParser(val qbers: QBERs, val channels: Channels) {
@@ -82,10 +83,10 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
     def parse() = {
       val result = new mutable.HashMap[String, Any]()
       result("CountChannelRelations") = countChannelRelations()
-      val halfRatios = Range(0, 40).map(i => math.pow(1.1, i))
-      val ratios = halfRatios.reverse.dropRight(1).map(a => 1 / a) ++ halfRatios
-      result("HOMandQBERs") = HOMandQBERs(List(1e-10) ++ Range(1, 100).toList.map(i => i / 100.0), ratios.toList)
-      //      worker.Storage.append("MDIQKD_DataReviewer", result)
+      val halfRatio = Range(0, 200).map(i => math.pow(1.02, i))
+      val ratios = halfRatio.reverse.dropRight(1).map(a => 1 / a) ++ halfRatio
+      result("HOMandQBERs") = HOMandQBERs(ratios.toList)
+      worker.Storage.append("MDIQKD_DataReviewer", result)
     }
 
     private def performTimeMatch = {
@@ -118,14 +119,16 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
       Map("Counts 1" -> counts.map(_ (0)), "Counts 2" -> counts.map(_ (1)), "Powers 1" -> powers.map(_._1), "Powers 2" -> powers.map(_._2))
     }
 
-    private def HOMandQBERs(thresholds: List[Double], ratios: List[Double]) = {
-      val homAndQberEntries = thresholds.map(threshold => ratios.map(ratio => new HOMandQBEREntry(threshold, ratio, powerOffsets))).flatten.toArray
+    private def HOMandQBERs(ratios: List[Double]) = {
+      val ratioPairs = (List(0) ++ ratios).zip(ratios ++ List(Double.MaxValue))
+      val homAndQberEntries = ratioPairs.map(ratioPair => new HOMandQBEREntry(ratioPair._1, ratioPair._2, powerOffsets)).toArray
       timeMatchedQBEREntries.foreach(entry => {
         val relatedPowers = entry.relatedPowers
         homAndQberEntries.filter(_.ratioAcceptable(relatedPowers._1, relatedPowers._2)).foreach(hqe => hqe.append(entry))
       })
       val totalEntryCount = timeMatchedQBEREntries.size
-      //      homAndQberEntries.map(e => e.)
+      val r = homAndQberEntries.map(e => e.toData()).toList
+      Map("TotalEntryCount" -> totalEntryCount, "SortedEntries" -> r)
     }
   }
 
@@ -207,21 +210,21 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
 
   class ChannelSection(meta: Map[String, Any]) {
     private val data = meta("Data").asInstanceOf[Map[String, Any]]
-    private val triggers = data("triggers").asInstanceOf[List[Any]].map(i => {
+    private val triggers = data("Triggers").asInstanceOf[List[Any]].map(i => {
       val d: Double = i
       d
     })
     val dbID = meta("_id").toString
     val trigger = triggers.headOption
-    private val timeFirstSample_ms: Double = data("timeFirstSample")
-    private val timeLastSample_ms: Double = data("timeLastSample")
+    private val timeFirstSample_ms: Double = data("TimeFirstSample")
+    private val timeLastSample_ms: Double = data("TimeLastSample")
     val timeFirstSample = timeFirstSample_ms / 1e3
     val timeLastSample = timeLastSample_ms / 1e3
 
-    lazy private val content = worker.Storage.get("MDIChannelMonitor", dbID, Map("Data.channel1" -> 1, "Data.channel2" -> 1)).asInstanceOf[Map[String, Any]]
+    lazy private val content = worker.Storage.get("MDIChannelMonitor", dbID, Map("Data.Channel1" -> 1, "Data.Channel2" -> 1)).asInstanceOf[Map[String, Any]]
     lazy private val contentData = content("Data").asInstanceOf[Map[String, Any]]
-    lazy val contentChannel1 = contentData("channel1").asInstanceOf[List[Double]].toArray
-    lazy val contentChannel2 = contentData("channel2").asInstanceOf[List[Double]].toArray
+    lazy val contentChannel1 = contentData("Channel1").asInstanceOf[List[Double]].toArray
+    lazy val contentChannel2 = contentData("Channel2").asInstanceOf[List[Double]].toArray
   }
 
   class ChannelEntry(val power1: Double, val power2: Double, val pcTime: Double) {
@@ -231,10 +234,10 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
 }
 
 object Parser extends App {
-  val worker = IFWorker("tcp://127.0.0.1:224", "TDCLocalParserTest")
+  val worker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
   Thread.sleep(1000)
   try {
-    val reviewer = new Reviewer(worker, LocalDateTime.of(2020, 5, 10, 15, 0), LocalDateTime.of(2020, 5, 10, 16, 0))
+    val reviewer = new Reviewer(worker, LocalDateTime.of(2020, 6, 9, 10, 34), LocalDateTime.of(2020, 6, 9, 10, 53))
   }
   catch {
     case e: Throwable => e.printStackTrace()

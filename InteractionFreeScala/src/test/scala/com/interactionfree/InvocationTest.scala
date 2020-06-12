@@ -14,13 +14,13 @@ class InvocationTest extends AnyFunSuite with BeforeAndAfter {
   )
   val sampleResponseContent = Map[String, Any](
     Invocation.KeyType -> Invocation.ValueTypeResponse,
-    Invocation.KeyRespopnseID -> "ID1".getBytes("UTF-8"),
+    Invocation.KeyRespopnseID -> "ID1",
     Invocation.KeyResult -> List(1, "Res"),
     Invocation.KeyWarning -> "Something not good"
   )
   val sampleErrorContent = Map[String, Any](
     Invocation.KeyType -> Invocation.ValueTypeResponse,
-    Invocation.KeyRespopnseID -> Array[Byte](1, 2, 3, 4, 5),
+    Invocation.KeyRespopnseID -> "12345",
     Invocation.KeyResult -> List(1, "Res"),
     Invocation.KeyWarning -> "Something not good",
     Invocation.KeyError -> "Fatal Error!"
@@ -79,87 +79,87 @@ class InvocationTest extends AnyFunSuite with BeforeAndAfter {
     intercept[IFException] {
       m3.getResult
     }
-    assert(m3.getResponseID sameElements Array[Byte](1, 2, 3, 4, 5))
+    assert(m3.getResponseID == "12345")
   }
 
-  test("Test over deepth") {
-    var odMap = Map[String, Any]()
-    for (d <- Range(0, 200)) {
-      odMap = Map("item" -> odMap)
+    test("Test over deepth") {
+      var odMap = Map[String, Any]()
+      for (d <- Range(0, 200)) {
+        odMap = Map("item" -> odMap)
+      }
+      try {
+        new Invocation(odMap).serialize()
+        assert(false)
+      } catch {
+        case e: IFException => assert(e.getMessage == "Message over deepth.")
+        case e: Throwable => assert(false)
+      }
     }
-    try {
-      new Invocation(odMap).serialize()
-      assert(false)
-    } catch {
-      case e: IFException => assert(e.getMessage == "Message over deepth.")
-      case e: Throwable => assert(false)
-    }
-  }
 
-  test("Test Map pack and unpack") {
-    val invocation1 = new Invocation(map)
-    val invocation2 = Invocation.deserialize(invocation1.serialize())
-    assert(invocation1 == invocation2)
-  }
+    test("Test Map pack and unpack") {
+      val invocation1 = new Invocation(map)
+      val invocation2 = Invocation.deserialize(invocation1.serialize())
+      assert(invocation1 == invocation2)
+    }
 
-  test("Test Invalid Parameters") {
-    intercept[IFException] {
-      Invocation.newRequest(null, kwargs = Map()).perform(new InvokerTestClass())
+    test("Test Invalid Parameters") {
+      intercept[IFException] {
+        Invocation.newRequest(null, kwargs = Map()).perform(new InvokerTestClass())
+      }
+      intercept[IFException] {
+        Invocation.newRequest("null", Nil, null).perform(new InvokerTestClass())
+      }
+      intercept[IFException] {
+        Invocation.newRequest("null", null, Map()).perform(new InvokerTestClass())
+      }
+      intercept[IFException] {
+        Invocation.newRequest("null", null, null).perform(new InvokerTestClass())
+      }
+      intercept[IFException] {
+        Invocation.newRequest(null, null, null).perform(new InvokerTestClass())
+      }
     }
-    intercept[IFException] {
-      Invocation.newRequest("null", Nil, null).perform(new InvokerTestClass())
-    }
-    intercept[IFException] {
-      Invocation.newRequest("null", null, Map()).perform(new InvokerTestClass())
-    }
-    intercept[IFException] {
-      Invocation.newRequest("null", null, null).perform(new InvokerTestClass())
-    }
-    intercept[IFException] {
-      Invocation.newRequest(null, null, null).perform(new InvokerTestClass())
-    }
-  }
 
-  test("Test Invoke None") {
-    intercept[IFException] {
-      Invocation.newRequest("runf").perform(new InvokerTestClass())
+    test("Test Invoke None") {
+      intercept[IFException] {
+        Invocation.newRequest("runf").perform(new InvokerTestClass())
+      }
+      intercept[IFException] {
+        Invocation.newRequest("run", kwargs = Map("asd" -> 3)).perform(new InvokerTestClass())
+      }
     }
-    intercept[IFException] {
-      Invocation.newRequest("run", kwargs = Map("asd" -> 3)).perform(new InvokerTestClass())
+
+    test("Test Method 1") {
+      assert(Invocation.newRequest("run", kwargs = Map("a1" -> 1)).perform(new InvokerTestClass()) == "Method 1:1")
+      intercept[IFException] {
+        Invocation.newRequest("run", kwargs = Map("a1" -> -1)).perform(new InvokerTestClass())
+      }
     }
-  }
 
-  test("Test Method 1") {
-    assert(Invocation.newRequest("run", kwargs = Map("a1" -> 1)).perform(new InvokerTestClass()) == "Method 1:1")
-    intercept[IFException] {
-      Invocation.newRequest("run", kwargs = Map("a1" -> -1)).perform(new InvokerTestClass())
+    test("Test Method 2") {
+      assert(Invocation.newRequest("run", kwargs = Map("a2" -> 1, "b2" -> 1.1)).perform(new InvokerTestClass()) == "Method 2:1,1.1")
     }
-  }
 
-  test("Test Method 2") {
-    assert(Invocation.newRequest("run", kwargs = Map("a2" -> 1, "b2" -> 1.1)).perform(new InvokerTestClass()) == "Method 2:1,1.1")
-  }
-
-  test("Test Method 3") {
-    assert(Invocation.newRequest("run", kwargs = Map("a3" -> 1, "b3" -> 1.1, "c3" -> List("1"), "d3" -> false)).perform(new InvokerTestClass()) == "Method 3:1,1.1,List(1),false")
-    assert(Invocation.newRequest("run", kwargs = Map("a3" -> 1, "b3" -> 1.1, "c3" -> Vector("1"), "d3" -> false)).perform(new InvokerTestClass()) == "Method 3:1,1.1,Vector(1),false")
-    intercept[IFException] {
-      Invocation.newRequest("run", kwargs = Map("a3" -> 1, "b3" -> 1.1, "c3" -> List(1), "d3" -> false)).perform(new InvokerTestClass())
+    test("Test Method 3") {
+      assert(Invocation.newRequest("run", kwargs = Map("a3" -> 1, "b3" -> 1.1, "c3" -> List("1"), "d3" -> false)).perform(new InvokerTestClass()) == "Method 3:1,1.1,List(1),false")
+      assert(Invocation.newRequest("run", kwargs = Map("a3" -> 1, "b3" -> 1.1, "c3" -> Vector("1"), "d3" -> false)).perform(new InvokerTestClass()) == "Method 3:1,1.1,Vector(1),false")
+      intercept[IFException] {
+        Invocation.newRequest("run", kwargs = Map("a3" -> 1, "b3" -> 1.1, "c3" -> List(1), "d3" -> false)).perform(new InvokerTestClass())
+      }
     }
-  }
 
-  test("Test No Param Method") {
-    assert(Invocation.newRequest("noParam").perform(new InvokerTestClass()) == "No Param")
-    assert(Invocation.newRequest("noParam", args = Nil).perform(new InvokerTestClass()) == "No Param")
-    assert(Invocation.newRequest("noParam", kwargs = Map()).perform(new InvokerTestClass()) == "No Param")
-  }
+    test("Test No Param Method") {
+      assert(Invocation.newRequest("noParam").perform(new InvokerTestClass()) == "No Param")
+      assert(Invocation.newRequest("noParam", args = Nil).perform(new InvokerTestClass()) == "No Param")
+      assert(Invocation.newRequest("noParam", kwargs = Map()).perform(new InvokerTestClass()) == "No Param")
+    }
 
-  test("Test hybrid invoke.") {
-    assert(Invocation.newRequest("func", kwargs = Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5, "a4" -> 100.1010f, "a5" -> true)).perform(new InvokerTestClass()) == "FUNC:100,hello,0.5,100.101,true")
-    assert(Invocation.newRequest("func", kwargs = Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5, "a5" -> true)).perform(new InvokerTestClass()) == "FUNC:100,hello,0.5,1.0,true")
-    assert(Invocation.newRequest("func", kwargs = Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5)).perform(new InvokerTestClass()) == "FUNC:100,hello,0.5,1.0,false")
-    assert(Invocation.newRequest("func", 101 :: "hi" :: Nil, Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5)).perform(new InvokerTestClass()) == "FUNC:101,hi,0.5,1.0,false")
-  }
+    test("Test hybrid invoke.") {
+      assert(Invocation.newRequest("func", kwargs = Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5, "a4" -> 100.1010f, "a5" -> true)).perform(new InvokerTestClass()) == "FUNC:100,hello,0.5,100.101,true")
+      assert(Invocation.newRequest("func", kwargs = Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5, "a5" -> true)).perform(new InvokerTestClass()) == "FUNC:100,hello,0.5,1.0,true")
+      assert(Invocation.newRequest("func", kwargs = Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5)).perform(new InvokerTestClass()) == "FUNC:100,hello,0.5,1.0,false")
+      assert(Invocation.newRequest("func", 101 :: "hi" :: Nil, Map("a1" -> 100, "a2" -> "hello", "a3" -> 0.5)).perform(new InvokerTestClass()) == "FUNC:101,hi,0.5,1.0,false")
+    }
 
   class InvokerTestClass {
     def run(a1: Int) = {

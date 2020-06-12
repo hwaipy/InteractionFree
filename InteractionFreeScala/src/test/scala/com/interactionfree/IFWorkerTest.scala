@@ -153,26 +153,4 @@ class IFWorkerTest extends AnyFunSuite with BeforeAndAfter {
 
     worker1.close()
   }
-
-  /*
-      def testTimeCostInvocation(self):
-          queue = Queue()
-
-          class WorkerObject:
-              async def popQueue(self):
-                  g = await queue.get()
-                  return g
-
-              def returnImmediatly(self):
-                  return 'rim'
-
-          worker = IFWorker(MessageTransportTest.brokerAddress, serviceName="TimeCostWorker", serviceObject=WorkerObject())
-          client = IFWorker(MessageTransportTest.brokerAddress)
-          client.asynchronousInvoker('TimeCostWorker').popQueue()
-          IOLoop.current().call_at(IOLoop.current().time() + 2, queue.put, 'lock')
-          startTime = time.time()
-          self.assertEqual(client.TimeCostWorker.returnImmediatly(), 'rim')
-          stopTime = time.time()
-          self.assertLess(stopTime - startTime, 1)
-   */
 }

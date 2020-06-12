@@ -41,13 +41,14 @@ def doDataOfASecond(worker, channelEntry):
 
 
 if __name__ == '__main__':
-    worker = IFWorker('tcp://127.0.0.1:224')
-    root = '/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/dumps20200501'
+    worker = IFWorker('tcp://172.16.60.199:224')
+    # root = '/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/dumps20200501'
+    root = 'E:/MDIQKD_Parse/ReviewForCode/ChannelMonitorDump'
     files = [f for f in os.listdir(root) if f.endswith('Channel.dump')]
     files.sort()
     print(len(files))
 
-    for file in files[:10]:
+    for file in files:
         channelEntries = loadMsgpackEntries('{}/{}'.format(root, file))
         for channelEntry in channelEntries[:-1]:
             doDataOfASecond(worker, channelEntry)

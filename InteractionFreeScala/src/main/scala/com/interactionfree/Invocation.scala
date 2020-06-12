@@ -31,13 +31,13 @@ object Invocation {
     Invocation.KeyKeyworkArguments -> kwargs
   ))
 
-  def newResponse(messageID: Array[Byte], result: Any) = new Invocation(Map(
+  def newResponse(messageID: String, result: Any) = new Invocation(Map(
     Invocation.KeyType -> Invocation.ValueTypeResponse,
     Invocation.KeyRespopnseID -> messageID,
     Invocation.KeyResult -> result
   ))
 
-  def newError(messageID: Array[Byte], description: String) = new Invocation(Map(
+  def newError(messageID: String, description: String) = new Invocation(Map(
     Invocation.KeyType -> Invocation.ValueTypeResponse,
     Invocation.KeyRespopnseID -> messageID,
     Invocation.KeyError -> description
@@ -133,7 +133,7 @@ class Invocation(private val content: Map[String, Any]) {
 
   def getError = if (isError) content(Invocation.KeyError).asInstanceOf[String] else throw new IFException("Not an Error.")
 
-  def getResponseID = if (isResponse) content(Invocation.KeyRespopnseID).asInstanceOf[Array[Byte]] else throw new IFException("Not a Response.")
+  def getResponseID = if (isResponse) content(Invocation.KeyRespopnseID).asInstanceOf[String] else throw new IFException("Not a Response.")
 
   def serialize(serialization: String = "Msgpack") = serialization match {
     case "Msgpack" => {
