@@ -7,9 +7,9 @@ import numpy as np
 from IFWorker import IFWorker
 from datetime import datetime
 import time
+import numpy as np
 
 
-# NOT_GOOD_CORRECTION = {'20190731': {'XX Correct': 0.782, 'YY Wrong': 0.75, 'ZZ Correct': 0.787}}
 class Shower:
     def __init__(self, worker, collection, begin, end):
         self.worker = worker
@@ -19,68 +19,71 @@ class Shower:
 
     def show(self):
         ids = self.worker.Storage.range(self.collection, self.begin, self.end, {})
-        #         conditions = None
-        #         mergedData = None
-        for id in ids[:1]:
+        conditions = None
+        mergedData = None
+        for id in ids[:5]:
             content = self.worker.Storage.get(self.collection, id['_id'], {'Data': 1})['Data']
             HOMandQBERs = content['HOMandQBERs']
             totalEntryCount = HOMandQBERs['TotalEntryCount']
-            sortedEntries = HOMandQBERs['SortedEntries']
-            print(sortedEntries)
+            data = np.array(HOMandQBERs['SortedEntries'])
+            condition = data[:, :2]
+            tobeMerged = data[:, 2:]
+            if conditions is None:
+                conditions = condition
+                mergedData = tobeMerged
+            else:
+                mergedData += tobeMerged
+
+        data = np.hstack((conditions, mergedData))
+
+        #         file = open('{}/HOMandQBERs.csv'.format(self.showDir), 'w')
+        #         file.write('{}\n'.format(', '.join(head)))
+        #         for row in range(conditions.shape[0]):
+        #             file.write('{}\n'.format(', '.join([str(d) for d in data[row]])))
+        #         file.close()
+        #
+        # plot non filtering
+        threshold = 0.8
+        ratios = np.logspace(-1.3, 1.3, 100)
+        thresholdedData = []
+        for ratio in ratios:
+            ratioLow = ratio * threshold
+            ratioHigh = ratio / threshold
+            mask = np.vstack((conditions[:, 1] > ratioLow, conditions[:, 0] < ratioHigh)).all(0)
+            selectedData = data[mask]
+            summedData = np.sum(selectedData, 0)[2:]
+            thresholdedData.append(summedData)
+        thresholdedData = np.array(thresholdedData)
+        thresholdedData = np.hstack((ratios.reshape(100, 1), thresholdedData))
+        self.__plot(threshold, thresholdedData)
+
+    #         selectedRatio = self.__min(np.array([d for d in data if d[0] == max(thresholds)]), head, 'HOM',
+    #                                    'AllDip', 'AllAct')[0]
+    #         selectedData = np.array([row for row in data if row[1] == selectedRatio])
+    #         for bases in ['XX', 'YY', 'All']:
+    #             self.__plot(selectedData, head, selectedRatio, 'Ratio', 'Threshold', 'HOM', '{}Dip'.format(bases),
+    #                         '{}Act'.format(bases), bases, True, False)
+    #         for bases in ['XX', 'YY', 'ZZ']:
+    #             self.__plot(selectedData, head, selectedRatio, 'Ratio', 'Threshold', 'QBER', '{} Correct'.format(bases),
+    #                         '{} Wrong'.format(bases), bases, True, False)
+    #
+    def __plot(self, threshold, data):
+        ratios = data[:, 0]
+        validTimes = data[:, 1]
+        HOMs = data[:, 2: 8]
+        QBERs = data[:, 8:]
+        fig, axs = plt.subplots(2, 3, figsize=(20, 10))
+        for i in range(3):
+            ax = axs[0, i]
+            ax2 = ax.twinx()
+            ax.semilogx(ratios, HOMs[:, i * 2] / (HOMs[:, i * 2 + 1] - 1e-10), color='blue')
+            ax2.semilogx(ratios, HOMs[:, i * 2 + 1], color='orange')
+            ax.set_ylim((0.4, 1))
+            ax.grid()
+        plt.show()
+        # independents = data[:, head.index(independentName)]
 
 
-#             file = open('{}/HOMandQBERs.csv'.format(dir), 'r')
-#             head = [h.strip() for h in file.readline()[:-1].split(',')]
-#             lines = file.readlines()[1:]
-#             file.close()
-#             data = np.array([[float(d) for d in line.split(',')] for line in lines])
-#             condition = data[:, :2]
-#             tobeMerged = data[:, 2:]
-#             if conditions is None:
-#                 conditions = condition
-#                 mergedData = tobeMerged
-#             else:
-#                 mergedData += tobeMerged
-#
-#         data = np.hstack((conditions, mergedData))
-#
-#         date = [i for i in self.dir.replace('\\', '/').split('/') if len(i) > 0][-2]
-#         if NOT_GOOD_CORRECTION.__contains__(date):
-#             print('Correcting {}'.format(self.dir))
-#             corrections = NOT_GOOD_CORRECTION[date]
-#             for c in corrections:
-#                 data[:, head.index(c)] *= corrections[c]
-#
-#         file = open('{}/HOMandQBERs.csv'.format(self.showDir), 'w')
-#         file.write('{}\n'.format(', '.join(head)))
-#         for row in range(conditions.shape[0]):
-#             file.write('{}\n'.format(', '.join([str(d) for d in data[row]])))
-#         file.close()
-#
-#         thresholds = list(set(data[:, 0]))
-#         thresholds.sort()
-#         for threshold in [max(thresholds)]:
-#             selectedData = np.array([d for d in data if d[0] == threshold])
-#             for bases in ['XX', 'YY', 'All']:
-#                 self.__plot(selectedData, head, threshold, 'Threshold', 'Ratio', 'HOM', '{}Dip'.format(bases),
-#                             '{}Act'.format(bases), bases, True)
-#             for bases in ['XX', 'YY', 'ZZ']:
-#                 self.__plot(selectedData, head, threshold, 'Threshold', 'Ratio', 'QBER', '{} Correct'.format(bases),
-#                             '{} Wrong'.format(bases), bases, True)
-#
-#         selectedRatio = self.__min(np.array([d for d in data if d[0] == max(thresholds)]), head, 'HOM',
-#                                    'AllDip', 'AllAct')[0]
-#         selectedData = np.array([row for row in data if row[1] == selectedRatio])
-#         for bases in ['XX', 'YY', 'All']:
-#             self.__plot(selectedData, head, selectedRatio, 'Ratio', 'Threshold', 'HOM', '{}Dip'.format(bases),
-#                         '{}Act'.format(bases), bases, True, False)
-#         for bases in ['XX', 'YY', 'ZZ']:
-#             self.__plot(selectedData, head, selectedRatio, 'Ratio', 'Threshold', 'QBER', '{} Correct'.format(bases),
-#                         '{} Wrong'.format(bases), bases, True, False)
-#
-#     def __plot(self, data, head, eigenValue, eigenValueName, independentName, mode, head1, head2, bases, save,
-#                log=True):
-#         independents = data[:, head.index(independentName)]
 #         c1 = data[:, head.index(head1)]
 #         c2 = data[:, head.index(head2)]
 #         saveFileName = '{}-{}={}-{}.png'.format(mode, eigenValueName, eigenValue, bases)
