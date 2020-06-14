@@ -1,7 +1,7 @@
 $(document).ready(function() {
   worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
     viewerFetcher = new TDCViewerStorageStreamFatcher(worker,
-      "TDCLocal")
+      "TDCLocalTest_10k100M_100")
     viewerFetcher.start(1000)
   })
 });
@@ -19,13 +19,12 @@ class TDCViewerStorageStreamFatcher {
   }
 
   update() {
-    worker.request("Storage", "latest", ['TDCLocal', this.lastTime, {
+    worker.request("Storage", "latest", [this.collection, this.lastTime, {
         'Data.Counter': 1,
         'Data.MultiHistogram': 1
       }], {},
       function(result) {
         if (result != null) {
-          console.log(result);
           viewerFetcher.lastTime = result['RecordTime'];
           var data = result['Data']['MultiHistogram']
           var configuration = data['Configuration']

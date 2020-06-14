@@ -152,7 +152,7 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     }
     case "QBERSectionCount" => {
       val sc: Int = value
-      sc >= 0 && sc < channelCount
+      sc > 0
     }
     case "ChannelMonitorSyncChannel" => {
       val sc: Int = value
@@ -275,7 +275,9 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     }
 
     val homSections = Array(List(ccsXX0Coincidences), ccsXXOtherCoincidences, List(ccsYY0Coincidences), ccsYYOtherCoincidences, List(ccsAll0Coincidences), ccsAllOtherCoincidences).map(statisticCoincidenceSection)
-    map.put(s"HOM Sections", homSections)
+    val homTransposed = Range(0, homSections(0).size).map(_ => new Array[Double](homSections.size)).toArray
+    homSections.zipWithIndex.foreach(z1 => z1._1.zipWithIndex.foreach(z2 => homTransposed(z2._2)(z1._2) = homSections(z1._2)(z2._2)))
+    map.put(s"HOM Sections", homTransposed)
     //    map.put(s"HOM Sections Detail", s"4*1000 Array. 1000 for 1000 sections. 4 for: X-X, 0&0 without and with delays; All, 0&0 without and with delays")
 
     //    val ccsAllOtherLeftCoincidences = Range(-14, 10).toList.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator).filter(c => (c.r1 == 0) && (c.r2 == 0)))

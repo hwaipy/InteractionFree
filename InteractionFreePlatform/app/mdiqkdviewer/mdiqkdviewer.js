@@ -1,7 +1,7 @@
 $(document).ready(function() {
   worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
     viewerFetcher = new TDCViewerStorageStreamFatcher(worker,
-      "TDCLocal")
+      "TDCLocalTest_10k100M_100")
     viewerFetcher.start(1000)
   })
 });
@@ -47,8 +47,10 @@ class TDCViewerStorageStreamFatcher {
   }
 
   fetch() {
-    worker.request("Storage", "range", ['TDCLocal',
-        "2020-05-05 22:22:00.000000", "2020-05-05 22:35:00.000000"
+    console.log('fetching');
+    worker.request("Storage", "range", [this.collection,
+        "2020-04-05 22:22:00.000000", "2020-05-05 22:35:00.000000",
+        'FetchTime'
       ], {},
       function(result) {
         viewerFetcher.entryNum = result.length
@@ -62,7 +64,7 @@ class TDCViewerStorageStreamFatcher {
   }
 
   getOne(id) {
-    worker.request("Storage", "get", ['TDCLocal', id, {
+    worker.request("Storage", "get", [this.collection, id, {
         'Data.Counter': 1,
         'Data.CoincidenceHistogram': 1,
         'Data.MDIQKDEncoding': 1,

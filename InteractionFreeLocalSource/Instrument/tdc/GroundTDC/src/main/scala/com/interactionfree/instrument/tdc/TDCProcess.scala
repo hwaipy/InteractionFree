@@ -1,5 +1,6 @@
 package com.interactionfree.instrument.tdc
 
+import java.time.{LocalDateTime, ZoneOffset}
 import java.util.concurrent.atomic.AtomicLong
 
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
@@ -23,7 +24,8 @@ object GroundTDC extends App {
   val dataSourceListeningPort = 20156
 
   val process = new TDCProcessService(dataSourceListeningPort)
-  val worker = IFWorker("tcp://172.16.60.199:224", "GroundTDCLocal", process)
+  //  val worker = IFWorker("tcp://172.16.60.199:224", "GroundTDCLocal", process)
+  val worker = IFWorker("tcp://127.0.0.1:224", "GroundTDCLocal", process)
   //  process.turnOnAnalyser("Counter")
   //  process.turnOnAnalyser("Histogram", Map("Sync" -> 0, "Signal" -> 1, "ViewStart" -> -100000, "ViewStop" -> 100000))
   //  process.turnOnAnalyser("MDIQKDEncoding", Map("RandomNumbers" -> List(0, 1, 2, 3, 4, 5, 6, 7, 8, 9), "Period" -> 10000, "SignalChannel" -> 1, "TriggerChannel" -> 0))
@@ -73,14 +75,15 @@ class TDCProcessService(port: Int) {
       executionTimes(e._1) = (endTime - beginTime) / 1e9
       (e._1, r)
     }).filter(e => e._2.isDefined).foreach(e => result(e._1) = e._2.get)
-    //    result("Time") = System.currentTimeMillis()
-    result("DataBlockCreationTime") = dataBlock.creationTime
     result("ExecutionTimes") = executionTimes
     if (GroundTDC.LOCAL) {
       try {
-        GroundTDC.worker.Storage.append("TDCLocal", result)
+        GroundTDC.worker.Storage.append("TDCLocalTest_10k100M", result,
+          fetchTime = dataBlock.creationTime
+          //          fetchTime = LocalDateTime.ofEpochSecond(dataBlock.creationTime / 1000, (dataBlock.creationTime % 1000).toInt * 1000000, ZoneOffset.ofHours(8)).toString
+        )
       } catch {
-        case e: Throwable => println(e)
+        case e: Throwable => println("[1]" + e)
       }
     }
   }

@@ -37,13 +37,14 @@ def doDataOfASecond(worker, channelEntry):
     result['TimeLastSample'] = dataTimes[-1]
     result['Channel1'] = data1
     result['Channel2'] = data2
-    worker.Storage.append('MDIChannelMonitor', result)
+    worker.Storage.append('MDIChannelMonitor', result, fetchTime=dataTimes[0] / 1000.0)  # fetchTime=None, key=None
 
 
 if __name__ == '__main__':
-    worker = IFWorker('tcp://172.16.60.199:224')
-    # root = '/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/dumps20200501'
-    root = 'E:/MDIQKD_Parse/ReviewForCode/ChannelMonitorDump'
+    # worker = IFWorker('tcp://172.16.60.199:224')
+    worker = IFWorker('tcp://127.0.0.1:224')
+    root = '/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/dumps20200501'
+    # root = 'E:/MDIQKD_Parse/ReviewForCode/ChannelMonitorDump'
     files = [f for f in os.listdir(root) if f.endswith('Channel.dump')]
     files.sort()
     print(len(files))

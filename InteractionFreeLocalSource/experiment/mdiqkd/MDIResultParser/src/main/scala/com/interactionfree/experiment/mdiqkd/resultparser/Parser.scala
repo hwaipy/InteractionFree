@@ -1,44 +1,49 @@
 package com.interactionfree.experiment.mdiqkd.resultparser
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneOffset, ZonedDateTime}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReference}
-
 import com.interactionfree.{BlockingIFWorker, IFWorker}
 import com.interactionfree.NumberTypeConversions._
-
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.language.postfixOps
 
-class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: LocalDateTime, ignoredChannel: Int = -1) {
-  def prepareDataPairs = {
-    val qberSections = worker.Storage.range("TDCLocal", startTime.toString, stopTime.toString,
-      Map("Data.DataBlockCreationTime" -> 1, "Data.MDIQKDQBER.ChannelMonitorSync" -> 1)
+class Reviewer(worker: BlockingIFWorker, startTime: String, stopTime: String, ignoredChannel: Int) {
+  def this(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: LocalDateTime, ignoredChannel: Int = -1) = {
+    this(worker, startTime.toString, stopTime.toString, ignoredChannel)
+  }
+
+  def this(worker: BlockingIFWorker, startTime: String, stopTime: String) = {
+    this(worker, startTime, stopTime, -1)
+  }
+
+  def prepareDataPairs: List[Tuple2[QBERs, Channels]] = {
+    val qberSections = worker.Storage.range("TDCLocal", startTime, stopTime, by = "FetchTime",
+      filter = Map("FetchTime" -> 1, "Data.MDIQKDQBER.ChannelMonitorSync" -> 1)
     ).asInstanceOf[List[Map[String, Any]]].map(meta => new QBERSection(meta))
     val qbersList = QBERs(qberSections)
 
-    val channelSections = worker.Storage.range("MDIChannelMonitor", LocalDateTime.of(2020, 6, 9, 12, 22).toString, LocalDateTime.of(2020, 6, 9, 12, 40).toString,
-      Map("Data.Triggers" -> 1, "Data.TimeFirstSample" -> 1, "Data.TimeLastSample" -> 1)).asInstanceOf[List[Map[String, Any]]].map(meta => new ChannelSection(meta))
-    val channelsList = Channels(channelSections)
-
-    qbersList.map(qber => (qber, channelsList.filter(channel => Math.abs(qber.systemTime - channel.channelMonitorSyncs.head) < 3).headOption)).filter(_._2.isDefined).map(z => (z._1, z._2.get))
+    //        val channelSections = worker.Storage.range("MDIChannelMonitor", LocalDateTime.of(2020, 6, 9, 12, 22).toString, LocalDateTime.of(2020, 6, 9, 12, 40).toString,
+    //          Map("Data.Triggers" -> 1, "Data.TimeFirstSample" -> 1, "Data.TimeLastSample" -> 1)).asInstanceOf[List[Map[String, Any]]].map(meta => new ChannelSection(meta))
+    //        val channelsList = Channels(channelSections)
+    //
+    //        qbersList.map(qber => (qber, channelsList.filter(channel => Math.abs(qber.systemTime - channel.channelMonitorSyncs.head) < 3).headOption)).filter(_._2.isDefined).map(z => (z._1, z._2.get))
+    qbersList.map(qber => (qber, null))
   }
 
   val dataPairBuffer = prepareDataPairs.toBuffer
-  println(dataPairBuffer.size)
+
   while (dataPairBuffer.nonEmpty) {
     val dataPair = dataPairBuffer.head
     try {
       val dpp = new DataPairParser(dataPair._1, dataPair._2)
-      dpp.parse()
+      //      dpp.parse()
       dataPairBuffer.remove(0)
       println("parsed")
     } catch {
       case e: Throwable => println(e)
     }
-
   }
-
 
   object HOMandQBEREntry {
     private val bases = List("O", "X", "Y", "Z")
@@ -75,61 +80,66 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
   }
 
   class DataPairParser(val qbers: QBERs, val channels: Channels) {
+    private val hasExternalPowerMonitor = channels != null
     performTimeMatch
     performEntryMatch
-    val timeMatchedQBEREntries = qbers.entries.filter(e => e.relatedChannelEntryCount > 0)
-    val powerOffsets = (timeMatchedQBEREntries.map(p => p.relatedPowers._1).min, timeMatchedQBEREntries.map(p => p.relatedPowers._2).min)
+//    val timeMatchedQBEREntries = if (hasExternalPowerMonitor) qbers.entries.filter(e => e.relatedPowerCount > 0) else qbers.entries
+    //    val powerOffsets = (timeMatchedQBEREntries.map(p => p.relatedPowers._1).min, timeMatchedQBEREntries.map(p => p.relatedPowers._2).min)
 
-    def parse() = {
-      val result = new mutable.HashMap[String, Any]()
-      result("CountChannelRelations") = countChannelRelations()
-      val halfRatio = Range(0, 200).map(i => math.pow(1.02, i))
-      val ratios = halfRatio.reverse.dropRight(1).map(a => 1 / a) ++ halfRatio
-      result("HOMandQBERs") = HOMandQBERs(ratios.toList)
-      worker.Storage.append("MDIQKD_DataReviewer", result)
-    }
+    //    def parse() = {
+    //      val result = new mutable.HashMap[String, Any]()
+    //      result("CountChannelRelations") = countChannelRelations()
+    //      val halfRatio = Range(0, 200).map(i => math.pow(1.02, i))
+    //      val ratios = halfRatio.reverse.dropRight(1).map(a => 1 / a) ++ halfRatio
+    //      result("HOMandQBERs") = HOMandQBERs(ratios.toList)
+    //      worker.Storage.append("MDIQKD_DataReviewer", result)
+    //    }
 
     private def performTimeMatch = {
-      val qberSyncPair = qbers.channelMonitorSyncs
-      val timeUnit = (qberSyncPair(1) - qberSyncPair(0)) / (channels.riseIndices(1) - channels.riseIndices(0))
-      Range(channels.riseIndices(0), channels.riseIndices(1)).foreach(i => channels.entries(i).tdcTime set (i - channels.riseIndices(0)).toDouble * timeUnit + qberSyncPair(0))
+      if (hasExternalPowerMonitor) {
+        val qberSyncPair = qbers.channelMonitorSyncs
+        val timeUnit = (qberSyncPair(1) - qberSyncPair(0)) / (channels.riseIndices(1) - channels.riseIndices(0))
+        Range(channels.riseIndices(0), channels.riseIndices(1)).foreach(i => channels.entries(i).tdcTime set (i - channels.riseIndices(0)).toDouble * timeUnit + qberSyncPair(0))
+      }
     }
 
     private def performEntryMatch = {
-      val channelSearchIndexStart = new AtomicInteger(0)
-      qbers.entries.foreach(qberEntry => {
-        val channelSearchIndex = new AtomicInteger(channelSearchIndexStart get)
-        val break = new AtomicBoolean(false)
-        while (channelSearchIndex.get() < channels.entries.size && !break.get) {
-          val channelEntry = channels.entries(channelSearchIndex.get)
-          if (channelEntry.tdcTime.get < qberEntry.tdcStart) {
-            channelSearchIndex.incrementAndGet
-            channelSearchIndexStart.incrementAndGet
-          } else if (channelEntry.tdcTime.get < qberEntry.tdcStop) {
-            qberEntry.appendRelatedChannelEntry(channelEntry)
-            channelSearchIndex.incrementAndGet
-          } else break set true
-        }
-      })
+      if (hasExternalPowerMonitor) {
+        val channelSearchIndexStart = new AtomicInteger(0)
+        qbers.entries.foreach(qberEntry => {
+          val channelSearchIndex = new AtomicInteger(channelSearchIndexStart get)
+          val break = new AtomicBoolean(false)
+          while (channelSearchIndex.get() < channels.entries.size && !break.get) {
+            val channelEntry = channels.entries(channelSearchIndex.get)
+            if (channelEntry.tdcTime.get < qberEntry.tdcStart) {
+              channelSearchIndex.incrementAndGet
+              channelSearchIndexStart.incrementAndGet
+            } else if (channelEntry.tdcTime.get < qberEntry.tdcStop) {
+              qberEntry.appendPowers(channelEntry.power1, channelEntry.power2)
+              channelSearchIndex.incrementAndGet
+            } else break set true
+          }
+        })
+      } else qbers.entries.foreach(qberEntry => qberEntry.appendPowers(qberEntry.counts(0), qberEntry.counts(1)))
     }
 
-    private def countChannelRelations(): Map[String, Any] = {
-      val counts = timeMatchedQBEREntries.map(_.counts)
-      val powers = timeMatchedQBEREntries.map(_.relatedPowers)
-      Map("Counts 1" -> counts.map(_ (0)), "Counts 2" -> counts.map(_ (1)), "Powers 1" -> powers.map(_._1), "Powers 2" -> powers.map(_._2))
-    }
-
-    private def HOMandQBERs(ratios: List[Double]) = {
-      val ratioPairs = (List(0) ++ ratios).zip(ratios ++ List(Double.MaxValue))
-      val homAndQberEntries = ratioPairs.map(ratioPair => new HOMandQBEREntry(ratioPair._1, ratioPair._2, powerOffsets)).toArray
-      timeMatchedQBEREntries.foreach(entry => {
-        val relatedPowers = entry.relatedPowers
-        homAndQberEntries.filter(_.ratioAcceptable(relatedPowers._1, relatedPowers._2)).foreach(hqe => hqe.append(entry))
-      })
-      val totalEntryCount = timeMatchedQBEREntries.size
-      val r = homAndQberEntries.map(e => e.toData()).toList
-      Map("TotalEntryCount" -> totalEntryCount, "SortedEntries" -> r)
-    }
+    //    private def countChannelRelations(): Map[String, Any] = {
+    //      val counts = timeMatchedQBEREntries.map(_.counts)
+    //      val powers = timeMatchedQBEREntries.map(_.relatedPowers)
+    //      Map("Counts 1" -> counts.map(_ (0)), "Counts 2" -> counts.map(_ (1)), "Powers 1" -> powers.map(_._1), "Powers 2" -> powers.map(_._2))
+    //    }
+    //
+    //    private def HOMandQBERs(ratios: List[Double]) = {
+    //      val ratioPairs = (List(0) ++ ratios).zip(ratios ++ List(Double.MaxValue))
+    //      val homAndQberEntries = ratioPairs.map(ratioPair => new HOMandQBEREntry(ratioPair._1, ratioPair._2, powerOffsets)).toArray
+    //      timeMatchedQBEREntries.foreach(entry => {
+    //        val relatedPowers = entry.relatedPowers
+    //        homAndQberEntries.filter(_.ratioAcceptable(relatedPowers._1, relatedPowers._2)).foreach(hqe => hqe.append(entry))
+    //      })
+    //      val totalEntryCount = timeMatchedQBEREntries.size
+    //      val r = homAndQberEntries.map(e => e.toData()).toList
+    //      Map("TotalEntryCount" -> totalEntryCount, "SortedEntries" -> r)
+    //    }
   }
 
   object QBERs {
@@ -140,7 +150,7 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
   }
 
   class QBERs(val sections: List[QBERSection]) {
-    val systemTime = sections.head.pcTime / 1e3
+    val systemTime = sections.head.pcTime
     val TDCTimeOfSectionStart = sections(0).tdcStart
     val channelMonitorSyncs = List(sections.head, sections.last).map(s => (s.slowSync.get - TDCTimeOfSectionStart) / 1e12)
     val valid = math.abs(channelMonitorSyncs(1) - channelMonitorSyncs(0) - 10) < 0.001
@@ -165,7 +175,7 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
     val tdcStart: Long = syncs(0)
     val tdcStop: Long = syncs(1)
     val slowSync: Option[Long] = if (syncs.size > 2) Some(syncs(2)) else None
-    val pcTime: Long = data("DataBlockCreationTime")
+    val pcTime: Long = ZonedDateTime.parse(meta("FetchTime").toString).toEpochSecond
 
     lazy private val content = worker.Storage.get("TDCLocal", dbID, Map("Data.DataBlockCreationTime" -> 1, "Data.MDIQKDQBER" -> 1)).asInstanceOf[Map[String, Any]]
     lazy private val contentData = content("Data").asInstanceOf[Map[String, Any]]
@@ -176,16 +186,19 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
   }
 
   class QBEREntry(val tdcStart: Double, val tdcStop: Double, val HOMs: Array[Double], val counts: Array[Int], val QBERs: Array[Int]) {
-    private val relatedChannelEntryBuffer = new ArrayBuffer[ChannelEntry]()
+    private val relatedPower1 = new ArrayBuffer[Double]()
+    private val relatedPower2 = new ArrayBuffer[Double]()
 
-    def appendRelatedChannelEntry(channelEntry: ChannelEntry) = relatedChannelEntryBuffer += channelEntry
+    def appendPowers(power1: Double, power2: Double) = {
+      relatedPower1 += power1
+      relatedPower2 += power2
+    }
 
-    def relatedChannelEntryCount = relatedChannelEntryBuffer.size
+    def relatedPowerCount = relatedPower1.size
 
     def relatedPowers =
-      if (relatedChannelEntryCount == 0) (0.0, 0.0)
-      else (relatedChannelEntryBuffer.map(e => e.power1).sum / relatedChannelEntryCount,
-        relatedChannelEntryBuffer.map(e => e.power2).sum / relatedChannelEntryCount)
+      if (relatedPowerCount == 0) (0.0, 0.0)
+      else (relatedPower1.sum / relatedPowerCount, relatedPower2.sum / relatedPowerCount)
   }
 
   object Channels {
@@ -234,10 +247,10 @@ class Reviewer(worker: BlockingIFWorker, startTime: LocalDateTime, stopTime: Loc
 }
 
 object Parser extends App {
-  val worker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
+  val worker = IFWorker("tcp://127.0.0.1:224", "TDCLocalParserTest")
   Thread.sleep(1000)
   try {
-    val reviewer = new Reviewer(worker, LocalDateTime.of(2020, 6, 9, 10, 34), LocalDateTime.of(2020, 6, 9, 10, 53))
+    val reviewer = new Reviewer(worker, "2020-04-30T23:34+08:00", "2020-05-01T00:59+08:00")
   }
   catch {
     case e: Throwable => e.printStackTrace()
