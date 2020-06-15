@@ -1,7 +1,7 @@
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
 from tornado.ioloop import IOLoop
-from IFCore import IFException, Message, Invocation, IFLoop, IFDefinition
+from IFCore import IFException, Message, Invocation, IFLoop, IFDefinition, debug_timerecord
 import time
 import threading
 import asyncio
@@ -81,7 +81,6 @@ class IFWorker(object):
 
     def send(self, msg):
         self.__stream.send_multipart(msg.getContent())
-
         id = msg.messageID
         (future, onFinish, resultMap) = InvokeFuture.newFuture()
         self.__waitingMapLock.acquire()
@@ -260,24 +259,23 @@ class InvokeFuture:
 
     def waitFor(self, timeout=None):
         # For Python 3 only.
-        # if self.__awaitSemaphore.acquire(True, timeout):
-        #     self.__awaitSemaphore.release()
-        #     return True
-        # else:
-        #     return False
-
+        if self.__awaitSemaphore.acquire(True, timeout):
+            self.__awaitSemaphore.release()
+            return True
+        else:
+            return False
         # For Python 2 & 3
-        timeStep = 0.1 if timeout is None else timeout / 10
-        startTime = time.time()
-        while True:
-            acq = self.__awaitSemaphore.acquire(False)
-            if acq:
-                return acq
-            else:
-                passedTime = time.time() - startTime
-                if (timeout is not None) and (passedTime >= timeout):
-                    return False
-                time.sleep(timeStep)
+        # timeStep = 0.1 if timeout is None else timeout / 10
+        # startTime = time.time()
+        # while True:
+        #     acq = self.__awaitSemaphore.acquire(False)
+        #     if acq:
+        #         return acq
+        #     else:
+        #         passedTime = time.time() - startTime
+        #         if (timeout is not None) and (passedTime >= timeout):
+        #             return False
+        #         time.sleep(timeStep)
 
     def sync(self, timeout=None):
         if self.waitFor(timeout):

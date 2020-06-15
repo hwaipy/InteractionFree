@@ -30,6 +30,7 @@ if __name__ == '__main__':
         (r'/app/(.+?)/(.+)', IFAppResourceHandler),
         (r'/app/(.+)', IFAppHandler),
         (r"/IFLocalFiles/(.*)", web.StaticFileHandler, {'path': IFLocalFilesPath}),
+        (r"/(.+)", web.StaticFileHandler, {'path': 'static'}),
     ]
     settings = {
         'debug': True,

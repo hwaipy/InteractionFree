@@ -1,9 +1,9 @@
 import time
-from datetime import datetime, tzinfo
+from datetime import datetime
 from bson.objectid import ObjectId
 import pytz
 from bson.codec_options import CodecOptions
-
+from IFCore import IFException
 
 class Storage:
     Data = 'Data'
@@ -37,8 +37,9 @@ class Storage:
 
     async def latest(self, collection, after=None, filter={}):
         dbFilter = self.__reformFilter(filter)
-        r = (await self.__collection(collection).find({}, dbFilter).sort("_id", -1).to_list(length=1))[0]
-        if not r: return r
+        r = (await self.__collection(collection).find({}, dbFilter).sort("_id", -1).to_list(length=1))
+        if len(r) == 0: raise IFException('No record.')
+        r = r[0]
         valid = True
         if after:
             latestEntryTime = r[Storage.RecordTime]
