@@ -1,7 +1,7 @@
 $(document).ready(function() {
   worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
     viewerFetcher = new TDCViewerStorageStreamFatcher(worker,
-      "TDCLocalTest_10k100M")
+      "TDCLocalTest_10k250M")
     viewerFetcher.start(1000)
   })
 });

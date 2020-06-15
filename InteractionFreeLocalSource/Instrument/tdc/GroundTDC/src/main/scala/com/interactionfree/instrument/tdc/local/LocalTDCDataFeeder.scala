@@ -10,28 +10,31 @@ import com.interactionfree.instrument.tdc.GroundTDC
 import scala.jdk.CollectionConverters._
 
 object LocalTDCDataFeeder {
-  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501004200-004700-10k100M-all"
-  //  private val localDataRoot = "/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501004200-004700-10k100M-all"
+//  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501004200-004700-10k100M-all"
+    private val localDataRoot = "/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
   private val localDataFiles = Files.list(Paths.get(localDataRoot)).iterator().asScala.toList.sorted
   private val startTime = localDataFiles.head.getFileName.toString.split("-").head.toLong
   private val dataBlockCount = new AtomicLong(0)
 
-  def start(port: Int, dataRate: Int = 1000000) = {
+  def start(port: Int, dataRate: Int = 2000000) = {
     Thread.sleep(2000)
-    val worker = IFWorker("tcp://172.16.60.199:224")
-    //    val worker = IFWorker("tcp://127.0.0.1:224")
+//    val worker = IFWorker("tcp://172.16.60.199:224")
+        val worker = IFWorker("tcp://127.0.0.1:224")
     val process = worker.GroundTDCLocal
     process.turnOnAnalyser("Counter")
     //    process.turnOnAnalyser("Histogram", Map("Sync" -> 0, "Signal" -> 8, "ViewStart" -> 0, "ViewStop" -> 10000000, "Divide" -> 1000))
-    process.turnOnAnalyser("MultiHistogram", Map("Sync" -> 0, "Signals" -> List(4, 5, 8, 9), "ViewStart" -> 0, "ViewStop" -> 10000000, "Divide" -> 1000, "BinCount" -> 200))
+    process.turnOnAnalyser("MultiHistogram", Map("Sync" -> 0, "Signals" -> List(4, 5, 8, 9), "ViewStart" -> 0, "ViewStop" -> 4000000, "Divide" -> 1000, "BinCount" -> 200))
     process.turnOnAnalyser("CoincidenceHistogram", Map("ChannelA" -> 8, "ChannelB" -> 9, "ViewStart" -> -200000, "ViewStop" -> 200000, "BinCount" -> 1000))
-    process.turnOnAnalyser("MDIQKDEncoding", Map("Period" -> 10000.0, "TriggerChannel" -> 0, "SignalChannel" -> 8, "TimeAliceChannel" -> 4, "TimeBobChannel" -> 5, "BinCount" -> 100, "RandomNumbers" -> Range(0, 10000).map(_ => 6).toList))
-    process.turnOnAnalyser("MDIQKDQBER", Map("AliceRandomNumbers" -> Range(0, 10000).map(_ => 6).toList, "BobRandomNumbers" -> Range(0, 10000).map(_ => 6).toList, "Period" -> 10000.0, "Delay" -> 3000.0, "PulseDiff" -> 3000.0,
-      "Gate" -> 2000.0, "TriggerChannel" -> 0, "Channel 1" -> 8, "Channel 2" -> 9, "Channel Monitor Alice" -> 4, "Channel Monitor Bob" -> 5, "QBERSectionCount" -> 1000, "HOMSidePulses" -> List(-100, -99, -98, 98, 99, 100), "ChannelMonitorSyncChannel" -> 2))
+    process.turnOnAnalyser("MDIQKDEncoding", Map("Period" -> 4000.0, "TriggerChannel" -> 0, "SignalChannel" -> 8, "TimeAliceChannel" -> 4, "TimeBobChannel" -> 5, "BinCount" -> 100, "RandomNumbers" -> Range(0, 10000).map(_ => 6).toList))
+    process.turnOnAnalyser("MDIQKDQBER", Map("AliceRandomNumbers" -> Range(0, 10000).map(_ => 6).toList, "BobRandomNumbers" -> Range(0, 10000).map(_ => 6).toList, "Period" -> 4000.0, "Delay" -> 500.0, "PulseDiff" -> 2000.0,
+      "Gate" -> 1000.0, "TriggerChannel" -> 0, "Channel 1" -> 8, "Channel 2" -> 9, "Channel Monitor Alice" -> 4, "Channel Monitor Bob" -> 5, "QBERSectionCount" -> 1000, "HOMSidePulses" -> List(-100, -90, -80, 80, 90, 100), "ChannelMonitorSyncChannel" -> 2))
 
-    process.setDelay(0, 11970700)
-    process.setDelay(4, 22800)
-    process.setDelay(5, 44000)
+//    process.setDelay(0, 11970700)
+    process.setDelay(0, 10022000)
+//    process.setDelay(4, 22800)
+    process.setDelay(4, 16800)
+//    process.setDelay(5, 44000)
+    process.setDelay(5, 42000)
     process.setDelay(8, 0)
     process.setDelay(9, -510600)
 

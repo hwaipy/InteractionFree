@@ -18,11 +18,20 @@ class Shower:
         self.end = end
 
     def show(self):
-        ids = self.worker.Storage.range(self.collection, self.begin, self.end, {})
+        ids = self.worker.Storage.range(self.collection, self.begin, self.end, by='FetchTime', filter={})
+        if len(ids) == 0:
+            print('No Record.')
+            return
         conditions = None
         mergedData = None
-        for id in ids[:5]:
+        for id in ids[:]:
             content = self.worker.Storage.get(self.collection, id['_id'], {'Data': 1})['Data']
+            countChannelRelations = content['CountChannelRelations']
+            countChannelRelationsData = np.array(countChannelRelations['Data'])
+            # plt.scatter(countChannelRelationsData[:, 0], countChannelRelationsData[:, 2])
+            # plt.scatter(countChannelRelationsData[:, 1], countChannelRelationsData[:, 3])
+            # plt.show()
+            # plt.close()
             HOMandQBERs = content['HOMandQBERs']
             totalEntryCount = HOMandQBERs['TotalEntryCount']
             data = np.array(HOMandQBERs['SortedEntries'])
@@ -36,12 +45,6 @@ class Shower:
 
         data = np.hstack((conditions, mergedData))
 
-        #         file = open('{}/HOMandQBERs.csv'.format(self.showDir), 'w')
-        #         file.write('{}\n'.format(', '.join(head)))
-        #         for row in range(conditions.shape[0]):
-        #             file.write('{}\n'.format(', '.join([str(d) for d in data[row]])))
-        #         file.close()
-        #
         # plot non filtering
         threshold = 0.8
         ratios = np.logspace(-1.3, 1.3, 100)
@@ -66,7 +69,7 @@ class Shower:
     #         for bases in ['XX', 'YY', 'ZZ']:
     #             self.__plot(selectedData, head, selectedRatio, 'Ratio', 'Threshold', 'QBER', '{} Correct'.format(bases),
     #                         '{} Wrong'.format(bases), bases, True, False)
-    #
+
     def __plot(self, threshold, data):
         ratios = data[:, 0]
         validTimes = data[:, 1]
@@ -78,7 +81,7 @@ class Shower:
             ax2 = ax.twinx()
             ax.semilogx(ratios, HOMs[:, i * 2] / (HOMs[:, i * 2 + 1] - 1e-10), color='blue')
             ax2.semilogx(ratios, HOMs[:, i * 2 + 1], color='orange')
-            ax.set_ylim((0.4, 1))
+            ax.set_ylim((0.4, 2))
             ax.grid()
         plt.show()
         # independents = data[:, head.index(independentName)]
@@ -146,7 +149,9 @@ class Shower:
 
 if __name__ == '__main__':
     print('HOM and QBER summary')
-    worker = IFWorker('tcp://172.16.60.199:224')
-    shower = Shower(worker, 'MDIQKD_DataReviewer', '2020-06-12 11:04:05', '2020-06-12 22:04:05')
+    # worker = IFWorker('tcp://172.16.60.199:224')
+    worker = IFWorker('tcp://127.0.0.1:224')
+    # shower = Shower(worker, 'MDI_DataReviewer_10k100M', '2020-03-12 11:04:05', '2020-06-12 22:04:05')
+    shower = Shower(worker, 'MDI_DataReviewer_10k250M', '2020-03-12 11:04:05', '2020-06-12 22:04:05')
     shower.show()
     worker.close()

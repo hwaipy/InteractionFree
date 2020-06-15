@@ -26,12 +26,13 @@ class Reviewer:
 
         dataPairs = qbersList.map(lambda qber: [qber, channelsList.filter(lambda channel: np.abs(qber.systemTime - channel.channelMonitorSyncs[0]) < 3)]).filter(lambda z: z[1].size() > 0).map(lambda z: [z[0], z[1][0]]).list()
         debug_timerecord('Data Pairs ready')
-        for dataPair in dataPairs[:1]:
+        for dataPair in dataPairs:
             debug_timerecord('in parse a data pair')
             dpp = DataPairParser(dataPair[0], dataPair[1],
                                  lambda id, filter: self.worker.Storage.get(self.collectionTDC, id, filter),
                                  lambda id, filter: self.worker.Storage.get(self.collectionMonitor, id, filter),
-                                 lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime))
+                                 lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime),
+                                 [[0, -0.4, 4.5], [-1, 0, 5]])
             debug_timerecord('a data pair created')
             dpp.parse()
             debug_timerecord('a data pair parsed')
@@ -40,61 +41,40 @@ class Reviewer:
         debug_timerecord('All done')
 
 
-#
-#   object HOMandQBEREntry {
-#     private val bases = List("O", "X", "Y", "Z")
-#     val HEAD = s"Threshold, Ratio, ValidTime, " +
-#       (List("XX", "YY", "All").map(bb => List("Dip", "Act").map(position => bb + position)).flatten.mkString(", ")) + ", " +
-#       (bases.map(a => bases.map(b => List("Correct", "Wrong").map(cw => a + b + " " + cw))).flatten.flatten.mkString(", "))
-#   }
-#
-#   class HOMandQBEREntry(val ratioLow: Double, val ratioHigh: Double, val powerOffsets: Tuple2[Double, Double] = (0, 0), val powerInvalidLimit: Double = 4.5) {
-#     private val homCounts = new Array[Double](6)
-#     private val qberCounts = new Array[Int](32)
-#     private val validSectionCount = new AtomicInteger(0)
-#
-#     def ratioAcceptable(rawPower1: Double, rawPower2: Double) = {
-#       val power1 = rawPower1 - (if (ignoredChannel == 0) powerOffsets._1 else 0)
-#       val power2 = rawPower2 - (if (ignoredChannel == 1) powerOffsets._2 else 0)
-#       val actualRatio = if (power2 == 0) 0 else power1 / power2
-#       if (power1 > powerInvalidLimit || power2 > powerInvalidLimit) false
-#       else (actualRatio >= ratioLow) && (actualRatio < ratioHigh)
-#     }
-#
-#     def append(qberEntry: QBEREntry) = {
-#       val homs = qberEntry.HOMs
-#       Range(0, 3).foreach(kk => {
-#         homCounts(kk * 2) += homs(kk * 2)
-#         homCounts(kk * 2 + 1) += homs(kk * 2 + 1)
-#       })
-#       val qbers = qberEntry.QBERs
-#       Range(0, qberCounts.size).foreach(kk => qberCounts(kk) += qbers(kk))
-#       validSectionCount.incrementAndGet
-#     }
-#
-#     def toData(): Array[Double] = Array[Double](ratioLow, ratioHigh, validSectionCount.get) ++ homCounts ++ qberCounts.map(_.toDouble)
-#   }
+class HOMandQBEREntry:
+    def __init__(self, ratioLow, ratioHigh):
+        self.ratioLow = ratioLow
+        self.ratioHigh = ratioHigh
+        self.homCounts = np.zeros((6))
+        self.qberCounts = np.zeros((32))
+        self.validSectionCount = 0
+
+    def append(self, qberEntry):
+        self.homCounts += qberEntry.HOMs
+        self.qberCounts += qberEntry.QBERs
+        self.validSectionCount += 1
+
+    def toData(self):
+        return [self.ratioLow, self.ratioHigh, self.validSectionCount] + [i for i in self.homCounts] + [i for i in self.qberCounts]
+
+
 class DataPairParser:
-    def __init__(self, qbers, channels, getterTDC, getterMonitor, resultUploader):
+    def __init__(self, qbers, channels, getterTDC, getterMonitor, resultUploader, channelMonitorConfig):
         self.qbers = qbers
         self.channels = channels
         self.resultUploader = resultUploader
+        self.channelMonitorConfig = channelMonitorConfig
         self.qbers.load(getterTDC)
         self.channels.load(getterMonitor)
         self.__performTimeMatch()
         self.__performEntryMatch()
-        # print(self.qbers.entries.map(lambda e:e.relatedPowerCount()))
-        self.timeMatchedQBEREntries = self.qbers.entries.filter(lambda e: e.relatedPowerCount() > 0)
+        self.timeMatchedQBEREntries = self.qbers.entries.filter(lambda e: e.relatedPowerCount > 0)
 
-    #     //    val powerOffsets = (timeMatchedQBEREntries.map(p => p.relatedPowers._1).min, timeMatchedQBEREntries.map(p => p.relatedPowers._2).min)
-    #
     def parse(self):
         debug_timerecord('in data pair parse', 1)
         result = {}
         result['CountChannelRelations'] = self.__countChannelRelations()
-        ratios = np.logspace(-200, 200, 401, base=1.02)
-        result['HOMandQBERs'] = self.HOMandQBERs(ratios)
-
+        result['HOMandQBERs'] = self.HOMandQBERs(1.02, 200)
         self.resultUploader(result, self.qbers.sections[0].meta['FetchTime'])
         debug_timerecord('done data pair parse', 1)
 
@@ -127,21 +107,28 @@ class DataPairParser:
         debug_timerecord('countChannelRelations', 10)
         return m
 
-    def HOMandQBERs(self, ratios):
+    def HOMandQBERs(self, ratioBase, ratioMaxIndex):
+        ratios = list(np.logspace(-ratioMaxIndex, ratioMaxIndex, 2 * ratioMaxIndex + 1, base=ratioBase))
         debug_timerecord('HOMandQBERs', 10)
+        ratioPairs = seq([0] + ratios).zip(ratios + [1e100])
+        homAndQberEntries = ratioPairs.map(lambda ratioPair: HOMandQBEREntry(ratioPair[0], ratioPair[1]))
 
-        #     //      val ratioPairs = (List(0) ++ ratios).zip(ratios ++ List(Double.MaxValue))
-        #     //      val homAndQberEntries = ratioPairs.map(ratioPair => new HOMandQBEREntry(ratioPair._1, ratioPair._2, powerOffsets)).toArray
-        #     //      timeMatchedQBEREntries.foreach(entry => {
-        #     //        val relatedPowers = entry.relatedPowers
-        #     //        homAndQberEntries.filter(_.ratioAcceptable(relatedPowers._1, relatedPowers._2)).foreach(hqe => hqe.append(entry))
-        #     //      })
-        #     //      val totalEntryCount = timeMatchedQBEREntries.size
-        #     //      val r = homAndQberEntries.map(e => e.toData()).toList
-        #     //      Map("TotalEntryCount" -> totalEntryCount, "SortedEntries" -> r)
-        #     //    }
-        #   }
+        def getRatioPairIndex(powers):
+            p1 = 1 if self.channelMonitorConfig[0][0] < 0 else powers[self.channelMonitorConfig[0][0]] - self.channelMonitorConfig[0][1]
+            p2 = 1 if self.channelMonitorConfig[1][0] < 0 else powers[self.channelMonitorConfig[1][0]] - self.channelMonitorConfig[1][1]
+            if p1 == 0 or p2 > self.channelMonitorConfig[1][2]:
+                index = 0
+            elif p2 == 0 or p1 > self.channelMonitorConfig[0][2]:
+                index = 2 * ratioMaxIndex + 1
+            else:
+                index = np.max([np.min([ratioMaxIndex + int(np.floor(np.log10(p1 / p2) / np.log10(1.02))) + 1, 2 * ratioMaxIndex + 1]), 0])
+            return index
+
+        self.timeMatchedQBEREntries.for_each(lambda entry: homAndQberEntries[getRatioPairIndex(entry.relatedPowers())].append(entry))
+        totalEntryCount = self.timeMatchedQBEREntries.size()
+        r = homAndQberEntries.map(lambda e: e.toData()).list()
         debug_timerecord('HOMandQBERs', 10)
+        return {'TotalEntryCount': totalEntryCount, 'SortedEntries': r}
 
     def release(self):
         self.qbers.release()
@@ -154,8 +141,7 @@ class QBERs:
         self.systemTime = sections[0].pcTime
         self.TDCTimeOfSectionStart = sections[0].tdcStart
         self.channelMonitorSyncs = seq([self.sections[0], self.sections[-1]]).map(lambda s: (s.slowSync - self.TDCTimeOfSectionStart) / 1e12)
-
-    #     val valid = math.abs(channelMonitorSyncs(1) - channelMonitorSyncs(0) - 10) < 0.001
+        #     val valid = math.abs(channelMonitorSyncs(1) - channelMonitorSyncs(0) - 10) < 0.001
 
     def load(self, getter):
         self.sections.for_each(lambda z: z.load(getter))
@@ -166,7 +152,7 @@ class QBERs:
 
             def createQBEREntry(i):
                 entryTDCStartStop = seq([i, i + 1]).map(lambda j: ((section.tdcStop - section.tdcStart) / entryCount * j + section.tdcStart - self.TDCTimeOfSectionStart) / 1e12)
-                entryHOMs = seq(section.contentHOMEntries).map(lambda j: j[i])
+                entryHOMs = section.contentHOMEntries[i]
                 entryQBERs = section.contentQBEREntries[i]
                 entryCounts = section.contentCountEntries[i]
                 return QBEREntry(entryTDCStartStop[0], entryTDCStartStop[1], entryHOMs, entryCounts, entryQBERs)
@@ -221,19 +207,18 @@ class QBEREntry:
         self.HOMs = HOMs
         self.counts = counts
         self.QBERs = QBERs
-        self.relatedChannelEntries = []
+        self.relatedPowerCount = 0
+        self.power1Sum = 0
+        self.power2Sum = 0
 
     def appendRelatedChannelEntry(self, entry):
-        self.relatedChannelEntries.append(entry)
-
-    def relatedPowerCount(self):
-        return len(self.relatedChannelEntries)
+        self.power1Sum += entry.power1
+        self.power2Sum += entry.power2
+        self.relatedPowerCount += 1
 
     def relatedPowers(self):
-        if self.relatedPowerCount() == 0: return [0.0, 0.0]
-        relatedPower1 = seq(self.relatedChannelEntries).map(lambda e: e.power1).list()
-        relatedPower2 = seq(self.relatedChannelEntries).map(lambda e: e.power2).list()
-        return [np.average(np.array(relatedPower1)), np.average(np.array(relatedPower2))]
+        if self.relatedPowerCount == 0: return [0.0, 0.0]
+        return [self.power1Sum / self.relatedPowerCount, self.power2Sum / self.relatedPowerCount]
 
 
 class Channels:
@@ -307,10 +292,14 @@ class ChannelEntry:
 
 
 if __name__ == '__main__':
-    # mainWorker = IFWorker("tcp://127.0.0.1:224", "TDCLocalParserTest")
-    mainWorker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
+    mainWorker = IFWorker("tcp://127.0.0.1:224", "TDCLocalParserTest")
+    # mainWorker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
     try:
-        reviewer = Reviewer(mainWorker, 'TDCLocalTest_10k100M', 'MDIChannelMonitor', 'MDI_DataReviewer_10k100M', '2020-04-30T23:34+08:00', '2020-05-01T00:59+08:00')
+        t1 = time.time()
+        # reviewer = Reviewer(mainWorker, 'TDCLocalTest_10k100M', 'MDIChannelMonitor', 'MDI_DataReviewer_10k100M', '2020-04-30T23:34+08:00', '2020-05-01T00:59+08:00')
+        reviewer = Reviewer(mainWorker, 'TDCLocalTest_10k250M', 'MDIChannelMonitor', 'MDI_DataReviewer_10k250M', '2020-05-01T01:12:32+08:00', '2020-05-01T02:59+08:00') # start from 30th QBER section
         reviewer.review()
+        t2 = time.time()
+        print('Finished in {} s.'.format(t2 - t1))
     finally:
         mainWorker.close()
