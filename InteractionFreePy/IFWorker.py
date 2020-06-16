@@ -343,8 +343,13 @@ if __name__ == '__main__':
     # asyncio.ensure_future(ayncTest())
     #
 
-    worker = IFWorker("tcp://127.0.0.1:224")
-    # print(worker.Name5.setClientName('Name5'))
-    print(worker.Name5.setFastGPIOMode('0', '0', '1'))
-    print(worker.Name5.writeFastGPIO('0', '0', '0'))
-    IFLoop.join()
+    # worker = IFWorker("tcp://127.0.0.1:224")
+    # # print(worker.Name5.setClientName('Name5'))
+    # print(worker.Name5.setFastGPIOMode('0', '0', '1'))
+    # print(worker.Name5.writeFastGPIO('0', '0', '0'))
+    # IFLoop.join()
+
+    worker = IFWorker('tcp://172.16.60.199:224')
+    while True:
+        time.sleep(1)
+        print(worker.MDI_ADCMonitor.getRecentVoltages(validity=2, aperture=0.8))

@@ -1,0 +1,10 @@
+name := "ADCMonitor"
+version := "0.2.0"
+scalaVersion := "2.13.2"
+organization := "com.interactionfree"
+libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.2"
+libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.13.2"
+libraryDependencies += "com.interactionfree" %% "interactionfreescala" % "0.1.0"
+scalacOptions ++= Seq("-feature")
+scalacOptions ++= Seq("-deprecation")
+//fork := true
