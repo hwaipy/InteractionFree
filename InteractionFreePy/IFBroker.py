@@ -4,7 +4,7 @@ __email__ = 'hwaipy@gmail.com'
 
 import zmq
 from zmq.eventloop.zmqstream import ZMQStream
-from IFCore import IFDefinition, IFException, Invocation, Message, IFLoop
+from IFCore import IFDefinition, IFException, Invocation, Message, IFLoop, logging_info
 from tornado.ioloop import IOLoop
 import time
 
@@ -101,13 +101,13 @@ class Manager:
             raise IFException('The current worker has registered as [{}].'.format(name))
         self.__services[name] = [sourcePoint, interfaces, time.time()]
         self.__workers[sourcePoint] = name
-        print('Service [{}] registered as {}.'.format(name, interfaces))
+        logging_info('Service [{}] registered as {}.'.format(name, interfaces))
 
     def unregister(self, sourcePoint):
         if self.__workers.__contains__(sourcePoint):
             serviceName = self.__workers.pop(sourcePoint)
             self.__services.pop(serviceName)
-            print('Service [{}] unregistered.'.format(serviceName))
+            logging_info('Service [{}] unregistered.'.format(serviceName))
 
     def protocol(self, sourcePoint):
         return str(IFDefinition.PROTOCOL, encoding='UTF-8')

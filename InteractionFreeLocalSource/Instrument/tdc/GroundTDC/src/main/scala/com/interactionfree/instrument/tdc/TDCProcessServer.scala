@@ -1,18 +1,20 @@
 package com.interactionfree.instrument.tdc
 
-import java.io.{BufferedOutputStream, FileOutputStream}
+import java.io.{BufferedOutputStream, FileOutputStream, RandomAccessFile}
 import java.net.ServerSocket
 import java.nio.LongBuffer
-import java.util.concurrent.Executors
+import java.nio.file.Paths
+import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
 
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent.{ExecutionContext, Future}
 import com.interactionfree.NumberTypeConversions._
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
 
-class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter]) {
+class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val bufferPath: String, private val localStorePath: String) {
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
     val t = new Thread(r)
     t.setDaemon(true)
@@ -21,6 +23,7 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
   private val tdcParser = new TDCParser(new TDCDataProcessor {
     override def process(data: Any): Unit = dataIncome(data)
   }, adapters.toArray)
+  private val storableBuffer = new StorableBuffer(tdcParser, bufferPath)
   private val server = new ServerSocket(port)
   private val finishedConnections = new AtomicInteger(0)
 
@@ -43,7 +46,8 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
             val array = new Array[Byte](read)
             Array.copy(buffer, 0, array, 0, read)
             //  store(array)
-            tdcParser.offer(array)
+            //            tdcParser.offer(array)
+            storableBuffer.offer(array)
           }
         }
       } catch {
@@ -57,6 +61,7 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
 
   def stop() = {
     server.close
+    storableBuffer.stop()
     tdcParser.stop
   }
 
@@ -80,6 +85,93 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
     //              sectionStoredSize = 0
     //            }
   }
+}
+
+class StorableBuffer(private val parser: TDCParser, private val bufferPath: String) {
+
+  object BufferEntry {
+    val bufferFilePostfix = new AtomicLong(0)
+    val CAPACITY = 10 * 1000 * 1000
+  }
+
+  class BufferEntry {
+    private val dataList = new ListBuffer[Array[Byte]]
+
+    val inMemory = new AtomicBoolean(true)
+
+    private val storedSize = new AtomicInteger(0)
+
+    def dataSize = if (inMemory.get) dataList.map(_.size).sum else storedSize.get
+
+    def remaining = BufferEntry.CAPACITY - dataSize
+
+    def offer(data: Array[Byte]) = {
+      if (!inMemory.get) throw new IllegalStateException("Can not offer data while not in memory.")
+      if (remaining < data.size) throw new IllegalStateException("No enough room in BufferEntry.")
+      dataList += data
+    }
+
+    //    def inMemorySize = if (data == null) 0 else dataSize
+    //
+    //    def isInMemory = data != null
+    //
+    //    val bufferFile = Paths.get(bufferPath, s"BUFFER_${BufferEntry.bufferFilePostfix.getAndIncrement()}")
+    //
+    def dump() = {
+      inMemory set false
+      //      val raf = new RandomAccessFile(bufferFile.toString, "rw")
+      //      raf.write(data)
+      //      raf.close()
+      //      data = null
+    }
+
+    def load() = {
+      inMemory set true
+    }
+  }
+
+  private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
+    val t = new Thread(r)
+    t.setDaemon(true)
+    t
+  }))
+  private val stoped = new AtomicBoolean(false)
+  private val incomingQueue = new LinkedBlockingQueue[Array[Byte]]()
+  private val bufferEntryList = new ListBuffer[BufferEntry]()
+  bufferEntryList += new BufferEntry
+
+  def offer(data: Array[Byte]) = incomingQueue.offer(data)
+
+  def stop() = stoped set true
+
+  def dealInput() = {
+    // step 1: merge data in incomingQueue into bufferEntryList
+    while (incomingQueue.size > 0) {
+      val incomingData = incomingQueue.take()
+      if (bufferEntryList.last.remaining < incomingData.size) bufferEntryList += new BufferEntry()
+      bufferEntryList.last.offer(incomingData)
+    }
+    // step 2: if bufferEntryList has more than 3 items, dump [2:-1]
+    if (bufferEntryList.size > 3) bufferEntryList.slice(2, bufferEntryList.size - 1).foreach(_.dump())
+    // step 3: load the first to items of bufferEntryList
+    bufferEntryList.slice(0, 2).foreach(_.load)
+
+    //    while (queue.iterator().asScala.map(_.inMemorySize).sum > bufferSize) {
+    //      queue.iterator().asScala.filter(_.isInMemory).next().dump()
+    //    }
+  }
+
+  Future[Any] {
+    while (!stoped.get) {
+      try {
+        dealInput()
+        println(s"${bufferEntryList.map(_.dataSize).sum}    ${bufferEntryList.size}    ${bufferEntryList.map(_.inMemory).mkString(" ")}")
+        Thread.sleep(100)
+      } catch {
+        case e: Throwable => e.printStackTrace()
+      }
+    }
+  }(executionContext)
 }
 
 class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCDataAdapter {
@@ -140,18 +232,7 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
   }
 }
 
-class DataBlock(val content: Array[Array[Long]], val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long) {
-  //  def pack() = {
-  //    val start = System.nanoTime()
-  //    val message = Message.wrap(Map("Content" -> content, "CreationTime" -> creationTime, "DataTime" -> List(dataTimeBegin, dataTimeEnd)))
-  //    val out = new FileOutputStream("D:\\TEMP\\test.dat.dump")
-  //    val bytes = message.pack
-  //    out.write(bytes)
-  //    out.close()
-  //    val stop = System.nanoTime()
-  //    println(s"${(stop - start) / 1e9} s with ${bytes.size} bytes")
-  //  }
-}
+class DataBlock(val content: Array[Array[Long]], val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long)
 
 abstract class DataAnalyser {
   protected val on = new AtomicBoolean(false)

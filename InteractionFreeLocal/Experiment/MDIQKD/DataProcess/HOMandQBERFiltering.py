@@ -292,12 +292,12 @@ class ChannelEntry:
 
 
 if __name__ == '__main__':
-    mainWorker = IFWorker("tcp://127.0.0.1:224", "TDCLocalParserTest")
-    # mainWorker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
+    # mainWorker = IFWorker("tcp://127.0.0.1:224", "TDCLocalParserTest")
+    mainWorker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
     try:
         t1 = time.time()
         # reviewer = Reviewer(mainWorker, 'TDCLocalTest_10k100M', 'MDIChannelMonitor', 'MDI_DataReviewer_10k100M', '2020-04-30T23:34+08:00', '2020-05-01T00:59+08:00')
-        reviewer = Reviewer(mainWorker, 'TDCLocalTest_10k250M', 'MDIChannelMonitor', 'MDI_DataReviewer_10k250M', '2020-05-01T01:12:32+08:00', '2020-05-01T02:59+08:00') # start from 30th QBER section
+        reviewer = Reviewer(mainWorker, 'TDCLocalTest_10k250M_decoy', 'MDIChannelMonitor', 'MDI_DataReviewer_10k250M_decoy', '2020-05-01T01:12:32+08:00', '2020-05-01T12:59+08:00') # start from 30th QBER section
         reviewer.review()
         t2 = time.time()
         print('Finished in {} s.'.format(t2 - t1))

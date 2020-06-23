@@ -8,6 +8,7 @@ import re
 from tornado.ioloop import IOLoop
 from threading import Thread
 import types
+from datetime import datetime
 
 
 class IFDefinition:
@@ -346,6 +347,7 @@ class Invocation:
 
 
 import time
+
 debug_lastRecordedTime = time.time()
 
 
@@ -356,3 +358,10 @@ def debug_timerecord(label, level=0):
     debug_lastRecordedTime = currentTIme
     # print('DEBUG[TimeRecord]: {}{} ms for {}.'.format(''.join(['\t'] * level), int(delta * 1e3), label))
 
+
+def logging(message, exception=None, level='INFO'):
+    print("{} [{}] {}".format(datetime.now().isoformat(), level, message))
+
+
+def logging_info(message, exception=None):
+    logging(message, exception, 'INFO')

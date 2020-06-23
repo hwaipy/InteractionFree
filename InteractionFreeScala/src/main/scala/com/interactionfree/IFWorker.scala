@@ -2,7 +2,8 @@ package com.interactionfree
 
 import java.lang.Thread.UncaughtExceptionHandler
 import java.nio.charset.Charset
-import java.util.concurrent.{Executors, LinkedBlockingQueue, ThreadFactory}
+import java.time.LocalDateTime
+import java.util.concurrent.{Executors, ThreadFactory}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong}
 import scala.language.dynamics
 import org.zeromq.{SocketType, ZContext, ZMsg}
@@ -11,6 +12,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.language.postfixOps
+import scala.util.Random
+import com.interactionfree.Logging
+import com.interactionfree.Logging.Level._
 
 object IFDefinition {
   val PROTOCOL = "IF1"
@@ -88,6 +92,7 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
       while (!closed.get) {
         try {
           val zmsg = ZMsg.recvMsg(socket)
+          Logging.info((s"Received ${zmsg}"))
           if (zmsg.size() != 6) throw new IFException("Invalid Message from Broker.")
           val it = zmsg.iterator()
           it.next()
@@ -101,8 +106,7 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
         } catch {
           case e: Throwable => {
             if (!closed.get) {
-              println(e)
-              e.printStackTrace()
+              Logging.error("Error during parse message.", e)
             }
           }
         }
@@ -123,7 +127,7 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
           val hb = blockingInvoker("", timeout = (IFDefinition.HEARTBEAT_LIVETIME / 5) milliseconds).heartbeat().asInstanceOf[Boolean]
           if (!hb && isService) needReReg set true
         } catch {
-          case e: Throwable => if (!closed.get) println(s"Heartbeat: ${e.getMessage}")
+          case e: Throwable => if (!closed.get) Logging.warning(s"Heartbeat: ${e.getMessage}")
         }
       }
     }
@@ -162,13 +166,18 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
     })
 
     def execute(runnable: Runnable): Unit = {
-      SingleThreadPool.submit(runnable).get
+      Logging.debug(s"submitting runnable: ${SingleThreadPool.isShutdown},${SingleThreadPool.isTerminated}")
+      val f = SingleThreadPool.submit(runnable)
+//      Logging.debug(s"submitted. wait.")
+//      f.get
     }
 
     def reportFailure(cause: Throwable): Unit = {
+      cause.printStackTrace()
     }
 
     def uncaughtException(thread: Thread, cause: Throwable): Unit = {
+      cause.printStackTrace()
     }
   }
 
@@ -176,26 +185,37 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
 
   private def future(msg: Message) = {
     val id = msg.messageIDasLong
+    Logging.info(s"Sending ${msg}")
     val futureEntry = new FutureEntry
+    Logging.debug(s"FE created")
     Future[Any] {
+      Logging.debug("in f: 1")
       if (futureEntry.cause.isDefined) throw futureEntry.cause.get
       if (futureEntry.result.isDefined) futureEntry.result.get
       else throw new IFException("Error state: FutureEntry not defined.")
     }(new ExecutionContext {
+      Logging.debug("new ec")
+
       def execute(runnable: Runnable): Unit = {
+        Logging.debug("exe in ec")
         SingleThreadExecutionContext.execute(() => {
+          Logging.debug("running submitted runnable")
           waitingMap.synchronized {
+            Logging.debug("inside sync")
             if (waitingMap.contains(id)) throw new IFException("MessageID have been used.")
             waitingMap.put(id, (futureEntry, runnable))
           }
+          Logging.debug("outside submitted runnable")
           val zmsg = new ZMsg()
           zmsg.addLast("").addLast(msg.protocol).addLast(msg.messageID).addLast(msg.distributingMode).addLast(msg.remoteAddress).addLast(msg.serialization).add(msg.invocation.serialize(msg.serialization))
           val suc = zmsg.send(socket)
+          Logging.debug("Runnable Done.")
         })
+        Logging.debug("exe submitted in ec")
       }
 
       def reportFailure(cause: Throwable): Unit = {
-        if (!closed.get) println(s"nn:$cause")
+        if (!closed.get) Logging.warning(s"nn:$cause", cause)
       }
     })
   }
@@ -224,7 +244,7 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
         else if (invocation.isResponse) futureEntry.result = Some(invocation.getResult)
         runnable.run()
       }
-      case None => if (!closed.get) println(s"MessageID not found: $id")
+      case None => if (!closed.get) Logging.warning(s"MessageID not found: $id")
     }
   }
 }
@@ -270,12 +290,14 @@ class AsynchronousRemoteObject(worker: IFWorker, targetName: String = "") extend
 }
 
 private class InvokeItem(worker: IFWorker, target: String, functionName: String)(args: (String, Any)*) {
+  Logging.debug(("creating II"))
   val argsList: ArrayBuffer[Any] = new ArrayBuffer
   val namedArgsMap: mutable.HashMap[String, Any] = new mutable.HashMap
   args.foreach(m => m match {
     case (name, value) if name == null || name.isEmpty => argsList += value
     case (name, value) => namedArgsMap.put(name, value)
   })
+  Logging.debug(("II created"))
   val invocation = Invocation.newRequest(functionName, argsList.toList, namedArgsMap.toMap)
 
   def sendMessage = worker.send(toMessage)
@@ -286,7 +308,14 @@ private class InvokeItem(worker: IFWorker, target: String, functionName: String)
 }
 
 object IFWorkerApp extends App {
-  val worker = IFWorker("tcp://localhost:224", "IFWorkerAppTest")
-  Thread.sleep(5000)
+  val worker = IFWorker("tcp://172.16.60.199:224", "IFWorkerScalaTest")
+  Logging.info("Begin")
+  val random = new Random()
+  while (true) {
+    Thread.sleep(1000)
+    val randomData = Range(0, 3).map(ch => Range(0, 10000).map(_ => random.nextDouble()).toArray).toArray
+    worker.asynchronousInvoker("Storage").append("IFWorkerScalaLongTermTest", randomData, fetchTime = System.currentTimeMillis())
+    Logging.debug(s"Looped at ${LocalDateTime.now()}")
+  }
   worker.close()
 }

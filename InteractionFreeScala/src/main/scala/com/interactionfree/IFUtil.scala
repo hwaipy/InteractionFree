@@ -1,5 +1,7 @@
 package com.interactionfree
 
+import java.time.LocalDateTime
+
 import scala.language.implicitConversions
 
 object NumberTypeConversions {
@@ -37,5 +39,29 @@ object NumberTypeConversions {
       case _ => throw new IllegalArgumentException(s"$x can not be cast to Int.")
     }
   }
+}
 
+object Logging {
+
+  object Level extends Enumeration {
+    type Level = Value
+    val Error, Warning, Info, Debug = Value
+  }
+
+  import Level._
+
+  def log(level: Level, msg: String, exception: Throwable = null) = {
+    println(s"${LocalDateTime.now()} [${level}] $msg")
+    if (exception != null) {
+      exception.printStackTrace()
+    }
+  }
+
+  def error(msg: String, exception: Throwable = null) = log(Error, msg, exception)
+
+  def warning(msg: String, exception: Throwable = null) = log(Warning, msg, exception)
+
+  def info(msg: String, exception: Throwable = null) = log(Info, msg, exception)
+
+  def debug(msg: String, exception: Throwable = null) = log(Debug, msg, exception)
 }

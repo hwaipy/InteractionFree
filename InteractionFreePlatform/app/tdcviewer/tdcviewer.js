@@ -1,7 +1,17 @@
 $(document).ready(function() {
+  var parameterString = window.location.search
+  var parameters = {}
+  if (parameterString.length > 0){
+    parameterStrings = parameterString.split('?')[1].split('&')
+    for(var i=0;i<parameterStrings.length;i++){
+      paras = parameterStrings[i].split('=')
+      if (paras.length == 2) parameters[paras[0]] = paras[1]
+    }
+  }
+  collection = parameters['collection'] || "TDCLocalTest"
+
   worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
-    viewerFetcher = new TDCViewerStorageStreamFatcher(worker,
-      "TDCLocalTest_10k250M")
+    viewerFetcher = new TDCViewerStorageStreamFatcher(worker, collection)
     viewerFetcher.start(1000)
   })
 });

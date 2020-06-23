@@ -10,8 +10,8 @@ import com.interactionfree.instrument.tdc.GroundTDC
 import scala.jdk.CollectionConverters._
 
 object LocalTDCDataFeeder {
-  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501011320-011820-10k250M-all-decoy"
-//    private val localDataRoot = "/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
+  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501012120-012720-10k250M-decoy"
+  //    private val localDataRoot = "/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
   private val localDataFiles = Files.list(Paths.get(localDataRoot)).iterator().asScala.toList.sorted
   private val startTime = localDataFiles.head.getFileName.toString.split("-").head.toLong
   private val dataBlockCount = new AtomicLong(0)
@@ -19,7 +19,7 @@ object LocalTDCDataFeeder {
   def start(port: Int, dataRate: Int = 2000000) = {
     Thread.sleep(2000)
     val worker = IFWorker("tcp://172.16.60.199:224")
-//        val worker = IFWorker("tcp://127.0.0.1:224")
+    //        val worker = IFWorker("tcp://127.0.0.1:224")
     val process = worker.GroundTDCLocal
     process.turnOnAnalyser("Counter")
     //    process.turnOnAnalyser("Histogram", Map("Sync" -> 0, "Signal" -> 8, "ViewStart" -> 0, "ViewStop" -> 10000000, "Divide" -> 1000))
@@ -29,11 +29,11 @@ object LocalTDCDataFeeder {
     process.turnOnAnalyser("MDIQKDQBER", Map("AliceRandomNumbers" -> Range(0, 10000).map(_ => 6).toList, "BobRandomNumbers" -> Range(0, 10000).map(_ => 6).toList, "Period" -> 4000.0, "Delay" -> 500.0, "PulseDiff" -> 2000.0,
       "Gate" -> 1000.0, "TriggerChannel" -> 0, "Channel 1" -> 8, "Channel 2" -> 9, "Channel Monitor Alice" -> 4, "Channel Monitor Bob" -> 5, "QBERSectionCount" -> 1000, "HOMSidePulses" -> List(-100, -90, -80, 80, 90, 100), "ChannelMonitorSyncChannel" -> 2))
 
-//    process.setDelay(0, 11970700)
+    //    process.setDelay(0, 11970700)
     process.setDelay(0, 10022000)
-//    process.setDelay(4, 22800)
+    //    process.setDelay(4, 22800)
     process.setDelay(4, 16800)
-//    process.setDelay(5, 44000)
+    //    process.setDelay(5, 44000)
     process.setDelay(5, 42000)
     process.setDelay(8, 0)
     process.setDelay(9, -510600)
@@ -41,7 +41,7 @@ object LocalTDCDataFeeder {
     val socket = new Socket("localhost", port)
     val outputStream = socket.getOutputStream
     val buffer = new Array[Byte](1000000)
-    localDataFiles.foreach(localDataFile => {
+    localDataFiles.slice(0, 10).foreach(localDataFile => {
       val startTime = System.currentTimeMillis()
       val in = Files.newInputStream(localDataFile)
       val size = Files.size(localDataFile)
@@ -53,7 +53,7 @@ object LocalTDCDataFeeder {
         outputStream.flush()
         val expectedTime = (read.get / dataRate.toDouble * 1000).toLong + startTime
         val timeToWait = expectedTime - System.currentTimeMillis()
-        if (timeToWait > 0) Thread.sleep(timeToWait)
+        //        if (timeToWait > 0) Thread.sleep(timeToWait)
       }
     })
     Thread.sleep(2000)

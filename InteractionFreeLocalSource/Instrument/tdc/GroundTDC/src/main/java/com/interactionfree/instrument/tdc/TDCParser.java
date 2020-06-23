@@ -5,7 +5,6 @@ import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -22,7 +21,7 @@ public class TDCParser {
     private final TDCDataAdapter[] adapters;
     private final BlockingQueue<Object> dataQueue = new LinkedBlockingQueue<>();
     private boolean running = true;
-    private int bufferSize = 50000000;
+    private int bufferSize = 10000000;
 
     public TDCParser(TDCDataProcessor processor, long flushTime, TDCDataAdapter... adapters) {
         this.processor = processor;
@@ -54,27 +53,30 @@ public class TDCParser {
         this(processor, 100, adapters);
     }
 
-    public void offer(byte[] data) {
+    public int bufferedDataSize() {
         Iterator it = dataQueue.iterator();
         int size = 0;
         while (it.hasNext()) {
             Object ne = it.next();
-            if (data instanceof byte[]) {
+            if (ne instanceof byte[]) {
                 byte[] bs = (byte[]) ne;
                 size += bs.length;
             }
         }
-        if (size > bufferSize) {
+        return size;
+    }
+
+    public long bufferRemaining() {
+        return bufferSize - bufferedDataSize();
+    }
+
+    public void offer(byte[] data) {
+        if (bufferedDataSize() > bufferSize) {
             System.out.println("Overflow!!!");
+            System.exit(0);
         } else {
             dataQueue.offer(data);
         }
-    }
-
-    public void waitForFinish() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        dataQueue.offer(countDownLatch);
-        countDownLatch.await();
     }
 
     public void stop() {
@@ -92,11 +94,6 @@ public class TDCParser {
         Object data = dataQueue.take();
         if (data == FLUSH_OBJECT) {
             shrinkQueue();
-        }
-        if (data instanceof CountDownLatch) {
-            CountDownLatch countDownLatch = (CountDownLatch) data;
-            countDownLatch.countDown();
-            return;
         }
         if (!(data instanceof byte[])) {
             System.out.println(data);
