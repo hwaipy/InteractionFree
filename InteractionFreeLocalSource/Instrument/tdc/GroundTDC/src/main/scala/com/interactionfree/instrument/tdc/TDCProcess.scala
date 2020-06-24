@@ -1,7 +1,7 @@
 package com.interactionfree.instrument.tdc
 
-import java.time.{LocalDateTime, ZoneOffset}
-import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
+import java.io.FileInputStream
+import java.util.Properties
 
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
@@ -13,22 +13,28 @@ import com.interactionfree.instrument.tdc.application.{MDIQKDEncodingAnalyser, M
 
 object GroundTDC extends App {
   println("This is GroundTDC.")
+
+  val properties = new Properties()
+  val propertiesIn = new FileInputStream("config.properties")
+  properties.load(propertiesIn)
+  propertiesIn.close()
+
   //  val parameters = mutable.HashMap[String, String]()
   //  args.foreach(arg => {
   //    val splitted = arg.split("=", 2)
   //    if (splitted.size == 2) parameters.put(splitted(0), splitted(1))
   //  })
 
-  //  val DEBUG = parameters.get("debug").getOrElse("false").toBoolean
-  val LOCAL = true
-  val dataSourceListeningPort = 20156
-  val storeCollection = "TDCLocalTest"
-  val bufferPath = "E:\\MDIQKD_Parse\\TDCBuffer"
-  val localStorePath = "E:\\MDIQKD_Parse\\TDCStore"
-
-  val process = new TDCProcessService(dataSourceListeningPort, storeCollection, bufferPath, localStorePath)
-  val worker = IFWorker("tcp://172.16.60.199:224", "GroundTDCLocal", process)
-  //    val worker = IFWorker("tcp://127.0.0.1:224", "GroundTDCLocal", process)
+  val DEBUG = properties.getOrDefault("Sys.Debug", false).toString.toBoolean
+  val LOCAL = properties.getOrDefault("Sys.Local", false).toString.toBoolean
+  val dataSourceListeningPort = properties.getOrDefault("DataSource.Port", 20156).toString.toInt
+  val storeCollection = properties.getOrDefault("Storage.Collection", "Default").toString
+  //  val localStorePath = "E:\\MDIQKD_Parse\\TDCStore"
+  val localStorePath = properties.getOrDefault("Storage.Local", "./local").toString
+  val IFServerAddress = properties.getOrDefault("IFServer.Address", "tcp://127.0.0.1:224").toString
+  val IFServerServiceName = properties.getOrDefault("IFServer.ServiceName", "GroundTDCService").toString
+  val process = new TDCProcessService(dataSourceListeningPort, storeCollection, localStorePath)
+  val worker = IFWorker(IFServerAddress, IFServerServiceName, process)
   //  process.turnOnAnalyser("Counter")
   //  process.turnOnAnalyser("Histogram", Map("Sync" -> 0, "Signal" -> 1, "ViewStart" -> -100000, "ViewStop" -> 100000))
   //  process.turnOnAnalyser("MDIQKDEncoding", Map("RandomNumbers" -> List(0, 1, 2, 3, 4, 5, 6, 7, 8, 9), "Period" -> 10000, "SignalChannel" -> 1, "TriggerChannel" -> 0))
@@ -44,11 +50,11 @@ object GroundTDC extends App {
   process.stop
 }
 
-class TDCProcessService(private val port: Int, private val storeCollection: String, private val bufferPath: String, private val localStorePath: String) {
+class TDCProcessService(private val port: Int, private val storeCollection: String, private val localStorePath: String) {
   private val channelCount = 16
   private val groundTDA = new GroundTDCDataAdapter(channelCount)
   private val dataTDA = new LongBufferToDataBlockListTDCDataAdapter(channelCount)
-  private val server = new TDCProcessServer(channelCount, port, dataIncome, List(groundTDA, dataTDA), bufferPath, localStorePath)
+  private val server = new TDCProcessServer(channelCount, port, dataIncome, List(groundTDA, dataTDA), localStorePath)
   private val analysers = new mutable.HashMap[String, DataAnalyser]()
   analysers("Counter") = new CounterAnalyser(channelCount)
   analysers("MultiHistogram") = new MultiHistogramAnalyser(channelCount)
@@ -66,8 +72,11 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
   }
 
   private def dataBlockIncome(dataBlock: DataBlock) = {
-    //    val result = new mutable.HashMap[String, Any]()
-    //    val executionTimes = new mutable.HashMap[String, Double]()
+    val result = new mutable.HashMap[String, Any]()
+    val executionTimes = new mutable.HashMap[String, Double]()
+
+    println(Thread.currentThread().getName)
+    println(analysers.size)
     //    analysers.toList.map(e => {
     //      val beginTime = System.nanoTime()
     //      val r = e._2.dataIncome(dataBlock)
@@ -77,13 +86,11 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
     //    }).filter(e => e._2.isDefined).foreach(e => result(e._1) = e._2.get)
     //    result("ExecutionTimes") = executionTimes
     //    result("Delays") = dataTDA.delays
-    //    if (GroundTDC.LOCAL) {
     //      try {
     //        GroundTDC.worker.Storage.append(storeCollection, result, fetchTime = dataBlock.creationTime)
     //      } catch {
     //        case e: Throwable => println("[1]" + e)
     //      }
-    //    }
   }
 
   def turnOnAnalyser(name: String, paras: Map[String, Any] = Map()) = analysers.get(name) match {

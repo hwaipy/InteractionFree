@@ -21,7 +21,7 @@ public class TDCParser {
     private final TDCDataAdapter[] adapters;
     private final BlockingQueue<Object> dataQueue = new LinkedBlockingQueue<>();
     private boolean running = true;
-    private int bufferSize = 10000000;
+//    private int bufferSize = 10000000;
 
     public TDCParser(TDCDataProcessor processor, long flushTime, TDCDataAdapter... adapters) {
         this.processor = processor;
@@ -66,17 +66,17 @@ public class TDCParser {
         return size;
     }
 
-    public long bufferRemaining() {
-        return bufferSize - bufferedDataSize();
-    }
+//    public long bufferRemaining() {
+//        return bufferSize - bufferedDataSize();
+//    }
 
     public void offer(byte[] data) {
-        if (bufferedDataSize() > bufferSize) {
-            System.out.println("Overflow!!!");
-            System.exit(0);
-        } else {
-            dataQueue.offer(data);
-        }
+//        if (bufferedDataSize() > bufferSize) {
+//            System.out.println("Overflow!!!");
+//            System.exit(0);
+//        } else {
+        dataQueue.offer(data);
+//        }
     }
 
     public void stop() {

@@ -4,6 +4,7 @@ import java.io.{BufferedOutputStream, FileOutputStream, RandomAccessFile}
 import java.net.ServerSocket
 import java.nio.LongBuffer
 import java.nio.file.Paths
+import java.time.LocalDateTime
 import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
 
@@ -14,7 +15,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import com.interactionfree.NumberTypeConversions._
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
 
-class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val bufferPath: String, private val localStorePath: String) {
+class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val localStorePath: String) {
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
     val t = new Thread(r)
     t.setDaemon(true)
@@ -23,13 +24,13 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
   private val tdcParser = new TDCParser(new TDCDataProcessor {
     override def process(data: Any): Unit = dataIncome(data)
   }, adapters.toArray)
-  private val storableBuffer = new StorableBuffer(tdcParser, bufferPath)
+  private val storableBuffer = new StorableBuffer(tdcParser, localStorePath)
   private val server = new ServerSocket(port)
   private val finishedConnections = new AtomicInteger(0)
 
   def getFinishedConnections = finishedConnections.get
 
-  val buffer = new Array[Byte](1024 * 1024 * 16)
+  val buffer = new Array[Byte](StorableBuffer.UNIT_CAPACITY)
   Future[Any] {
     while (!server.isClosed) {
       val socket = server.accept
@@ -87,56 +88,71 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
   }
 }
 
-class StorableBuffer(private val parser: TDCParser, private val bufferPath: String) {
+object StorableBuffer {
+  val UNIT_CAPACITY = 10 * 1000 * 1000
+}
+
+class StorableBuffer(private val parser: TDCParser, private val storagePath: String) {
 
   object BufferEntry {
-    val bufferFilePostfix = new AtomicLong(0)
-    val CAPACITY = 10 * 1000 * 1000
+    val STORAGE_INDEX = new AtomicInteger(0)
   }
 
   class BufferEntry {
-    private val dataList = new ListBuffer[Array[Byte]]
-
+    private val usedDataList = new ListBuffer[Array[Byte]]
+    private val unusedDataList = new ListBuffer[Array[Byte]]
+    private val creationTimeISO = LocalDateTime.now().toString.split("\\.")(0).replaceAll(":", "").replaceAll("-", "").replaceAll("T", "")
+    private val dumped = new AtomicBoolean(false)
     val inMemory = new AtomicBoolean(true)
+    private val storageIndex = BufferEntry.STORAGE_INDEX.getAndIncrement()
 
     private val storedSize = new AtomicInteger(0)
 
-    def dataSize = if (inMemory.get) dataList.map(_.size).sum else storedSize.get
+    def dataSize = if (inMemory.get) unusedDataList.map(_.size).sum + usedDataList.map(_.size).sum else storedSize.get
 
-    def remaining = BufferEntry.CAPACITY - dataSize
+    def remaining = StorableBuffer.UNIT_CAPACITY - dataSize
 
     def offer(data: Array[Byte]) = {
-      if (!inMemory.get) throw new IllegalStateException("Can not offer data while not in memory.")
+      if (dumped.get) throw new IllegalStateException("Can not offer data to a dumped BufferEntry.")
       if (remaining < data.size) throw new IllegalStateException("No enough room in BufferEntry.")
-      dataList += data
+      unusedDataList += data
     }
 
-    //    def inMemorySize = if (data == null) 0 else dataSize
-    //
-    //    def isInMemory = data != null
-    //
-    //    val bufferFile = Paths.get(bufferPath, s"BUFFER_${BufferEntry.bufferFilePostfix.getAndIncrement()}")
-    //
-    def dump() = {
+    val filePath = Paths.get(storagePath, s"${creationTimeISO}_${storageIndex}.gtdc").toString
+
+    def dump() = if (!dumped.get) {
       inMemory set false
-      //      val raf = new RandomAccessFile(bufferFile.toString, "rw")
-      //      raf.write(data)
-      //      raf.close()
-      //      data = null
+      dumped set true
+      val raf = new RandomAccessFile(filePath, "rw")
+      usedDataList.foreach(raf.write)
+      unusedDataList.foreach(raf.write)
+      raf.close()
+      usedDataList.clear()
+      unusedDataList.clear()
+      //      println("dump")
     }
 
-    def load() = {
+    def load() = if (!inMemory.get) {
       inMemory set true
+      val raf = new RandomAccessFile(filePath, "rw")
+      val data = new Array[Byte](raf.length())
+      raf.readFully(data)
+      unusedDataList += data
+      raf.close()
+    }
+
+    def hasUnusedData() = unusedDataList.size > 0
+
+    def getNextUnusedData() = {
+      val data = unusedDataList.remove(0)
+      usedDataList += data
+      data
     }
   }
 
-  private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
-    val t = new Thread(r)
-    t.setDaemon(true)
-    t
-  }))
   private val stoped = new AtomicBoolean(false)
   private val incomingQueue = new LinkedBlockingQueue[Array[Byte]]()
+  //  private val parsingQueue = new LinkedBlockingQueue[Array[Byte]]()
   private val bufferEntryList = new ListBuffer[BufferEntry]()
   bufferEntryList += new BufferEntry
 
@@ -153,25 +169,43 @@ class StorableBuffer(private val parser: TDCParser, private val bufferPath: Stri
     }
     // step 2: if bufferEntryList has more than 3 items, dump [2:-1]
     if (bufferEntryList.size > 3) bufferEntryList.slice(2, bufferEntryList.size - 1).foreach(_.dump())
-    // step 3: load the first to items of bufferEntryList
+    // step 3: load the first two items of bufferEntryList
     bufferEntryList.slice(0, 2).foreach(_.load)
-
-    //    while (queue.iterator().asScala.map(_.inMemorySize).sum > bufferSize) {
-    //      queue.iterator().asScala.filter(_.isInMemory).next().dump()
-    //    }
+    // step 4: if there is unsed data in the first item, and data in parsingQueue is less than UNIT_CAPACITY, then append an unsed data to parsingQueue
+    while (bufferEntryList.head.hasUnusedData && parser.bufferedDataSize() < StorableBuffer.UNIT_CAPACITY) {
+      val nextUnusedData = bufferEntryList.head.getNextUnusedData
+      parser.offer(nextUnusedData)
+      storeForTest(nextUnusedData)
+    }
+    // step 5: if the first item in bufferEntryList is used up, dump and drop.
+    if (bufferEntryList.size >= 2 && !bufferEntryList.head.hasUnusedData) {
+      bufferEntryList.remove(0).dump()
+    }
   }
 
   Future[Any] {
     while (!stoped.get) {
       try {
         dealInput()
-        println(s"${bufferEntryList.map(_.dataSize).sum}    ${bufferEntryList.size}    ${bufferEntryList.map(_.inMemory).mkString(" ")}")
+        //        println(s"${bufferEntryList.map(_.dataSize).sum}    ${bufferEntryList.size}    ${bufferEntryList.map(_.inMemory).mkString(" ")}")
         Thread.sleep(100)
       } catch {
+        case e: InterruptedException =>
         case e: Throwable => e.printStackTrace()
       }
     }
-  }(executionContext)
+  }(ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
+    val t = new Thread(r)
+    t.setDaemon(true)
+    t
+  })))
+
+  private def storeForTest(data: Array[Byte]) = {
+    val raf = new RandomAccessFile(storagePath + "/output.tdc", "rw")
+    raf.skipBytes(raf.length())
+    raf.write(data)
+    raf.close()
+  }
 }
 
 class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCDataAdapter {

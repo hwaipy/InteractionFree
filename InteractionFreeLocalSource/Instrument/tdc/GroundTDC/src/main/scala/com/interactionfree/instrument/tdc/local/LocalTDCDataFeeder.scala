@@ -10,17 +10,16 @@ import com.interactionfree.instrument.tdc.GroundTDC
 import scala.jdk.CollectionConverters._
 
 object LocalTDCDataFeeder {
-  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501012120-012720-10k250M-decoy"
-  //    private val localDataRoot = "/Users/hwaipy/Downloads/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
+  //  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501012120-012720-10k250M-decoy"
+  private val localDataRoot = "/Users/hwaipy/Downloads/TDCParse/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
   private val localDataFiles = Files.list(Paths.get(localDataRoot)).iterator().asScala.toList.sorted
   private val startTime = localDataFiles.head.getFileName.toString.split("-").head.toLong
   private val dataBlockCount = new AtomicLong(0)
 
-  def start(port: Int, dataRate: Int = 2000000) = {
+  def start(port: Int, dataRate: Int = 20000000) = {
     Thread.sleep(2000)
-    val worker = IFWorker("tcp://172.16.60.199:224")
-    //        val worker = IFWorker("tcp://127.0.0.1:224")
-    val process = worker.GroundTDCLocal
+    val worker = IFWorker(GroundTDC.IFServerAddress)
+    val process = worker.blockingInvoker(GroundTDC.IFServerServiceName)
     process.turnOnAnalyser("Counter")
     //    process.turnOnAnalyser("Histogram", Map("Sync" -> 0, "Signal" -> 8, "ViewStart" -> 0, "ViewStop" -> 10000000, "Divide" -> 1000))
     process.turnOnAnalyser("MultiHistogram", Map("Sync" -> 0, "Signals" -> List(4, 5, 8, 9), "ViewStart" -> 0, "ViewStop" -> 4000000, "Divide" -> 1000, "BinCount" -> 200))
@@ -53,7 +52,7 @@ object LocalTDCDataFeeder {
         outputStream.flush()
         val expectedTime = (read.get / dataRate.toDouble * 1000).toLong + startTime
         val timeToWait = expectedTime - System.currentTimeMillis()
-        //        if (timeToWait > 0) Thread.sleep(timeToWait)
+        if (timeToWait > 0) Thread.sleep(timeToWait)
       }
     })
     Thread.sleep(2000)

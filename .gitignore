@@ -26,4 +26,4 @@ node_modules
 .IFLocal
 _gsdata_
 Config.ini
-
+config.properties
