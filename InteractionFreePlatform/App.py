@@ -9,6 +9,7 @@ from IFLocalFileService import FileDistributor
 from MongoDBContext import MongoDBContext
 from Config import Config
 
+
 # class IndexHandler(web.RequestHandler):
 #     def get(self):
 #         # self.render("static/index.html")
@@ -31,11 +32,13 @@ if __name__ == '__main__':
         (r'/app/(.+)', IFAppHandler),
         (r"/IFLocalFiles/(.*)", web.StaticFileHandler, {'path': IFLocalFilesPath}),
         (r"/(.+)", web.StaticFileHandler, {'path': 'static'}),
+        (r'/(favicon.ico)', web.StaticFileHandler, {"path": "static"}),
     ]
     settings = {
         'debug': True,
         'static_path': 'static',
-        'ui_modules': uimodules
+        'ui_modules': uimodules,
+        # 'default_handler_class': NotFoundHandler
     }
     app = web.Application(handlers_array, **settings)
     app.listen(webPort)

@@ -25,22 +25,19 @@ function ping() {
 
 function setServerStatus(level, delay) {
   if (level == 3) {
-    $("#serverstatus").attr("class", "w3-text-green")
-    $("#serverstatus").html('●●●  <span class="w3-text">(<em>' + delay +
-      ' ms</em>)</span>')
+    $("#serverdelay").attr("class", "badge badge-success")
+    $("#serverdelay").html(delay + ' ms')
   }
   if (level == 2) {
-    $("#serverstatus").attr("class", "w3-text-yellow")
-    $("#serverstatus").html('●●  <span class="w3-text">(<em>' + delay +
-      ' ms</em>)</span>')
+    $("#serverdelay").attr("class", "badge badge-warning")
+    $("#serverdelay").html(delay + ' ms')
   }
   if (level == 1) {
-    $("#serverstatus").attr("class", "w3-text-red")
-    $("#serverstatus").html('●  <span class="w3-text">(<em>' + delay +
-      ' ms</em>)</span>')
+    $("#serverdelay").attr("class", "badge badge-danger")
+    $("#serverdelay").html(delay + ' ms')
   }
   if (level == 0) {
-    $("#serverstatus").attr("class", "w3-text-gray")
-    $("#serverstatus").html("Unkonwn")
+    $("#serverdelay").attr("class", "text-secondary")
+    $("#serverdelay").html("Unkonwn")
   }
 }
