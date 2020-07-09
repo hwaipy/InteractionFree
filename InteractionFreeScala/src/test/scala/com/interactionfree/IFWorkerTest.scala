@@ -144,13 +144,13 @@ class IFWorkerTest extends AnyFunSuite with BeforeAndAfter {
 
   test("Test Service Duplicated.") {
     val worker1 = IFWorker(brokerAddress, serviceName = "T2-ClientDuplicated")
+    Thread.sleep(1000)
     try {
-      //      val worker2 = IFWorker(brokerAddress, serviceName = "T2-ClientDuplicated")
-      //      assert(false)
+//      val worker2 = IFWorker(brokerAddress, serviceName = "T2-ClientDuplicated")
+//      assert(false)
     } catch {
       case e: IFException => assert(e.getMessage == "Service name [T2-ClientDuplicated] occupied.")
     }
-
     worker1.close()
   }
 }

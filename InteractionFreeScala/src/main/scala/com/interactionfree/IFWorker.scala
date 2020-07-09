@@ -3,10 +3,12 @@ package com.interactionfree
 import java.lang.Thread.UncaughtExceptionHandler
 import java.nio.charset.Charset
 import java.time.LocalDateTime
-import java.util.concurrent.{Executors, ThreadFactory}
+import java.util.concurrent.{Executors, LinkedBlockingQueue, ThreadFactory}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong}
+
 import scala.language.dynamics
-import org.zeromq.{SocketType, ZContext, ZMsg}
+import org.zeromq.{SocketType, ZContext, ZLoop, ZMsg}
+
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
@@ -71,50 +73,73 @@ object IFWorker {
 }
 
 class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = None, interfaces: List[String] = Nil, val timeout: Duration = 10 seconds) {
-  val isService = serviceName != ""
+  val isService = new AtomicBoolean(serviceName != "")
   val context = new ZContext()
   val socket = context.createSocket(SocketType.DEALER)
   socket.connect(endpoint)
 
-  private val receivingExecutor = Executors.newSingleThreadExecutor()
+  private val ioloopExecutor = Executors.newSingleThreadExecutor()
   private val hbExecutor = Executors.newSingleThreadExecutor()
   private val localInvokingExecutor = Executors.newSingleThreadExecutor()
   private val messageExpiration = new AtomicLong(2000)
   private val heartbeatInterval = IFDefinition.HEARTBEAT_LIVETIME / 5
   private val closed = new AtomicBoolean(false)
+  private val sendingMessageQueue = new LinkedBlockingQueue[Message]()
 
   def send(msg: Message) = future(msg)
 
-  receivingExecutor.submit(new Runnable {
+  ioloopExecutor.submit(new Runnable {
     private val charset = Charset.forName("UTF-8")
 
     override def run(): Unit = {
       while (!closed.get) {
+        // sending
         try {
-          val zmsg = ZMsg.recvMsg(socket)
-          Logging.info((s"Received ${zmsg}"))
-          if (zmsg.size() != 6) throw new IFException("Invalid Message from Broker.")
-          val it = zmsg.iterator()
-          it.next()
-          assert(it.next().getString(charset) == IFDefinition.PROTOCOL)
-          val messageID = it.next().getData
-          val fromAddress = it.next().getData
-          val serialization = it.next().getString(charset)
-          val invocation = Invocation.deserialize(it.next().getData, serialization)
-          val msg = Message.newFromBrokerMessage(new String(messageID, "UTF-8"), fromAddress, invocation, serialization)
-          if (invocation.isRequest) onRequest(msg) else onResponse(msg)
+          while (sendingMessageQueue.size() > 0) {
+            val msg = sendingMessageQueue.take()
+            val zmsg = new ZMsg()
+            zmsg.addLast("").addLast(msg.protocol).addLast(msg.messageID).addLast(msg.distributingMode).addLast(msg.remoteAddress).addLast(msg.serialization).add(msg.invocation.serialize(msg.serialization))
+            Logging.debug("ready to send")
+            val suc = zmsg.send(socket)
+            Logging.debug("send Done.")
+          }
         } catch {
           case e: Throwable => {
             if (!closed.get) {
-              Logging.error("Error during parse message.", e)
+              Logging.error("Error during sending message.", e)
             }
           }
         }
+        // receiving
+        try {
+          val zmsg = ZMsg.recvMsg(socket, false)
+          if (zmsg != null) {
+            Logging.info((s"Received ${zmsg}"))
+            if (zmsg.size() != 6) throw new IFException("Invalid Message from Broker.")
+            val it = zmsg.iterator()
+            it.next()
+            assert(it.next().getString(charset) == IFDefinition.PROTOCOL)
+            val messageID = it.next().getData
+            val fromAddress = it.next().getData
+            val serialization = it.next().getString(charset)
+            val invocation = Invocation.deserialize(it.next().getData, serialization)
+            val msg = Message.newFromBrokerMessage(new String(messageID, "UTF-8"), fromAddress, invocation, serialization)
+            if (invocation.isRequest) onRequest(msg) else onResponse(msg)
+          }
+        } catch {
+          case e: Throwable => {
+            if (!closed.get) {
+              Logging.error("Error during receiving message.", e)
+            }
+          }
+        }
+        // wait for next loop
+        Thread.sleep(1)
       }
     }
   })
   hbExecutor.submit(new Runnable {
-    private val needReReg = new AtomicBoolean(isService)
+    private val needReReg = new AtomicBoolean(isService get)
 
     override def run(): Unit = {
       while (!closed.get) {
@@ -125,7 +150,7 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
           }
           Thread.sleep(IFDefinition.HEARTBEAT_LIVETIME / 5)
           val hb = blockingInvoker("", timeout = (IFDefinition.HEARTBEAT_LIVETIME / 5) milliseconds).heartbeat().asInstanceOf[Boolean]
-          if (!hb && isService) needReReg set true
+          if (!hb && isService.get) needReReg set true
         } catch {
           case e: Throwable => if (!closed.get) Logging.warning(s"Heartbeat: ${e.getMessage}")
         }
@@ -140,11 +165,14 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
   def blockingInvoker(target: String = "", timeout: Duration = 10 second) = new BlockingRemoteObject(this, target, timeout = timeout)
 
   def close() = {
+    if (isService.get) {
+      blockingInvoker().unregister()
+      isService set false
+    }
     closed set true
-    if (isService) asynchronousInvoker().unregister()
     socket.close()
     context.close()
-    receivingExecutor.shutdown()
+    ioloopExecutor.shutdown()
     hbExecutor.shutdown()
     localInvokingExecutor.shutdown()
   }
@@ -166,10 +194,11 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
     })
 
     def execute(runnable: Runnable): Unit = {
-      Logging.debug(s"submitting runnable: ${SingleThreadPool.isShutdown},${SingleThreadPool.isTerminated}")
+      //      Logging.debug(s"submitting runnable: ${SingleThreadPool.isShutdown},${SingleThreadPool.isTerminated}")
       val f = SingleThreadPool.submit(runnable)
-//      Logging.debug(s"submitted. wait.")
-//      f.get
+      Logging.debug(s"submitted. wait.")
+      f.get
+      Logging.debug(s"submitted. done.")
     }
 
     def reportFailure(cause: Throwable): Unit = {
@@ -187,31 +216,26 @@ class IFWorker(endpoint: String, serviceName: String = "", serviceObject: Any = 
     val id = msg.messageIDasLong
     Logging.info(s"Sending ${msg}")
     val futureEntry = new FutureEntry
-    Logging.debug(s"FE created")
     Future[Any] {
-      Logging.debug("in f: 1")
       if (futureEntry.cause.isDefined) throw futureEntry.cause.get
       if (futureEntry.result.isDefined) futureEntry.result.get
       else throw new IFException("Error state: FutureEntry not defined.")
     }(new ExecutionContext {
-      Logging.debug("new ec")
-
       def execute(runnable: Runnable): Unit = {
-        Logging.debug("exe in ec")
-        SingleThreadExecutionContext.execute(() => {
-          Logging.debug("running submitted runnable")
-          waitingMap.synchronized {
-            Logging.debug("inside sync")
-            if (waitingMap.contains(id)) throw new IFException("MessageID have been used.")
-            waitingMap.put(id, (futureEntry, runnable))
-          }
-          Logging.debug("outside submitted runnable")
-          val zmsg = new ZMsg()
-          zmsg.addLast("").addLast(msg.protocol).addLast(msg.messageID).addLast(msg.distributingMode).addLast(msg.remoteAddress).addLast(msg.serialization).add(msg.invocation.serialize(msg.serialization))
-          val suc = zmsg.send(socket)
-          Logging.debug("Runnable Done.")
-        })
-        Logging.debug("exe submitted in ec")
+        waitingMap.synchronized {
+          if (waitingMap.contains(id)) throw new IFException("MessageID have been used.")
+          waitingMap.put(id, (futureEntry, runnable))
+        }
+        sendingMessageQueue.offer(msg)
+        //        SingleThreadExecutionContext.execute(() => {
+        //          //          Logging.debug("outside submitted runnable")
+        //          val zmsg = new ZMsg()
+        //          zmsg.addLast("").addLast(msg.protocol).addLast(msg.messageID).addLast(msg.distributingMode).addLast(msg.remoteAddress).addLast(msg.serialization).add(msg.invocation.serialize(msg.serialization))
+        //          Logging.debug("ready to send")
+        //          val suc = zmsg.send(socket)
+        //          Logging.debug("Runnable Done.")
+        //        })
+        //        //        Logging.debug("exe submitted in ec")
       }
 
       def reportFailure(cause: Throwable): Unit = {
@@ -309,12 +333,14 @@ private class InvokeItem(worker: IFWorker, target: String, functionName: String)
 
 object IFWorkerApp extends App {
   val worker = IFWorker("tcp://172.16.60.199:224", "IFWorkerScalaTest")
+  //  val worker = IFWorker("tcp://127.0.0.1:224", "IFWorkerScalaTest")
   Logging.info("Begin")
   val random = new Random()
   while (true) {
-    Thread.sleep(1000)
+    Thread.sleep(400)
     val randomData = Range(0, 3).map(ch => Range(0, 10000).map(_ => random.nextDouble()).toArray).toArray
     worker.asynchronousInvoker("Storage").append("IFWorkerScalaLongTermTest", randomData, fetchTime = System.currentTimeMillis())
+    //    println(worker.asynchronousInvoker("Storage").listServiceNames())
     Logging.debug(s"Looped at ${LocalDateTime.now()}")
   }
   worker.close()

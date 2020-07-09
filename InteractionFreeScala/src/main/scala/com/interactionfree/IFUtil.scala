@@ -1,6 +1,8 @@
 package com.interactionfree
 
+import java.io.{FileOutputStream, OutputStreamWriter, PrintWriter}
 import java.time.LocalDateTime
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.language.implicitConversions
 
@@ -42,6 +44,10 @@ object NumberTypeConversions {
 }
 
 object Logging {
+  val startTime = System.currentTimeMillis()
+  val index = new AtomicInteger()
+//  var out = new PrintWriter("log/logging-" + startTime + "-" + index.get)
+  val currentCount = new AtomicInteger(0)
 
   object Level extends Enumeration {
     type Level = Value
@@ -51,9 +57,18 @@ object Logging {
   import Level._
 
   def log(level: Level, msg: String, exception: Throwable = null) = {
-    println(s"${LocalDateTime.now()} [${level}] $msg")
+//    println(s"${LocalDateTime.now()} [${level}] [${Thread.currentThread().getName}] $msg")
+//    out.println(s"${LocalDateTime.now()} [${level}] [${Thread.currentThread().getName}] $msg")
     if (exception != null) {
       exception.printStackTrace()
+//      exception.printStackTrace(out)
+    }
+//    out.flush()
+    if (currentCount.incrementAndGet() > 10000) {
+      index.incrementAndGet()
+//      out.close()
+//      out = new PrintWriter("log/logging-" + startTime + "-" + index.get)
+      currentCount set 0
     }
   }
 

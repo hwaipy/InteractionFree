@@ -303,10 +303,8 @@ class Invocation:
         try:
             method = getattr(target, self.getFunction())
         except BaseException as e:
-            print(1)
             raise IFException('Function [{}] not available.'.format(self.getFunction()))
         if not callable(method):
-            print(2)
             raise IFException('Function [{}] not available.'.format(self.getFunction()))
         args = self.getArguments()
         kwargs = self.getKeywordArguments()
