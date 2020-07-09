@@ -44,10 +44,10 @@ object GroundTDC extends App {
     println("LOCAL mode, starting LocalTDCDataFeeder.")
     LocalTDCDataFeeder.start(dataSourceListeningPort)
   }
-  Source.stdin.getLines.filter(line => line.toLowerCase == "q").next
+  Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
   println("Stoping Ground TDC...")
   worker.close()
-  process.stop
+  process.stop()
 }
 
 class TDCProcessService(private val port: Int, private val storeCollection: String, private val localStorePath: String) {
@@ -64,7 +64,7 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
 
   protected[tdc] def getFinishedConnection = server.getFinishedConnections
 
-  def stop() = server.stop
+  def stop() = server.stop()
 
   private def dataIncome(data: Any) = {
     if (!data.isInstanceOf[List[_]]) throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")

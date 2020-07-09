@@ -170,15 +170,15 @@ class StorableBuffer(private val parser: TDCParser, private val storagePath: Str
     // step 2: if bufferEntryList has more than 3 items, dump [2:-1]
     if (bufferEntryList.size > 3) bufferEntryList.slice(2, bufferEntryList.size - 1).foreach(_.dump())
     // step 3: load the first two items of bufferEntryList
-    bufferEntryList.slice(0, 2).foreach(_.load)
+    bufferEntryList.slice(0, 2).foreach(_.load())
     // step 4: if there is unsed data in the first item, and data in parsingQueue is less than UNIT_CAPACITY, then append an unsed data to parsingQueue
-    while (bufferEntryList.head.hasUnusedData && parser.bufferedDataSize() < StorableBuffer.UNIT_CAPACITY) {
-      val nextUnusedData = bufferEntryList.head.getNextUnusedData
+    while (bufferEntryList.head.hasUnusedData() && parser.bufferedDataSize() < StorableBuffer.UNIT_CAPACITY) {
+      val nextUnusedData = bufferEntryList.head.getNextUnusedData()
       parser.offer(nextUnusedData)
       storeForTest(nextUnusedData)
     }
     // step 5: if the first item in bufferEntryList is used up, dump and drop.
-    if (bufferEntryList.size >= 2 && !bufferEntryList.head.hasUnusedData) {
+    if (bufferEntryList.size >= 2 && !bufferEntryList.head.hasUnusedData()) {
       bufferEntryList.remove(0).dump()
     }
   }
@@ -213,7 +213,7 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
   private val dataBlocks = new ArrayBuffer[DataBlock]()
 
   def offer(data: Any): AnyRef = {
-    dataBlocks.clear
+    dataBlocks.clear()
     dataIncome(data)
     dataBlocks.toList
   }
@@ -252,14 +252,14 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
     //    if (channel < 4 && channel > 0) println(time)
     if (time > unitEndTime) {
       if (unitEndTime == Long.MinValue) unitEndTime = time
-      else flush
+      else flush()
     }
     timeEvents(channel) += time
   }
 
   private def flush() = {
     val data = timeEvents.zipWithIndex.map(z => z._1.toArray.map(t => t + delays(z._2))).toArray
-    timeEvents.foreach(_.clear)
+    timeEvents.foreach(_.clear())
     val creationTime = if (GroundTDC.LOCAL) LocalTDCDataFeeder.getNextLocalDataBlockCreationTime else System.currentTimeMillis()
     dataBlocks += new DataBlock(data, creationTime, unitEndTime - timeUnitSize, unitEndTime)
     unitEndTime += timeUnitSize

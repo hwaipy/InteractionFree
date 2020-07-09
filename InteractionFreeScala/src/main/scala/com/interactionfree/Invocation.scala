@@ -212,7 +212,7 @@ class Invocation(private val content: Map[String, Any]) {
             packer.packArrayHeader(p.productArity)
             val it = p.productIterator
             while (it.hasNext) {
-              doFeed(it.next, deepth + 1, target)
+              doFeed(it.next(), deepth + 1, target)
             }
           }
           case _ => throw new IFException(s"Unrecognized value: ${value}")

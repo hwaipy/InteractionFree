@@ -195,8 +195,8 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       val item2Ref = new AtomicReference[Tuple4[Long, Long, Int, Long]]()
 
       def fillRef = {
-        if (item1Ref.get == null && iterator1.hasNext) item1Ref set iterator1.next
-        if (item2Ref.get == null && iterator2.hasNext) item2Ref set iterator2.next
+        if (item1Ref.get == null && iterator1.hasNext) item1Ref set iterator1.next()
+        if (item2Ref.get == null && iterator2.hasNext) item2Ref set iterator2.next()
         item1Ref.get != null && item2Ref.get != null
       }
 
