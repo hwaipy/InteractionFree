@@ -74,23 +74,20 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
   private def dataBlockIncome(dataBlock: DataBlock) = {
     val result = new mutable.HashMap[String, Any]()
     val executionTimes = new mutable.HashMap[String, Double]()
-
-    println(Thread.currentThread().getName)
-    println(analysers.size)
-    //    analysers.toList.map(e => {
-    //      val beginTime = System.nanoTime()
-    //      val r = e._2.dataIncome(dataBlock)
-    //      val endTime = System.nanoTime()
-    //      executionTimes(e._1) = (endTime - beginTime) / 1e9
-    //      (e._1, r)
-    //    }).filter(e => e._2.isDefined).foreach(e => result(e._1) = e._2.get)
-    //    result("ExecutionTimes") = executionTimes
-    //    result("Delays") = dataTDA.delays
-    //      try {
-    //        GroundTDC.worker.Storage.append(storeCollection, result, fetchTime = dataBlock.creationTime)
-    //      } catch {
-    //        case e: Throwable => println("[1]" + e)
-    //      }
+    analysers.toList.map(e => {
+      val beginTime = System.nanoTime()
+      val r = e._2.dataIncome(dataBlock)
+      val endTime = System.nanoTime()
+      executionTimes(e._1) = (endTime - beginTime) / 1e9
+      (e._1, r)
+    }).filter(e => e._2.isDefined).foreach(e => result(e._1) = e._2.get)
+    result("ExecutionTimes") = executionTimes
+    result("Delays") = dataTDA.delays
+    try {
+      GroundTDC.worker.Storage.append(storeCollection, result, fetchTime = dataBlock.creationTime)
+    } catch {
+      case e: Throwable => println("[1]" + e)
+    }
   }
 
   def turnOnAnalyser(name: String, paras: Map[String, Any] = Map()) = analysers.get(name) match {

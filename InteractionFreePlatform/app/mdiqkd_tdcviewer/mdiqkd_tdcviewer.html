@@ -1,0 +1,34 @@
+<script type="text/javascript" src="/static/javascripts/plotly.min.js"></script>
+
+<div class="row">
+  <div class="card shadow mb-4 ml-3">
+    <div class="btn-group" role="group">
+      <button type="button" class="btn btn-success" id="selection-instant" onclick="onSelectionIntegral(false)">Instant</button>
+      <button type="button" class="btn btn-secondary" id="selection-integral" onclick="onSelectionIntegral(true)">Integral</button>
+    </div>
+  </div>
+  <div class="card shadow mb-4 ml-2 collapse width" id="IntegralConfig">
+    <div class="input-group">
+      <div class="input-group-prepend">
+        <span class="input-group-text" id="basic-addon1">From</span>
+      </div>
+      <input type="text" class="form-control" placeholder="" aria-label="Username" aria-describedby="basic-addon1">
+      <div class="input-group-prepend">
+        <span class="input-group-text" id="basic-addon1">to</span>
+      </div>
+      <input type="text" class="form-control" placeholder="Now" aria-label="Username" aria-describedby="basic-addon1">
+      <div class="input-group-prepend">
+        <span class="input-group-text" id="basic-addon1">    ....998</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+    <h6 class="m-0 font-weight-bold text-primary">Histogram</h6>
+  </div>
+  <div class="card-body">
+    <div id="viewport"></div>
+  </div>
+</div>

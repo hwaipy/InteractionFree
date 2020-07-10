@@ -89,3 +89,9 @@ function linspace(a, b, n) {
   }
   return ret;
 }
+
+function onSelectionIntegral(isIntegral){
+  $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" : "btn btn-success")
+  $("#selection-integral").attr("class", isIntegral ? "btn btn-success" : "btn btn-secondary")
+  $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
+}

@@ -10,8 +10,8 @@ import com.interactionfree.instrument.tdc.GroundTDC
 import scala.jdk.CollectionConverters._
 
 object LocalTDCDataFeeder {
-  //  private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501012120-012720-10k250M-decoy"
-  private val localDataRoot = "/Users/hwaipy/Downloads/TDCParse/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
+    private val localDataRoot = "E:\\MDIQKD_Parse\\ReviewForCode\\20200501012120-012720-10k250M-decoy"
+//  private val localDataRoot = "/Users/hwaipy/Downloads/TDCParse/20200501DavidAliceHOMTDC数据-排查筛选问题/20200501011320-011820-10k250M-all"
   private val localDataFiles = Files.list(Paths.get(localDataRoot)).iterator().asScala.toList.sorted
   private val startTime = localDataFiles.head.getFileName.toString.split("-").head.toLong
   private val dataBlockCount = new AtomicLong(0)
@@ -40,7 +40,7 @@ object LocalTDCDataFeeder {
     val socket = new Socket("localhost", port)
     val outputStream = socket.getOutputStream
     val buffer = new Array[Byte](1000000)
-    localDataFiles.slice(0, 10).foreach(localDataFile => {
+    localDataFiles.foreach(localDataFile => {
       val startTime = System.currentTimeMillis()
       val in = Files.newInputStream(localDataFile)
       val size = Files.size(localDataFile)

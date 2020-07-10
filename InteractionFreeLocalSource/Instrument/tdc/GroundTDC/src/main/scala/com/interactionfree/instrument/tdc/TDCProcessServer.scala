@@ -7,7 +7,6 @@ import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
-
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -175,7 +174,7 @@ class StorableBuffer(private val parser: TDCParser, private val storagePath: Str
     while (bufferEntryList.head.hasUnusedData() && parser.bufferedDataSize() < StorableBuffer.UNIT_CAPACITY) {
       val nextUnusedData = bufferEntryList.head.getNextUnusedData()
       parser.offer(nextUnusedData)
-      storeForTest(nextUnusedData)
+      //      storeForTest(nextUnusedData)
     }
     // step 5: if the first item in bufferEntryList is used up, dump and drop.
     if (bufferEntryList.size >= 2 && !bufferEntryList.head.hasUnusedData()) {
@@ -200,12 +199,12 @@ class StorableBuffer(private val parser: TDCParser, private val storagePath: Str
     t
   })))
 
-  private def storeForTest(data: Array[Byte]) = {
-    val raf = new RandomAccessFile(storagePath + "/output.tdc", "rw")
-    raf.skipBytes(raf.length())
-    raf.write(data)
-    raf.close()
-  }
+  //  private def storeForTest(data: Array[Byte]) = {
+  //    val raf = new RandomAccessFile(storagePath + "/output.tdc", "rw")
+  //    raf.skipBytes(raf.length())
+  //    raf.write(data)
+  //    raf.close()
+  //  }
 }
 
 class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCDataAdapter {
