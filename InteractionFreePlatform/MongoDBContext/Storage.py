@@ -77,6 +77,6 @@ class Storage:
         if filter == {}:
             dbFilter = {}
         else:
-            dbFilter = {Storage.RecordTime: 1, '_id': 1}
+            dbFilter = {Storage.RecordTime: 1, Storage.FetchTime: 1, '_id': 1}
             dbFilter.update(filter)
         return dbFilter

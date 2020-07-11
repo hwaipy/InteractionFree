@@ -62,15 +62,48 @@ function linspace(a, b, n) {
 
 function parseSimpleDate(str) {
   date = new Date()
-  if(str == 'now') return date
-  var pattern = new RegExp("^((((([0-9]+)-)?[0-9]+)-)?([0-9]+) )?([0-9]+):([0-9]+)(:([0-9]+))?$")
+  str = str.replaceAll("：", ":")
+  var pattern = new RegExp(
+    "^((((([0-9]+)-)?([0-9]+))-)?([0-9]+) )?([0-9]+):([0-9]+)(:([0-9]+))?$")
   r = pattern.exec(str)
   if (r == null) return null
-  console.log(r)
-  hour = r[7]
-  min = r[8]
+  hour = r[8]
+  min = r[9]
+  day = r[7]
+  month = r[6]
+  year = r[5]
+  second = r[11]
+
+  if (year) {
+    currentYear = "" + date.getFullYear()
+    if (year.length < currentYear.length) {
+      year = currentYear.substring(0, currentYear.length - year.length) + year
+    }
+    date.setFullYear(year)
+  }
+  if (month) date.setMonth(month - 1)
+  if (day) date.setDate(day)
   date.setHours(hour)
   date.setMinutes(min)
-console.log(date);
+  if (second) date.setSeconds(second)
   return date
+}
+
+function dateToString(date) {
+  year = '' + date.getFullYear()
+  month = '' + (date.getMonth() + 1)
+  day = '' + date.getDate()
+  hour = '' + date.getHours()
+  minute = '' + date.getMinutes()
+  second = '' + date.getSeconds()
+  return year + '-' +
+    (month.length < 2 ? '0' + month : month) + '-' +
+    (day.length < 2 ? '0' + day : day) + ' ' +
+    (hour.length < 2 ? '0' + hour : hour) + ':' +
+    (minute.length < 2 ? '0' + minute : minute) + ':' +
+    (second.length < 2 ? '0' + second : second)
+}
+
+String.prototype.replaceAll = function(s1, s2) {
+  return this.replace(new RegExp(s1, "gm"), s2);
 }

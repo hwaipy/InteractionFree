@@ -1,3 +1,4 @@
+<script type="text/javascript" src="/static/javascripts/lodash.min.js"></script>
 <script type="text/javascript" src="/static/javascripts/IFExp.js"></script>
 <script type="text/javascript" src="/static/javascripts/plotly.min.js"></script>
 
@@ -14,28 +15,30 @@
         <div class="input-group-prepend">
           <span class="input-group-text" id="basic-addon1">From</span>
         </div>
-        <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" oninput="onInputIntegralRange(event, 'input-integral-from')" onblur="onBlurIntegralRange(event, 'input-integral-from')" id="input-integral-from">
+        <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" onblur="onBlurIntegralRange('input-integral-from')" id="input-integral-from">
         <div class="input-group-prepend">
           <span class="input-group-text" id="basic-addon1">to</span>
         </div>
-        <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" oninput="onInputIntegralRange(event, 'input-integral-to')" onblur="onBlurIntegralRange(event, 'input-integral-to')" id="input-integral-to">
+        <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" onblur="onBlurIntegralRange('input-integral-to')" id="input-integral-to">
+        <div class="input-group-append" id="button-addon4">
+          <button type="button" class="btn btn-secondary" onclick="updateIntegralData()">Update</button>
+        </div>
       </div>
-    </div>
-    <div class="card shadow mb-4 ml-2">
-      <button type="button" class="btn btn-secondary" onclick="">Update</button>
     </div>
   </div>
 </div>
 
 <div class="card shadow mb-4">
   <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-    <h6 class="m-0 font-weight-bold text-primary">Histogram</h6>
+    <p class="m-0 font-weight-bold text-primary">Histogram</p>
+    <div class="row d-none" id="HistogramWarning">
+        <span class="icon text-warning">
+          <i class="fas fa-exclamation-triangle"></i>
+        </span>
+        <span class="text text-warning ml-2 mr-4" id="HistogramWarningContent">11</span>
+    </div>
   </div>
   <div class="card-body">
     <div id="viewport"></div>
   </div>
 </div>
-
-<button type="button" class="btn btn-secondary" data-toggle="tooltip" data-placement="left" title="Tooltip on left">
-  Tooltip on left
-</button>
