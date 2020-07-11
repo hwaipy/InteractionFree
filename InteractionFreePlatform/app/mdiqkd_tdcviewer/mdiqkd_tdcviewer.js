@@ -10,10 +10,16 @@ $(document).ready(function() {
   }
   collection = parameters['collection'] || "TDCLocalTest"
 
-  worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
-    viewerFetcher = new TDCViewerStorageStreamFatcher(worker, collection)
-    viewerFetcher.start(1000)
-  })
+  // worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
+  //   viewerFetcher = new TDCViewerStorageStreamFatcher(worker, collection)
+  //   viewerFetcher.start(1000)
+  // })
+
+  parseSimpleDate('11:02:59A')
+  // parseSimpleDate('23:1')
+  parseSimpleDate('11:22:59')
+  // parseSimpleDate('1 11:02:59')
+  // parseSimpleDate('201-1-1 11:02:59')
 });
 
 class TDCViewerStorageStreamFatcher {
@@ -77,21 +83,21 @@ class TDCViewerStorageStreamFatcher {
   }
 }
 
-function linspace(a, b, n) {
-  if (typeof n === "undefined") n = Math.max(Math.round(b - a) + 1, 1);
-  if (n < 2) {
-    return n === 1 ? [a] : [];
-  }
-  var i, ret = Array(n);
-  n--;
-  for (i = n; i >= 0; i--) {
-    ret[i] = (i * b + (n - i) * a) / n;
-  }
-  return ret;
-}
-
 function onSelectionIntegral(isIntegral){
   $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" : "btn btn-success")
   $("#selection-integral").attr("class", isIntegral ? "btn btn-success" : "btn btn-secondary")
   $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
+}
+
+function onInputIntegralRange(event, id){
+  // v = $("#"+id)[0].value
+  // d = new Date()
+  // d.setTime(Date.parse(v))
+  // console.log(d);
+}
+
+function onBlurIntegralRange(event, id){
+  v = $("#"+id)[0].value
+  parsedDate = parseSimpleDate(v)
+  console.log(parsedDate);
 }

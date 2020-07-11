@@ -1,3 +1,4 @@
+<script type="text/javascript" src="/static/javascripts/IFExp.js"></script>
 <script type="text/javascript" src="/static/javascripts/plotly.min.js"></script>
 
 <div class="row">
@@ -7,19 +8,21 @@
       <button type="button" class="btn btn-secondary" id="selection-integral" onclick="onSelectionIntegral(true)">Integral</button>
     </div>
   </div>
-  <div class="card shadow mb-4 ml-2 collapse width" id="IntegralConfig">
-    <div class="input-group">
-      <div class="input-group-prepend">
-        <span class="input-group-text" id="basic-addon1">From</span>
+  <div class="row collapse width ml-2" id="IntegralConfig">
+    <div class="card shadow mb-4">
+      <div class="input-group">
+        <div class="input-group-prepend">
+          <span class="input-group-text" id="basic-addon1">From</span>
+        </div>
+        <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" oninput="onInputIntegralRange(event, 'input-integral-from')" onblur="onBlurIntegralRange(event, 'input-integral-from')" id="input-integral-from">
+        <div class="input-group-prepend">
+          <span class="input-group-text" id="basic-addon1">to</span>
+        </div>
+        <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" oninput="onInputIntegralRange(event, 'input-integral-to')" onblur="onBlurIntegralRange(event, 'input-integral-to')" id="input-integral-to">
       </div>
-      <input type="text" class="form-control" placeholder="" aria-label="Username" aria-describedby="basic-addon1">
-      <div class="input-group-prepend">
-        <span class="input-group-text" id="basic-addon1">to</span>
-      </div>
-      <input type="text" class="form-control" placeholder="Now" aria-label="Username" aria-describedby="basic-addon1">
-      <div class="input-group-prepend">
-        <span class="input-group-text" id="basic-addon1">    ....998</span>
-      </div>
+    </div>
+    <div class="card shadow mb-4 ml-2">
+      <button type="button" class="btn btn-secondary" onclick="">Update</button>
     </div>
   </div>
 </div>
@@ -32,3 +35,7 @@
     <div id="viewport"></div>
   </div>
 </div>
+
+<button type="button" class="btn btn-secondary" data-toggle="tooltip" data-placement="left" title="Tooltip on left">
+  Tooltip on left
+</button>

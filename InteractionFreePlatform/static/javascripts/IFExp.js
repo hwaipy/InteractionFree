@@ -46,3 +46,31 @@ class Histogram {
     return ret;
   }
 }
+
+function linspace(a, b, n) {
+  if (typeof n === "undefined") n = Math.max(Math.round(b - a) + 1, 1);
+  if (n < 2) {
+    return n === 1 ? [a] : [];
+  }
+  var i, ret = Array(n);
+  n--;
+  for (i = n; i >= 0; i--) {
+    ret[i] = (i * b + (n - i) * a) / n;
+  }
+  return ret;
+}
+
+function parseSimpleDate(str) {
+  date = new Date()
+  if(str == 'now') return date
+  var pattern = new RegExp("^((((([0-9]+)-)?[0-9]+)-)?([0-9]+) )?([0-9]+):([0-9]+)(:([0-9]+))?$")
+  r = pattern.exec(str)
+  if (r == null) return null
+  console.log(r)
+  hour = r[7]
+  min = r[8]
+  date.setHours(hour)
+  date.setMinutes(min)
+console.log(date);
+  return date
+}
