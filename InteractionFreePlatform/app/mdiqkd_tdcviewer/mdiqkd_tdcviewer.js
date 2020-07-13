@@ -9,6 +9,7 @@ $(document).ready(function() {
     }
   }
   collection = parameters['collection'] || "TDCLocalTest"
+  setFetchingProgress(0.0)
 
   worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
     viewerFetcher = new TDCViewerStorageStreamFatcher(worker,
@@ -29,11 +30,16 @@ class TDCViewerStorageStreamFatcher {
       'Data.MultiHistogram': 1
     }
     this.fetchID = 0
+    this.integralTime = 0
+    this.integralBeginTime = null
+    this.integralFetchedDataCount = 0
+    this.integralTotalDataCount = 0
+    this.integralContinuesHasNew = false
     this.clearPlot()
   }
 
   start(interval) {
-    // this.update()
+    this.update()
     setInterval("viewerFetcher.update()", '' + interval)
   }
 
@@ -44,12 +50,22 @@ class TDCViewerStorageStreamFatcher {
           this.filter
         ], {},
         function(result) {
-          if (result != null) {
-            viewerFetcher.lastTime = result['FetchTime'];
-            if (viewerFetcher.mode == 'Instant' ||
-              viewerFetcher.mode == 'IntegralContinues') {
-              viewerFetcher.updateResult(result, fetchID)
+          if (fetchID == viewerFetcher.fetchID) {
+            if (result != null) {
+              viewerFetcher.lastTime = result['FetchTime'];
+              if (viewerFetcher.mode == 'Instant' ||
+                viewerFetcher.mode == 'IntegralContinues') {
+                viewerFetcher.updateResult(result, fetchID, 'update')
+              }
             }
+            if (viewerFetcher.mode == 'IntegralContinues') {
+              viewerFetcher.integralTime = parseInt((new Date().getTime() - viewerFetcher.integralBeginTime.getTime())/1000)
+              if (result != null){
+                viewerFetcher.integralTotalDataCount += 1
+                viewerFetcher.integralFetchedDataCount += 1
+              }
+            }
+            viewerFetcher.updateFetchingInfo()
           }
         },
         function(error) {
@@ -57,40 +73,27 @@ class TDCViewerStorageStreamFatcher {
         }
       )
     }
+    viewerFetcher.updateFetchingInfo()
   }
 
   range(beginTime, endTime) {
     var fetchID = this.fetchID
-    worker.request("Storage", "range", [this.collection, beginTime, endTime,
+    this.integralTime = parseInt((endTime.getTime() - beginTime.getTime())/1000)
+    worker.request("Storage", "range", [this.collection, dateToISO(beginTime), dateToISO(endTime),
         'FetchTime', this.filter
       ], {},
       function(result) {
+        viewerFetcher.integralTotalDataCount += result.length
         for (var i = 0; i < result.length; i++) {
           worker.request("Storage", "get", [viewerFetcher.collection,
               result[i]['_id'], viewerFetcher.filter
             ], {},
             function(result) {
-              viewerFetcher.updateResult(result, fetchID)
-                // viewerFetcher.entryNum -= 1;
-                // var chData = result['Data']['CoincidenceHistogram']
-                // var chXs = chData['Configuration']
-                // var chYs = chData['Histogram']
-                // var meData = result['Data']['MDIQKDEncoding']
-                // viewerFetcher.coincidenceHistogram.append(chXs, chYs)
-                // var meConfigKeys = Object.keys(viewerFetcher.mdiqkdEncodingConfig)
-                // for (var i = 0; i < meConfigKeys.length; i++) {
-                //   var key = meConfigKeys[i];
-                //   var hisIs = viewerFetcher.mdiqkdEncodingConfig[key]
-                //   for (var j = 0; j < hisIs.length; j++) {
-                //     var hisKey = viewerFetcher.histogramKeys[hisIs[j]]
-                //     var his = meData[hisKey]
-                //     viewerFetcher.mdiqkdEncodingHistograms[i].append(
-                //       meData['Configuration'], his)
-                //   }
-                // }
-                // if (viewerFetcher.entryNum == 0) {
-                //   viewerFetcher.plot()
-                // }
+              if (fetchID == viewerFetcher.fetchID) {
+                viewerFetcher.updateResult(result)
+                viewerFetcher.integralFetchedDataCount += 1
+                viewerFetcher.updateFetchingInfo()
+              }
             },
             function(error) {
               console.log("Error: " + error)
@@ -103,51 +106,42 @@ class TDCViewerStorageStreamFatcher {
     )
   }
 
-  updateResult(result, fetchID) {
-    if (fetchID == viewerFetcher.fetchID) {
-      var data = result['Data']['MultiHistogram']
-      var configuration = data['Configuration']
-      var histograms = data['Histograms']
-      var viewFrom = configuration['ViewStart'] / 1000.0;
-      var viewTo = configuration['ViewStop'] / 1000.0;
-      var divide = configuration['Divide'];
-      var length = configuration['BinCount'];
-      var syncChannel = configuration['Sync'];
-      var signalChannels = configuration['Signals'];
-      var xs = linspace(viewFrom, viewTo / divide,
-        length)
-      var traces = []
-      for (var i = 0; i < signalChannels.length; i++) {
-        var channelNum = signalChannels[i].toString()
-        if (channelNum.length == 1) channelNum = "0" + channelNum
-        traces.push({
-          x: xs,
-          y: histograms[i],
-          type: 'scatter',
-          name: 'CH' + channelNum
-        })
-      }
-      var layout = {
-        xaxis: {
-          title: 'Time (ns)'
-        },
-        yaxis: {
-          title: 'Count'
-        }
-      };
-      Plotly.react('viewport', traces, layout, {
-        displaylogo: false,
-        // responsive: true
-      });
+  updateResult(result) {
+    var data = result['Data']['MultiHistogram']
+    var configuration = data['Configuration']
+    var histograms = data['Histograms']
+    var viewFrom = configuration['ViewStart'] / 1000.0;
+    var viewTo = configuration['ViewStop'] / 1000.0;
+    var divide = configuration['Divide'];
+    var length = configuration['BinCount'];
+    var syncChannel = configuration['Sync'];
+    var signalChannels = configuration['Signals'];
+    var xs = linspace(viewFrom, viewTo / divide,
+      length)
+    var traces = []
+    for (var i = 0; i < signalChannels.length; i++) {
+      var channelNum = signalChannels[i].toString()
+      if (channelNum.length == 1) channelNum = "0" + channelNum
+      traces.push({
+        x: xs,
+        y: histograms[i],
+        type: 'scatter',
+        name: 'CH' + channelNum
+      })
     }
-    $('#HistogramWarning')[0].classList.add('d-none')
-    var fetchTimeDelta = new Date().getTime() - Date.parse(result['FetchTime'])
-    if (fetchTimeDelta > 3) {
-      $('#HistogramWarning')[0].classList.remove('d-none')
-      $('#HistogramWarningContent').html(
-        "The most recent data was fetched " + parseInt(fetchTimeDelta /
-          1000) + " s ago.")
-    }
+    var layout = {
+      xaxis: {
+        title: 'Time (ns)'
+      },
+      yaxis: {
+        title: 'Count'
+      },
+      uirevision:'true',
+    };
+    Plotly.react('viewport', traces, layout, {
+      displaylogo: false,
+      // responsive: true
+    });
   }
 
   clearPlot() {
@@ -172,6 +166,33 @@ class TDCViewerStorageStreamFatcher {
     $('#HistogramWarning')[0].classList.add('d-none')
   }
 
+  updateFetchingInfo(){
+    if (this.mode == 'Instant' || (this.mode == 'IntegralContinues' && this.integralContinuesHasNew)){
+      $('#HistogramWarning')[0].classList.add('d-none')
+      var fetchTimeDelta = new Date().getTime() - Date.parse(this.lastTime)
+      if (fetchTimeDelta > 3000) {
+        $('#HistogramWarning')[0].classList.remove('d-none')
+        $('#HistogramWarningContent').html("The most recent data was fetched " + parseInt(fetchTimeDelta / 1000) + " s ago.")
+      }
+    }
+    if (this.integralTotalDataCount > 0 && this.integralFetchedDataCount < this.integralTotalDataCount){
+      setFetchingProgress(this.integralFetchedDataCount * 1.0 / this.integralTotalDataCount)
+    } else {
+      setFetchingProgress(0.0)
+    }
+    if (this.mode == 'Integral' || this.mode == 'IntegralContinues'){
+      var content = this.integralTotalDataCount + ' (' + this.integralTime + ' s)'
+      if (this.integralFetchedDataCount < this.integralTotalDataCount) {
+        content = this.integralFetchedDataCount + '/' + content
+      }
+      $('#FetchNumber')[0].classList.remove('d-none')
+      $('#FetchNumberContent').html(content)
+    } else {
+      $('#FetchNumberContent').html('')
+      $('#FetchNumber')[0].classList.add('d-none')
+    }
+  }
+
   changeMode(mode) {
     if (mode != 'Instant' && mode != 'Integral' && mode !=
       'IntegralContinues' && mode != 'Stop') {
@@ -179,6 +200,10 @@ class TDCViewerStorageStreamFatcher {
       return
     }
     this.mode = mode
+    this.integralTime = 0
+    this.integralTotalDataCount = 0
+    this.integralFetchedDataCount = 0
+    this.integralContinuesHasNew = false
     if (mode == 'Instant') this.lastTime = 0
     if (mode != 'Stop') this.fetchID += 1
     this.clearPlot()
@@ -193,9 +218,10 @@ function updateIntegralData() {
   var isToNow = $("#input-integral-to")[0].value
   var isToNow = isToNow.length == 0 || isToNow.toLowerCase() == 'now'
   if (!invalid) {
+    viewerFetcher.integralBeginTime = beginTime
     viewerFetcher.changeMode(isToNow ? "IntegralContinues" : "Integral")
-    viewerFetcher.range(dateToString(beginTime) + '.000000',
-      dateToString(endTime) + '.000000')
+    if(isToNow) viewerFetcher.lastTime = dateToISO(endTime)
+    viewerFetcher.range(beginTime, endTime)
   }
 }
 
@@ -224,4 +250,13 @@ function onBlurIntegralRange(id) {
     classList.add('is-invalid')
   }
   return parsedDate
+}
+
+function dateToISO(date) {
+  return dateToString(date).replace(' ', 'T') + '.000000+08:00'
+}
+
+function setFetchingProgress(p) {
+  progress = parseInt(p * 100)
+  $('#FetchingProgress').attr('style', 'background-image: linear-gradient(to right, #BDE6FF ' + (progress) + '%, #F8F9FC ' + (progress) + '%)')
 }

@@ -6,7 +6,7 @@
   <div class="card shadow mb-4 ml-3">
     <div class="btn-group" role="group">
       <button type="button" class="btn btn-success" id="selection-instant" onclick="onSelectionIntegral(false)">Instant</button>
-      <button type="button" class="btn btn-secondary" id="selection-integral" onclick="onSelectionIntegral(true)">Integral</button>
+      <button type="button" class="btn btn-secondary" id="selection-integral" onclick="onSelectionIntegral(true)">Review</button>
     </div>
   </div>
   <div class="row collapse width ml-2" id="IntegralConfig">
@@ -29,13 +29,16 @@
 </div>
 
 <div class="card shadow mb-4">
-  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="FetchingProgress">
     <p class="m-0 font-weight-bold text-primary">Histogram</p>
     <div class="row d-none" id="HistogramWarning">
         <span class="icon text-warning">
           <i class="fas fa-exclamation-triangle"></i>
         </span>
-        <span class="text text-warning ml-2 mr-4" id="HistogramWarningContent">11</span>
+        <span class="text text-warning ml-2 mr-4" id="HistogramWarningContent"></span>
+    </div>
+    <div class="d-none" id="FetchNumber">
+        <span class="text ml-2 mr-2" id="FetchNumberContent"></span>
     </div>
   </div>
   <div class="card-body">

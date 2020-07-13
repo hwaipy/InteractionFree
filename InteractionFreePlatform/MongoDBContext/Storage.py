@@ -42,7 +42,7 @@ class Storage:
         r = r[0]
         valid = True
         if after:
-            latestEntryTime = r[Storage.RecordTime]
+            latestEntryTime = r[Storage.FetchTime]
             valid = datetime.fromisoformat(after) < latestEntryTime
         return self.__reformResult(r) if valid else None
 
