@@ -46,14 +46,14 @@ class Storage:
             valid = datetime.fromisoformat(after) < latestEntryTime
         return self.__reformResult(r) if valid else None
 
-    async def range(self, collection, begin, end, by=RecordTime, filter={}):
+    async def range(self, collection, begin, end, by=RecordTime, filter={}, limit=1000):
         if by == Storage.RecordTime or by == Storage.FetchTime:
             begin = datetime.fromisoformat(begin)
             end = datetime.fromisoformat(end)
         dbFilter = self.__reformFilter(filter)
         r = await self.__collection(collection).find(
             {"$and": [{by: {"$gt": begin}}, {by: {"$lt": end}}]}
-            , dbFilter).sort('_id', 1).to_list(10000)
+            , dbFilter).sort('_id', 1).to_list(length=limit)
         return [self.__reformResult(item) for item in r]
 
     async def get(self, collection, id, filter={}):
@@ -77,6 +77,6 @@ class Storage:
         if filter == {}:
             dbFilter = {}
         else:
-            dbFilter = {Storage.RecordTime: 1, Storage.FetchTime: 1, '_id': 1}
+            dbFilter = {Storage.FetchTime: 1, '_id': 1}
             dbFilter.update(filter)
         return dbFilter

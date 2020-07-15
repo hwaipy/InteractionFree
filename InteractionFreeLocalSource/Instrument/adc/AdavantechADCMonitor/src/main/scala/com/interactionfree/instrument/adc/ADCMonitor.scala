@@ -2,7 +2,6 @@ package com.interactionfree.instrument.adc
 
 import java.time.{LocalDateTime, ZonedDateTime}
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
-import scala.collection.JavaConverters._
 import scala.io.Source
 import com.interactionfree.IFWorker
 import Automation.BDaq._
@@ -40,43 +39,68 @@ object ADCMonitor extends App {
     def BfdAiEvent(sender: Any, args: BfdAiEventArgs) = {
       val currentTime = startTimeMilli + ((System.nanoTime() - startTimeNano) / 1e6).toLong
 
-      val diff = currentTime - startTimeMilli - sectionIndex.getAndIncrement() * 1000
-      println(s"DIFF = $diff")
-      if (lastDiff.get != -100000000 && math.abs(lastDiff.get - diff) > 100) {
-        //        println("exiting...")
-        val stopTime = System.currentTimeMillis()
-        println(s"runned ${(stopTime - startTime) / 1000} s.")
-        //        aiCtrl.Stop()
-        //      System.exit(0)
-        println("Error!!!")
-      }
-      lastDiff set diff
-
-      if (args.Count != 3 * clockRate) println(s"Not ${3 * clockRate}!!!! ${args.Count}")
-      val data = new Array[Double](args.Count)
-      val errorCode = aiCtrl.GetData(args.Count, data, 0, null, null, null, null)
-      if (previousTime.get.isDefined) {
-        val timeStep = (currentTime - previousTime.get.get) / 1.0 / clockRate
-        //        val dbd = Range(0, clockRatePerChan).toList.map(i => data.slice(i * 3, i * 3 + 3).toList ++ List(previousTime.get.get + i * timeStep))
-        val dbd = Range(0, clockRate).map(i => data.slice(i * 3, i * 3 + 3)).toArray
-        target.record(dbd)
-        val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
-        //            println(s"runned ${(System.currentTimeMillis()-startTime)/1000} s.")
-        try {
-          //                dumperInvoker.dumpChannel(dump)
-          val fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00"
-//          println(fetchTime)
-          asyInvoker.append(recordCollection, dump, fetchTime = fetchTime)
-        } catch {
-          case e: Throwable => println(e)
+      try {
+        val diff = currentTime - startTimeMilli - sectionIndex.getAndIncrement() * 1000
+        println(s"DIFF = $diff")
+        if (lastDiff.get != -100000000 && math.abs(lastDiff.get - diff) > 100) {
+          //        println("exiting...")
+          val stopTime = System.currentTimeMillis()
+          println(s"runned ${(stopTime - startTime) / 1000} s.")
+          //        aiCtrl.Stop()
+          //      System.exit(0)
+          println("Error!!!")
         }
+        lastDiff set diff
+
+        if (args.Count != 3 * clockRate) println(s"Not ${3 * clockRate}!!!! ${args.Count}")
+        val data = new Array[Double](args.Count)
+        val errorCode = aiCtrl.GetData(args.Count, data, 0, null, null, null, null)
+        if (previousTime.get.isDefined) {
+          val timeStep = (currentTime - previousTime.get.get) / 1.0 / clockRate
+          //        val dbd = Range(0, clockRatePerChan).toList.map(i => data.slice(i * 3, i * 3 + 3).toList ++ List(previousTime.get.get + i * timeStep))
+          val dbd = Range(0, clockRate).map(i => data.slice(i * 3, i * 3 + 3)).toArray
+          target.record(dbd)
+          val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
+          //            println(s"runned ${(System.currentTimeMillis()-startTime)/1000} s.")
+          //                dumperInvoker.dumpChannel(dump)
+          //          println(fetchTime)
+          asyInvoker.append(recordCollection, dump, fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00")
+        }
+      }
+      catch {
+        case e: Throwable => e.printStackTrace()
       }
       previousTime set Some(currentTime)
     }
   }
 
+
+  aiCtrl.addBurnOutListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Burn out: $sender, $args")
+  })
+  aiCtrl.addCacheOverflowListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Cache Overflow: $sender, $args")
+  })
+  aiCtrl.addMarkOverrunListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Mark Overrun: $sender, $args")
+  })
+  aiCtrl.addOverrunListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Overrun: $sender, $args")
+  })
+  aiCtrl.addStoppedListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Stopped: $sender, $args")
+  })
+  aiCtrl.addTimeStampCacheOverflowListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Iime Stamp Cache Overflow: $sender, $args")
+  })
+  aiCtrl.addTimeStampOverrunListener((sender: Any, args: BfdAiEventArgs) => {
+    println(s"Time Stamp Overrun: $sender, $args")
+  })
+
+
+
   aiCtrl.Start()
-  Source.stdin.getLines.filter(line => line.toLowerCase == "q").next
+  Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
   aiCtrl.Stop()
   aiCtrl.Release()
   worker.close()

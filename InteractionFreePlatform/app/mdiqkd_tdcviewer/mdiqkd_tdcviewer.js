@@ -1,4 +1,5 @@
-$(document).ready(function() {
+$(document).ready(async function() {
+  var endpoint = 'ws://' + window.location.host + '/ws'
   var parameterString = window.location.search
   var parameters = {}
   if (parameterString.length > 0) {
@@ -8,17 +9,145 @@ $(document).ready(function() {
       if (paras.length == 2) parameters[paras[0]] = paras[1]
     }
   }
-  collection = parameters['collection'] || "TDCLocalTest"
-  // setFetchingProgress(0.0)
+  tdcService = parameters['tdcservice'] || null
+  collection = parameters['collection'] || null
+  tdcConfiger = null
 
-  worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
-    fetcher = new TDCStorageStreamFatcher(worker, collection, 500, {
-      'Data.Counter': 1,
-      'Data.MultiHistogram': 1
-    }, plot, listener)
-    fetcher.start()
+  worker = await IFWorker(endpoint)
+
+  if (tdcService != null) {
+      collection = await worker[tdcService].getStoraCollectionName()
+      tdcConfiger = new TDCConfiger(worker, tdcService)
+      tdcConfiger.start()
+      startFetching(worker, collection)
+  } else startFetching(worker, collection)
+})
+
+class TDCConfiger {
+  constructor(worker, tdcService) {
+    this.worker = worker
+    this.tdcService = tdcService
+    this.delayPaneInited = false
+    this.editingField = null
+    this.recentDelays = null
+  }
+
+    start() {
+    this.updateDelays()
+  }
+
+  async updateDelays() {
+    this.recentDelays = await worker[tdcService].getDelays()
+    if (!this.delayPaneInited) {
+      initControlPanel(this.recentDelays.length)
+      this.delayPaneInited = true
+    }
+    for (var i = 0; i < this.recentDelays.length; i++) {
+      if ('' + i != this.editingField) $('#DPTI_' + i).val('' + this.recentDelays[i] / 1000.0)
+    }
+    var mhResult = await worker[tdcService].getAnalyserConfiguration('MultiHistogram')
+    if (this.editingField != 'Sync') $('#DPTI_Sync').val(mhResult['Sync'])
+    if (this.editingField != 'ViewStart') $('#DPTI_ViewStart').val(mhResult['ViewStart'] / 1000.0)
+    if (this.editingField != 'ViewStop') $('#DPTI_ViewStop').val(mhResult['ViewStop'] / 1000.0)
+    if (this.editingField != 'BinCount') $('#DPTI_BinCount').val(mhResult['BinCount'])
+    if (this.editingField != 'Divide') $('#DPTI_Divide').val(mhResult['Divide'])
+    var signals = mhResult['Signals']
+    for(var i = 0; i < this.recentDelays.length; i++) {
+      $('#CC_' + i).prop("checked", signals.includes(i))
+    }
+    setTimeout(this.updateDelays.bind(this), 1100)
+  }
+
+  editing(id) {
+    this.editingField = id.split('_')[1]
+  }
+
+  edited(id) {
+    this.editingField = null
+    var editedField = id.split('_')[1]
+    var editedValue = $('#' + id).val()
+    if (!isNaN(parseInt(editedField))) {
+      // edited a channel delay
+      var editedChannel = parseInt(editedField)
+      var editedDelay = parseFloat(editedValue)
+      if (isNaN(editedDelay)) editedDelay = this.recentDelays[editedChannel]
+      $('#' + id).val('' + editedDelay)
+      worker[tdcService].setDelay(editedChannel, parseInt(editedDelay * 1000))
+    } else {
+      // edited a MultiHistogram config
+      var config = {}
+      if (editedField == 'Sync') {
+        config['Sync'] = parseInt(editedValue)
+      }
+      if (editedField == 'ViewStart' || editedField == 'ViewStop') {
+        config[editedField] = parseFloat(editedValue) * 1000.0
+      }
+      if (editedField == 'BinCount' || editedField == 'Divide') {
+        config[editedField] = parseInt(editedValue)
+      }
+      worker[tdcService].configureAnalyser('MultiHistogram', config)
+    }
+  }
+}
+
+function startFetching(worker, collection) {
+  fetcher = new TDCStorageStreamFetcher(worker, collection, 500, {
+    'Data.Counter': 1,
+    'Data.MultiHistogram': 1
+  }, plot, listener)
+  fetcher.start()
+}
+
+function initControlPanel(channelNum) {
+  temp = $('#DelayPaneTemp')
+  function addPane(div, title, tail, border, div_id, input_id, check_id) {
+    newItem = temp.clone(true)
+    newItem.removeClass('d-none')
+    newItem.addClass('border-left-' + border)
+    newItem.attr('id', 'DelayPane_' + i)
+    $('#' + div).append(newItem)
+    newItem.find('.DPTT').html(title)
+    newItem.find('.DPTTi').html(tail)
+    newItem.find('.DPTI').attr('id', input_id)
+    if (check_id != null && check_id.length > 0) {
+      newItem.find('.ChannelCheckDiv').removeClass('d-none')
+      newItem.find('.ChannelCheck').attr('id', check_id)
+    }
+  }
+  for(var i = 0; i < channelNum; i++) {
+    addPane('DelayPanel', 'CH ' + (i < 10 ? '0' : '') + i, 'ns', 'info', 'DelayPanel_' + i, 'DPTI_' + i, 'CC_' + i)
+  }
+  addPane('ViewPanel', 'Trigger', '', 'success', 'DelayPanel_Sync', 'DPTI_Sync')
+  addPane('ViewPanel', 'From', 'ns', 'success', 'DelayPanel_ViewStart', 'DPTI_ViewStart')
+  addPane('ViewPanel', 'To', 'ns', 'success', 'DelayPanel_ViewStop', 'DPTI_ViewStop')
+  addPane('ViewPanel', 'Divide', '', 'success', 'DelayPanel_Divide', 'DPTI_Divide')
+  addPane('ViewPanel', 'BinNum', '', 'success', 'DelayPanel_BinCount', 'DPTI_BinCount')
+  // addPane('ViewPanel', 'Signals', '', 'success', 'DelayPanel_Signals', 'DPTI_Signals')
+  temp.remove()
+  $('#ControlBoardCard').removeClass('d-none')
+}
+
+function onTDCConfigInputFocus(id, isBlur) {
+  if (isBlur) tdcConfiger.edited(id)
+  else tdcConfiger.editing(id)
+}
+
+function onChannelCheckChange(id) {
+  signals = []
+  $('.ChannelCheck').each(function(index){
+    if ($(this).attr('id')) {
+      if ($(this).prop('checked')) {
+        signals.push(parseInt($(this).attr('id').split('_')[1]))
+      }
+    }
   })
-});
+  worker[tdcService].configureAnalyser('MultiHistogram', {'Signals': signals})
+}
+
+TDCHistograms = new Array(32)
+for (var i = 0; i < TDCHistograms.length; i++) {
+  TDCHistograms[i] = new Histogram()
+}
 
 function plot(result, append) {
   var layout = {
@@ -29,16 +158,19 @@ function plot(result, append) {
       title: 'Count'
     },
   }
+  var traces = []
   if (result == null) {
-    var traces = [{
+    for (var i = 0; i < TDCHistograms.length; i++) {
+      TDCHistograms[i].clear()
+    }
+    traces.push({
       x: [0],
       y: [0],
       type: 'scatter',
       name: 'CH0'
-    }]
+    })
     $('#HistogramWarning')[0].classList.add('d-none')
   } else {
-    console.log(append);
     var data = result['Data']['MultiHistogram']
     var configuration = data['Configuration']
     var histograms = data['Histograms']
@@ -49,23 +181,30 @@ function plot(result, append) {
     var syncChannel = configuration['Sync'];
     var signalChannels = configuration['Signals'];
     var xs = linspace(viewFrom, viewTo / divide, length)
-    var traces = []
+    var histogramXsMatched = true
     for (var i = 0; i < signalChannels.length; i++) {
-      var channelNum = signalChannels[i].toString()
-      if (channelNum.length == 1) channelNum = "0" + channelNum
+      var channelNum = signalChannels[i]
+      histogram = TDCHistograms[channelNum]
+      if (append) histogram.append(xs, histograms[i])
+      else histogram.update(xs, histograms[i])
+      var channelNumStr = signalChannels[i].toString()
+      if (channelNumStr.length == 1) channelNumStr = "0" + channelNumStr
       traces.push({
-        x: xs,
-        y: histograms[i],
+        x: histogram.xs,
+        y: histogram.ys,
         type: 'scatter',
-        name: 'CH' + channelNum
+        name: 'CH' + channelNumStr
       })
+      histogramXsMatched &= histogram.xsMatch
     }
     layout['uirevision'] = 'true'
+    listener('HistogramXsMatched', histogramXsMatched)
   }
   Plotly.react('viewport', traces, layout, {
     displaylogo: false,
     // responsive: true
   })
+  Plotly.redraw('viewport')
 }
 
 function updateIntegralData() {
@@ -79,10 +218,8 @@ function updateIntegralData() {
 }
 
 function onSelectionIntegral(isIntegral) {
-  $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" :
-    "btn btn-success")
-  $("#selection-integral").attr("class", isIntegral ? "btn btn-success" :
-    "btn btn-secondary")
+  $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" : "btn btn-success")
+  $("#selection-integral").attr("class", isIntegral ? "btn btn-success" : "btn btn-secondary")
   $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
   fetcher.changeMode(isIntegral ? "Stop" : "Instant")
 }
@@ -130,334 +267,21 @@ function listener(event, arg) {
       $('#FetchNumber')[0].classList.remove('d-none')
       $('#FetchNumberContent').html(content)
     }
+  } else if (event == 'HistogramXsMatched') {
+    if (!arg) {
+      $('#HistogramError')[0].classList.remove('d-none')
+      $('#HistogramErrorContent').html("Histogram Config Not Matched.")
+    } else {
+      $('#HistogramError')[0].classList.add('d-none')
+    }
+  } else if (event == 'TooManyRecords') {
+    if (arg) {
+      $('#TooManyRecordsError')[0].classList.remove('d-none')
+      $('#TooManyRecordsErrorContent').html("Too Many Records.")
+    } else {
+      $('#TooManyRecordsError')[0].classList.add('d-none')
+    }
   } else {
     console.log(event + ', '+ arg);
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// class TDCViewerStorageStreamFatcher {
-//   constructor(worker, collection) {
-//     this.worker = worker
-//     this.collection = collection
-//     this.lastTime = null
-//       // modes: Instant, Integral, IntegralContinues
-//     this.mode = 'Instant'
-//     this.filter = {
-//       'Data.Counter': 1,
-//       'Data.MultiHistogram': 1
-//     }
-//     this.fetchID = 0
-//     this.integralTime = 0
-//     this.integralBeginTime = null
-//     this.integralEndTime = null
-//     this.integralMostRecentTime = null
-//     this.integralFetchedDataCount = 0
-//     this.integralTotalDataCount = 0
-//     this.integralContinuesHasNew = false
-//     this.clearPlot()
-//   }
-//
-//   start(interval) {
-//     this.update()
-//     setInterval("viewerFetcher.update()", '' + interval)
-//   }
-//
-//   update() {
-//     if (this.mode == 'Instant' || this.mode == 'IntegralContinues') {
-//       var fetchID = this.fetchID
-//       worker.request("Storage", "latest", [this.collection, this.lastTime, this.filter], {},
-//         function(result) {
-//           if (fetchID == viewerFetcher.fetchID) {
-//             if (result != null) {
-//               viewerFetcher.lastTime = result['FetchTime'];
-//               if (viewerFetcher.mode == 'Instant' || viewerFetcher.mode == 'IntegralContinues') {
-//                 viewerFetcher.updateResult(result, fetchID, 'update')
-//               }
-//             }
-//             if (viewerFetcher.mode == 'IntegralContinues') {
-//               viewerFetcher.integralTime = parseInt((new Date().getTime() - viewerFetcher.integralBeginTime.getTime())/1000)
-//               if (result != null){
-//                 viewerFetcher.integralTotalDataCount += 1
-//                 viewerFetcher.integralFetchedDataCount += 1
-//               }
-//             }
-//             viewerFetcher.updateFetchingInfo()
-//           }
-//         },
-//         function(error) {
-//           console.log("Error: " + error)
-//         }
-//       )
-//     }
-//     viewerFetcher.updateFetchingInfo()
-//   }
-//
-//   range(beginTime, endTime) {
-//     var fetchID = this.fetchID
-//     this.integralTime = parseInt((endTime.getTime() - beginTime.getTime())/1000)
-//     worker.request("Storage", "range", [this.collection, dateToISO(beginTime), dateToISO(endTime), 'FetchTime', this.filter], {},
-//       function(result) {
-//         viewerFetcher.integralTotalDataCount += result.length
-//         for (var i = 0; i < result.length; i++) {
-//           worker.request("Storage", "get", [viewerFetcher.collection, result[i]['_id'], viewerFetcher.filter], {},
-//             function(result) {
-//               if (fetchID == viewerFetcher.fetchID) {
-//                 viewerFetcher.updateResult(result)
-//                 viewerFetcher.integralFetchedDataCount += 1
-//                 viewerFetcher.updateFetchingInfo()
-//               }
-//             },
-//             function(error) {
-//               console.log("Error: " + error)
-//             })
-//           viewerFetcher.integralMostRecentTime = new Date();
-//           viewerFetcher.integralMostRecentTime.setTime(Date.parse(result[i]['FetchTime']))
-//           console.log(viewerFetcher.integralMostRecentTime);
-//         }
-//       },
-//       function(error) {
-//         console.log("Error: " + error)
-//       }
-//     )
-//   }
-//
-//   updateResult(result) {
-//     var data = result['Data']['MultiHistogram']
-//     var configuration = data['Configuration']
-//     var histograms = data['Histograms']
-//     var viewFrom = configuration['ViewStart'] / 1000.0;
-//     var viewTo = configuration['ViewStop'] / 1000.0;
-//     var divide = configuration['Divide'];
-//     var length = configuration['BinCount'];
-//     var syncChannel = configuration['Sync'];
-//     var signalChannels = configuration['Signals'];
-//     var xs = linspace(viewFrom, viewTo / divide, length)
-//     var traces = []
-//     for (var i = 0; i < signalChannels.length; i++) {
-//       var channelNum = signalChannels[i].toString()
-//       if (channelNum.length == 1) channelNum = "0" + channelNum
-//       traces.push({
-//         x: xs,
-//         y: histograms[i],
-//         type: 'scatter',
-//         name: 'CH' + channelNum
-//       })
-//     }
-//     var layout = {
-//       xaxis: {
-//         title: 'Time (ns)'
-//       },
-//       yaxis: {
-//         title: 'Count'
-//       },
-//       uirevision:'true',
-//     };
-//     Plotly.react('viewport', traces, layout, {
-//       displaylogo: false,
-//       // responsive: true
-//     });
-//   }
-//
-//   clearPlot() {
-//     var traces = [{
-//       x: [0],
-//       y: [0],
-//       type: 'scatter',
-//       name: 'CH0'
-//     }]
-//     var layout = {
-//       xaxis: {
-//         title: 'Time (ns)'
-//       },
-//       yaxis: {
-//         title: 'Count'
-//       }
-//     };
-//     Plotly.react('viewport', traces, layout, {
-//       displaylogo: false,
-//       // responsive: true
-//     });
-//     $('#HistogramWarning')[0].classList.add('d-none')
-//   }
-//
-//   updateFetchingInfo() {
-//     // Check if display no data warning
-//     var fetchTimeDelta = 0
-//     if (this.mode == 'Instant') {
-//       fetchTimeDelta = new Date().getTime() - Date.parse(this.lastTime)
-//     } else if (this.mode == 'IntegralContinues') {
-//       if (this.integralContinuesHasNew) {
-//         fetchTimeDelta = new Date().getTime() - Date.parse(this.lastTime)
-//       } else {
-//         if (this.integralFetchedDataCount == this.integralTotalDataCount && this.integralMostRecentTime != null) {
-//           fetchTimeDelta = new Date().getTime() - this.integralMostRecentTime.getTime()
-//         }
-//       }
-//     }
-//     if (this.mode == 'Integral' || this.mode == 'IntegralContinues') {
-//       if (this.integralFetchedDataCount == 0) {
-//         fetchTimeDelta = 0
-//       }
-//     }
-//     if (fetchTimeDelta > 3000) {
-//       $('#HistogramWarning')[0].classList.remove('d-none')
-//       $('#HistogramWarningContent').html("The most recent data was fetched " + parseInt(fetchTimeDelta / 1000) + " s ago.")
-//     } else {
-//       $('#HistogramWarning')[0].classList.add('d-none')
-//     }
-//
-//     // Set prograss
-//     if (this.integralTotalDataCount > 0 && this.integralFetchedDataCount < this.integralTotalDataCount) {
-//       setFetchingProgress(this.integralFetchedDataCount * 1.0 / this.integralTotalDataCount)
-//     } else {
-//       setFetchingProgress(0.0)
-//     }
-//
-//     // Set FetchNumber
-//     if (this.mode == 'Integral' || this.mode == 'IntegralContinues') {
-//       var content = this.integralTotalDataCount + ' items (in ' + this.integralTime + ' s)'
-//       if (this.integralFetchedDataCount < this.integralTotalDataCount) {
-//         content = this.integralFetchedDataCount + '/' + content
-//       }
-//       $('#FetchNumber')[0].classList.remove('d-none')
-//       $('#FetchNumberContent').html(content)
-//     } else {
-//       $('#FetchNumberContent').html('')
-//       $('#FetchNumber')[0].classList.add('d-none')
-//     }
-//   }
-//
-//   changeMode(mode) {
-//     if (mode != 'Instant' && mode != 'Integral' && mode !=
-//       'IntegralContinues' && mode != 'Stop') {
-//       console.log('Bad mode: ' + mode)
-//       return
-//     }
-//     this.mode = mode
-//     this.integralTime = 0
-//     this.integralTotalDataCount = 0
-//     this.integralFetchedDataCount = 0
-//     this.integralContinuesHasNew = false
-//     if (mode == 'Instant') this.lastTime = 0
-//     if (mode != 'Stop') this.fetchID += 1
-//     this.clearPlot()
-//   }
-// }
-//
-// function updateIntegralData() {
-//   var beginTime = onBlurIntegralRange('input-integral-from')
-//   var endTime = onBlurIntegralRange('input-integral-to')
-//   invalid = $("#input-integral-from")[0].classList.contains('is-invalid') ||
-//     $("#input-integral-to")[0].classList.contains('is-invalid')
-//   var isToNow = $("#input-integral-to")[0].value
-//   var isToNow = isToNow.length == 0 || isToNow.toLowerCase() == 'now'
-//   if (!invalid) {
-//     viewerFetcher.integralBeginTime = beginTime
-//     viewerFetcher.integralEndTime = endTime
-//     viewerFetcher.changeMode(isToNow ? "IntegralContinues" : "Integral")
-//     if(isToNow) viewerFetcher.lastTime = dateToISO(endTime)
-//     viewerFetcher.range(beginTime, endTime)
-//   }
-// }
-//
-// function onSelectionIntegral(isIntegral) {
-//   $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" :
-//     "btn btn-success")
-//   $("#selection-integral").attr("class", isIntegral ? "btn btn-success" :
-//     "btn btn-secondary")
-//   $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
-//   viewerFetcher.changeMode(isIntegral ? "Stop" : "Instant")
-// }
-//
-// function onBlurIntegralRange(id) {
-//   element = $("#" + id)[0]
-//   text = element.value
-//   isNow = false
-//   if (text.length == 0 || text.toLowerCase() == "now") {
-//     parsedDate = new Date()
-//     isNow = (id == 'input-integral-to')
-//   } else parsedDate = parseSimpleDate(text)
-//   classList = element.classList
-//   if (parsedDate) {
-//     classList.remove('is-invalid')
-//     if (!isNow) element.value = dateToString(parsedDate)
-//   } else {
-//     classList.add('is-invalid')
-//   }
-//   return parsedDate
-// }
-//
-// function dateToISO(date) {
-//   return dateToString(date).replace(' ', 'T') + '.000000+08:00'
-// }
-//
-// function setFetchingProgress(p) {
-//   progress = parseInt(p * 100)
-//   $('#FetchingProgress').attr('style', 'background-image: linear-gradient(to right, #BDE6FF ' + (progress) + '%, #F8F9FC ' + (progress) + '%)')
-// }

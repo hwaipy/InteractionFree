@@ -108,7 +108,7 @@ String.prototype.replaceAll = function(s1, s2) {
   return this.replace(new RegExp(s1, "gm"), s2);
 }
 
-class TDCStorageStreamFatcher {
+class TDCStorageStreamFetcher {
   constructor(worker, collection, updateInterval, filter, ploter, listener) {
     this.worker = worker
     this.collection = collection
@@ -136,61 +136,57 @@ class TDCStorageStreamFatcher {
     this.updateRangedResult()
   }
 
-  update() {
-    var __this = this
+  async update() {
+    console.log('update');
     if (this.mode == 'Instant' || this.mode == 'IntegralContinues') {
       var fetchID = this.fetchID
-      worker.request("Storage", "latest", [this.collection, this.lastTime, this.filter], {},
-        function(result) {
-          if (fetchID == __this.fetchID) {
-            if (result != null) {
-              __this.lastTime = result['FetchTime'];
-              if (__this.mode == 'Instant' || __this.mode == 'IntegralContinues') {
-                __this.updateResult(result, fetchID, 'update')
-              }
+      try {
+        var result = await worker.Storage.latest(this.collection, this.lastTime, this.filter)
+        if (fetchID == this.fetchID) {
+          if (result != null) {
+            this.lastTime = result['FetchTime'];
+            if (this.mode == 'Instant' || this.mode == 'IntegralContinues') {
+              this.updateResult(result, fetchID, 'update')
             }
-            if (__this.mode == 'IntegralContinues') {
-              __this.integralTime = parseInt((new Date().getTime() - __this.integralBeginTime.getTime())/1000)
-              if (result != null){
-                __this.integralTotalDataCount += 1
-                __this.integralFetchedDataCount += 1
-              }
-            }
-            __this.updateFetchingInfo()
           }
-        },
-        function(error) {
-          console.log("Error: " + error)
+          if (this.mode == 'IntegralContinues') {
+            this.integralTime = parseInt((new Date().getTime() - this.integralBeginTime.getTime()) / 1000)
+            if (result != null){
+              this.integralTotalDataCount += 1
+              this.integralFetchedDataCount += 1
+              this.integralContinuesHasNew = true
+            }
+          }
+          this.updateFetchingInfo()
         }
-      )
+      } catch(error) {
+        console.log("Error: " + error)
+      }
     }
     this.updateFetchingInfo()
     setTimeout(this.update.bind(this), this.updateInterval)
   }
 
-  range(beginTime, endTime) {
-    var __this = this
+  async range(beginTime, endTime) {
     var fetchID = this.fetchID
-    this.integralTime = parseInt((endTime.getTime() - beginTime.getTime())/1000)
-    worker.request("Storage", "range", [this.collection, this.dateToISO(beginTime), this.dateToISO(endTime), 'FetchTime', this.filter], {},
-      function(result) {
-        __this.integralTotalDataCount += result.length
-        for (var i = 0; i < result.length; i++) {
-          worker.request("Storage", "get", [__this.collection, result[i]['_id'], __this.filter], {},
-            function(result) {
-              __this.rangedResultQueue.push([fetchID, result])
-            },
-            function(error) {
-              console.log("Error: " + error)
-            })
-          __this.integralMostRecentTime = new Date();
-          __this.integralMostRecentTime.setTime(Date.parse(result[i]['FetchTime']))
+    this.integralTime = parseInt((endTime.getTime() - beginTime.getTime()) / 1000)
+    try {
+      var rangedSummaries = await worker.Storage.range(this.collection, this.dateToISO(beginTime), this.dateToISO(endTime), 'FetchTime', this.filter, 1000)
+      this.integralTotalDataCount += rangedSummaries.length
+      if (rangedSummaries.length > 1000) {
+        this.changeMode('Stop')
+        this.listener('TooManyRecords', true)
+      } else {
+        for (var i = 0; i < rangedSummaries.length; i++) {
+          this.integralMostRecentTime = new Date()
+          this.integralMostRecentTime.setTime(Date.parse(rangedSummaries[i]['FetchTime']))
+          var item = await worker.Storage.get(this.collection, rangedSummaries[i]['_id'], this.filter)
+          this.rangedResultQueue.push([fetchID, item])
         }
-      },
-      function(error) {
-        console.log("Error: " + error)
       }
-    )
+    } catch(error) {
+      console.log("Error: " + error)
+    }
   }
 
   updateRangedResult() {
@@ -260,6 +256,7 @@ class TDCStorageStreamFatcher {
     if (mode == 'Instant') this.lastTime = 0
     if (mode != 'Stop') this.fetchID += 1
     this.ploter(null, false)
+    this.listener('TooManyRecords', false)
   }
 
   updateIntegralData(beginTime, endTime, isToNow) {

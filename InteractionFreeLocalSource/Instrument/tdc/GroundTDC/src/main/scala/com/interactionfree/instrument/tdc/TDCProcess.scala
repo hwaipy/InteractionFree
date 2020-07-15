@@ -2,10 +2,9 @@ package com.interactionfree.instrument.tdc
 
 import java.io.FileInputStream
 import java.util.Properties
-
+import scala.jdk.CollectionConverters._
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
-
 import scala.collection.mutable
 import scala.io.Source
 import com.interactionfree.IFWorker
@@ -34,11 +33,15 @@ object GroundTDC extends App {
   val IFServerAddress = properties.getOrDefault("IFServer.Address", "tcp://127.0.0.1:224").toString
   val IFServerServiceName = properties.getOrDefault("IFServer.ServiceName", "GroundTDCService").toString
   val process = new TDCProcessService(dataSourceListeningPort, storeCollection, localStorePath)
+  //
+  //  properties.keys().asScala.toList.map(_.toString).filter(_.startsWith("DefaultAnalyser.")).foreach(key => {
+  //    val conf = properties.getProperty(key)
+  //    implicit val formats = org.json4s.DefaultFormats
+  //    val confMap = parse(conf).extract[Map[String, Any]]
+  //    process.turnOnAnalyser(key.split("\\.").last, confMap)
+  //  })
+
   val worker = IFWorker(IFServerAddress, IFServerServiceName, process)
-  //  process.turnOnAnalyser("Counter")
-  //  process.turnOnAnalyser("Histogram", Map("Sync" -> 0, "Signal" -> 1, "ViewStart" -> -100000, "ViewStop" -> 100000))
-  //  process.turnOnAnalyser("MDIQKDEncoding", Map("RandomNumbers" -> List(0, 1, 2, 3, 4, 5, 6, 7, 8, 9), "Period" -> 10000, "SignalChannel" -> 1, "TriggerChannel" -> 0))
-  //  process.turnOnAnalyser("MDIQKDQBER", Map())
   println(s"Ground TDC started on port ${dataSourceListeningPort}.")
   if (LOCAL) {
     println("LOCAL mode, starting LocalTDCDataFeeder.")
@@ -117,4 +120,8 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
   def setDelay(channel: Int, delay: Long) = dataTDA.setDelay(channel, delay)
 
   def getDelays() = dataTDA.getDelays()
+
+  def getStoraCollectionName() = storeCollection
+
+  def getChannelCount() = channelCount
 }
