@@ -31,35 +31,75 @@ $(document).ready(async function() {
   fetcher.start()
 })
 
-// TDCHistograms = new Array(32)
-// for (var i = 0; i < TDCHistograms.length; i++) {
-//   TDCHistograms[i] = new Histogram()
-// }
-//
+MEConfigs = [
+  ['All Pulses', 'meAllPulses', [0, 1, 2, 3, 4, 5, 6, 7]],
+  ['Vacuum', 'meVacuum', [0, 1]],
+  ['Z 0', 'meZ0', [6]],
+  ['Z 1', 'meZ1', [7]],
+  ['X', 'meX', [2, 3]],
+  ['Y', 'meY', [4, 5]],
+  ['Alice Delay', 'meAliceTime', [10]],
+  ['Bob Delay', 'meBobTime', [11]]
+]
+
+MEHistograms = new Array(MEConfigs.length)
+for (var i = 0; i < MEHistograms.length; i++) {
+  MEHistograms[i] = new Histogram()
+}
+for (var i = 0; i < MEConfigs.length; i++) {
+  newItem = $('.MEViewPane').clone(true)
+  newItem.removeClass('d-none')
+  newItem.removeClass('MEViewPane')
+  newItem.attr('id', 'MEViewPane_' + MEConfigs[i][1])
+  $('.MEViewRow').append(newItem)
+  newItem.find('.MEViewPort').attr('id', MEConfigs[i][1])
+}
+
 function plot(result, append) {
-  console.log(append);
-  console.log(result);
-//   var layout = {
-//     xaxis: {
-//       title: 'Time (ns)'
-//     },
-//     yaxis: {
-//       title: 'Count'
-//     },
-//   }
-//   var traces = []
-//   if (result == null) {
-//     for (var i = 0; i < TDCHistograms.length; i++) {
-//       TDCHistograms[i].clear()
-//     }
-//     traces.push({
-//       x: [0],
-//       y: [0],
-//       type: 'scatter',
-//       name: 'CH0'
-//     })
-//     $('#HistogramWarning')[0].classList.add('d-none')
-//   } else {
+  var layout = {
+    xaxis: {
+      title: 'Time (ns)'
+    },
+    yaxis: {
+      title: 'Count'
+    },
+  }
+  var traces = []
+  if (result == null) {
+    for (var i = 0; i < MEHistograms.length; i++) {
+      MEHistograms[i].clear()
+      traces.push({
+        x: [0],
+        y: [0],
+        type: 'scatter',
+        name: ''
+      })
+    }
+    $('#HistogramWarning')[0].classList.add('d-none')
+  } else {
+
+
+    // var chData = result['Data']['CoincidenceHistogram']
+    // var chXs = chData['Configuration']
+    // var chYs = chData['Histogram']
+    // var meData = result['Data']['MDIQKDEncoding']
+    // viewerFetcher.coincidenceHistogram.append(chXs, chYs)
+    // var meConfigKeys = Object.keys(viewerFetcher.mdiqkdEncodingConfig)
+    // for (var i = 0; i < meConfigKeys.length; i++) {
+    //   var key = meConfigKeys[i];
+    //   var hisIs = viewerFetcher.mdiqkdEncodingConfig[key]
+    //   for (var j = 0; j < hisIs.length; j++) {
+    //     var hisKey = viewerFetcher.histogramKeys[hisIs[j]]
+    //     var his = meData[hisKey]
+    //     viewerFetcher.mdiqkdEncodingHistograms[i].append(
+    //       meData['Configuration'], his)
+    //   }
+    // }
+    // if (viewerFetcher.entryNum == 0) {
+    //   viewerFetcher.plot()
+    // }
+
+
 //     var data = result['Data']['MultiHistogram']
 //     var configuration = data['Configuration']
 //     var histograms = data['Histograms']
@@ -88,12 +128,16 @@ function plot(result, append) {
 //     }
 //     layout['uirevision'] = 'true'
 //     listener('HistogramXsMatched', histogramXsMatched)
-//   }
-//   Plotly.react('viewport', traces, layout, {
-//     displaylogo: false,
-//     // responsive: true
-//   })
-//   Plotly.redraw('viewport')
+  }
+  for (var i = 0; i < MEConfigs.length; i++) {
+    var config = MEConfigs[i]
+    Plotly.react(config[1], traces[1], layout, {
+      displaylogo: false,
+      // responsive: true
+    })
+    console.log(config[1]);
+    // Plotly.redraw(config[1])
+  }
 }
 
 // function updateIntegralData() {
