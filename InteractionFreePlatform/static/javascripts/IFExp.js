@@ -137,7 +137,6 @@ class TDCStorageStreamFetcher {
   }
 
   async update() {
-    console.log('update');
     if (this.mode == 'Instant' || this.mode == 'IntegralContinues') {
       var fetchID = this.fetchID
       try {
@@ -160,7 +159,8 @@ class TDCStorageStreamFetcher {
           this.updateFetchingInfo()
         }
       } catch(error) {
-        console.log("Error: " + error)
+        console.log("Error: ")
+        console.log(error);
       }
     }
     this.updateFetchingInfo()

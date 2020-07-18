@@ -13,21 +13,21 @@ $(document).ready(async function() {
 
   worker = await IFWorker(endpoint)
 
-  fetcher = new TDCStorageStreamFetcher(worker, collection, 500, {
+  filter = {
     'Data.Counter': 1,
     // 'Data.CoincidenceHistogram': 1,
-    // 'Data.MDIQKDEncoding.Configuration': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[0]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[1]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[2]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[3]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[4]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[5]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[6]': 1,
-    'Data.MDIQKDEncoding.Histogram with RandomNumber[7]': 1,
-    'Data.MDIQKDEncoding.Histogram Alice Time': 1,
-    'Data.MDIQKDEncoding.Histogram Bob Time': 1,
-  }, plot, listener)
+    'Data.MDIQKDEncoding.Configuration': 1,
+    'Data.MDIQKDEncoding.Configuration.SignalChannel' : 1,
+    'Data.MDIQKDEncoding.Configuration.TimeAliceChannel' : 1,
+    'Data.MDIQKDEncoding.Configuration.TimeBobChannel' : 1,
+    'Data.MDIQKDEncoding.Configuration.TriggerChannel' : 1,
+    'Data.MDIQKDEncoding.Configuration.Period' : 1,
+    'Data.MDIQKDEncoding.Configuration.BinCount' : 1,
+  }
+  for (var i = 0; i < Object.keys(MEHistogramKeys).length; i++) {
+    filter['Data.MDIQKDEncoding.' + MEHistogramKeys[Object.keys(MEHistogramKeys)[i]]] = 1
+  }
+  fetcher = new TDCStorageStreamFetcher(worker, collection, 500, filter, plot, listener)
   fetcher.start()
 })
 
@@ -42,6 +42,29 @@ MEConfigs = [
   ['Bob Delay', 'meBobTime', [11]]
 ]
 
+MEHistogramKeys = {
+  0: 'Histogram with RandomNumber[0]',
+  1: 'Histogram with RandomNumber[1]',
+  2: 'Histogram with RandomNumber[2]',
+  3: 'Histogram with RandomNumber[3]',
+  4: 'Histogram with RandomNumber[4]',
+  5: 'Histogram with RandomNumber[5]',
+  6: 'Histogram with RandomNumber[6]',
+  7: 'Histogram with RandomNumber[7]',
+  10: 'Histogram Alice Time',
+  11: 'Histogram Bob Time',
+}
+
+markPoints = [[0.5, 1.5], [2.5, 3.5]]
+markTraceXs = []
+markTraceYs = []
+for (var i = 0; i < markPoints.length; i++) {
+  markPoint = markPoints[i]
+  markTraceXs = markTraceXs.concat([markPoint[0], markPoint[0], markPoint[1], markPoint[1]])
+  markTraceYs = markTraceYs.concat([-1e10, 1e10, 1e10, -1e10])
+}
+
+
 MEHistograms = new Array(MEConfigs.length)
 for (var i = 0; i < MEHistograms.length; i++) {
   MEHistograms[i] = new Histogram()
@@ -54,6 +77,7 @@ for (var i = 0; i < MEConfigs.length; i++) {
   $('.MEViewRow').append(newItem)
   newItem.find('.MEViewPort').attr('id', MEConfigs[i][1])
 }
+$('.MEViewPane').remove()
 
 function plot(result, append) {
   var layout = {
@@ -63,6 +87,16 @@ function plot(result, append) {
     yaxis: {
       title: 'Count'
     },
+    margin: {
+      l: 50,
+      r: 30,
+      b: 50,
+      t: 30,
+      pad: 4
+    },
+    // width: 300,
+    height: 250,
+    showlegend: false,
   }
   var traces = []
   if (result == null) {
@@ -77,104 +111,90 @@ function plot(result, append) {
     }
     $('#HistogramWarning')[0].classList.add('d-none')
   } else {
+    var configuration = result['Data']['MDIQKDEncoding']['Configuration']
+    var xs = linspace(0, configuration['Period'] / 1000.0, configuration['BinCount'])
+    var histogramXsMatched = true
 
-
-    // var chData = result['Data']['CoincidenceHistogram']
-    // var chXs = chData['Configuration']
-    // var chYs = chData['Histogram']
-    // var meData = result['Data']['MDIQKDEncoding']
-    // viewerFetcher.coincidenceHistogram.append(chXs, chYs)
-    // var meConfigKeys = Object.keys(viewerFetcher.mdiqkdEncodingConfig)
-    // for (var i = 0; i < meConfigKeys.length; i++) {
-    //   var key = meConfigKeys[i];
-    //   var hisIs = viewerFetcher.mdiqkdEncodingConfig[key]
-    //   for (var j = 0; j < hisIs.length; j++) {
-    //     var hisKey = viewerFetcher.histogramKeys[hisIs[j]]
-    //     var his = meData[hisKey]
-    //     viewerFetcher.mdiqkdEncodingHistograms[i].append(
-    //       meData['Configuration'], his)
-    //   }
-    // }
-    // if (viewerFetcher.entryNum == 0) {
-    //   viewerFetcher.plot()
-    // }
-
-
-//     var data = result['Data']['MultiHistogram']
-//     var configuration = data['Configuration']
-//     var histograms = data['Histograms']
-//     var viewFrom = configuration['ViewStart'] / 1000.0;
-//     var viewTo = configuration['ViewStop'] / 1000.0;
-//     var divide = configuration['Divide'];
-//     var length = configuration['BinCount'];
-//     var syncChannel = configuration['Sync'];
-//     var signalChannels = configuration['Signals'];
-//     var xs = linspace(viewFrom, viewTo / divide, length)
-//     var histogramXsMatched = true
-//     for (var i = 0; i < signalChannels.length; i++) {
-//       var channelNum = signalChannels[i]
-//       histogram = TDCHistograms[channelNum]
-//       if (append) histogram.append(xs, histograms[i])
-//       else histogram.update(xs, histograms[i])
-//       var channelNumStr = signalChannels[i].toString()
-//       if (channelNumStr.length == 1) channelNumStr = "0" + channelNumStr
-//       traces.push({
-//         x: histogram.xs,
-//         y: histogram.ys,
-//         type: 'scatter',
-//         name: 'CH' + channelNumStr
-//       })
-//       histogramXsMatched &= histogram.xsMatch
-//     }
-//     layout['uirevision'] = 'true'
-//     listener('HistogramXsMatched', histogramXsMatched)
+    var meData = result['Data']['MDIQKDEncoding']
+    for (var i = 0; i < MEConfigs.length; i++) {
+      var hisIs = MEConfigs[i][2]
+      for (var j = 0; j < hisIs.length; j++) {
+        var hisKey = MEHistogramKeys[hisIs[j]]
+        var his = meData[hisKey]
+        MEHistograms[i].append(xs, his)
+      }
+      traces.push({
+        x: MEHistograms[i].xs,
+        y: MEHistograms[i].ys,
+        type: 'scatter',
+        name: 'Trace',
+        line: {
+          color: '#2874A6',
+        }
+      })
+    }
+    for (var i = 0; i < MEHistograms.length; i++) {
+      histogramXsMatched &= MEHistograms[i].xsMatch
+    }
+    listener('HistogramXsMatched', histogramXsMatched)
+  }
+  fillTrace = {
+    x: markTraceXs,
+    y: markTraceYs,
+    fill: 'toself',
+    type: 'scatter',
+    mode: 'none',
+    hoverinfo: 'none',
+    fillcolor: '#E8DAEF',
   }
   for (var i = 0; i < MEConfigs.length; i++) {
-    var config = MEConfigs[i]
-    Plotly.react(config[1], traces[1], layout, {
+    layout['title'] = MEConfigs[i][0]
+    layout['yaxis']['range'] = [0, Math.max(...traces[i]['y']) * 1.05]
+    div = MEConfigs[i][1]
+    data = [fillTrace, traces[i]]
+    Plotly.react(div, data, layout, {
       displaylogo: false,
       // responsive: true
     })
-    console.log(config[1]);
-    // Plotly.redraw(config[1])
+    Plotly.redraw(div)
   }
 }
 
-// function updateIntegralData() {
-//   var beginTime = onBlurIntegralRange('input-integral-from')
-//   var endTime = onBlurIntegralRange('input-integral-to')
-//   invalid = $("#input-integral-from")[0].classList.contains('is-invalid') ||
-//     $("#input-integral-to")[0].classList.contains('is-invalid')
-//   var isToNow = $("#input-integral-to")[0].value
-//   var isToNow = isToNow.length == 0 || isToNow.toLowerCase() == 'now'
-//   if (!invalid) fetcher.updateIntegralData(beginTime, endTime, isToNow)
-// }
-//
-// function onSelectionIntegral(isIntegral) {
-//   $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" : "btn btn-success")
-//   $("#selection-integral").attr("class", isIntegral ? "btn btn-success" : "btn btn-secondary")
-//   $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
-//   fetcher.changeMode(isIntegral ? "Stop" : "Instant")
-// }
-//
-// function onBlurIntegralRange(id) {
-//   element = $("#" + id)[0]
-//   text = element.value
-//   isNow = false
-//   if (text.length == 0 || text.toLowerCase() == "now") {
-//     parsedDate = new Date()
-//     isNow = (id == 'input-integral-to')
-//   } else parsedDate = parseSimpleDate(text)
-//   classList = element.classList
-//   if (parsedDate) {
-//     classList.remove('is-invalid')
-//     if (!isNow) element.value = dateToString(parsedDate)
-//   } else {
-//     classList.add('is-invalid')
-//   }
-//   return parsedDate
-// }
-//
+function updateIntegralData() {
+  var beginTime = onBlurIntegralRange('input-integral-from')
+  var endTime = onBlurIntegralRange('input-integral-to')
+  invalid = $("#input-integral-from")[0].classList.contains('is-invalid') ||
+    $("#input-integral-to")[0].classList.contains('is-invalid')
+  var isToNow = $("#input-integral-to")[0].value
+  var isToNow = isToNow.length == 0 || isToNow.toLowerCase() == 'now'
+  if (!invalid) fetcher.updateIntegralData(beginTime, endTime, isToNow)
+}
+
+function onSelectionIntegral(isIntegral) {
+  $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" : "btn btn-success")
+  $("#selection-integral").attr("class", isIntegral ? "btn btn-success" : "btn btn-secondary")
+  $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
+  fetcher.changeMode(isIntegral ? "Stop" : "Instant")
+}
+
+function onBlurIntegralRange(id) {
+  element = $("#" + id)[0]
+  text = element.value
+  isNow = false
+  if (text.length == 0 || text.toLowerCase() == "now") {
+    parsedDate = new Date()
+    isNow = (id == 'input-integral-to')
+  } else parsedDate = parseSimpleDate(text)
+  classList = element.classList
+  if (parsedDate) {
+    classList.remove('is-invalid')
+    if (!isNow) element.value = dateToString(parsedDate)
+  } else {
+    classList.add('is-invalid')
+  }
+  return parsedDate
+}
+
 
 function listener(event, arg) {
   if (event == 'FetchTimeDelta') {

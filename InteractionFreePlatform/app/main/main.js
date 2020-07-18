@@ -1,27 +1,28 @@
-$(document).ready(function() {
-  worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
-    ping()
-    setInterval("ping()", "2000")
-  })
-});
+$(document).ready(async function() {
+  var endpoint = "ws://" + window.location.host + "/ws"
+  var worker = await IFWorker(endpoint)
 
-function ping() {
-  t1 = new Date().getTime();
-  worker.request("", "protocol", [], {}, function(result) {
-    if (result == "IF1") {
-      deltaT = new Date().getTime() - t1
-      if (deltaT <= 30) setServerStatus(3, deltaT)
-      else if (deltaT <= 120) setServerStatus(2, deltaT)
-      else setServerStatus(1, deltaT)
-    } else {
-      console.log("error (bad response): " + result)
+  async function ping() {
+    t1 = new Date().getTime();
+    try {
+      var result = await worker.protocol()
+      if (result == "IF1") {
+        deltaT = new Date().getTime() - t1
+        if (deltaT <= 30) setServerStatus(3, deltaT)
+        else if (deltaT <= 120) setServerStatus(2, deltaT)
+        else setServerStatus(1, deltaT)
+      } else {
+        console.log("error (bad response): " + result)
+        setServerStatus(0)
+      }
+    } catch(error) {
+      console.log("Error: " + error)
       setServerStatus(0)
     }
-  }, function(error) {
-    console.log("error: " + error)
-    setServerStatus(0)
-  })
-}
+    setTimeout(ping, 2000)
+  }
+  setTimeout(ping, 2000)
+});
 
 function setServerStatus(level, delay) {
   if (level == 3) {

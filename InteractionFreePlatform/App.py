@@ -9,7 +9,6 @@ from IFLocalFileService import FileDistributor
 from MongoDBContext import MongoDBContext
 from Config import Config
 
-
 # class IndexHandler(web.RequestHandler):
 #     def get(self):
 #         # self.render("static/index.html")

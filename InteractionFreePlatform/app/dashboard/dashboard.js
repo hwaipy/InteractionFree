@@ -1,8 +1,23 @@
-$(document).ready(function() {
-  worker = new IFWorker("ws://" + window.location.host + "/ws", function() {
-    update()
-    setInterval("update()", "2000")
-  })
+$(document).ready(async function() {
+  var endpoint = "ws://" + window.location.host + "/ws"
+  var worker = await IFWorker(endpoint)
+
+  async function update(inteval) {
+    try {
+      var result = await worker.listServiceMeta()
+      tableContent = serviceTableHead
+      for (var i = 0; i < result.length; i++) {
+        var row = generateTableRow(result[i][0], result[i][1], result[i][2],
+          result[i][3])
+        tableContent += row
+      }
+      $("#ServiceTable").html(tableContent)
+    } catch(error) {
+      console.log("Error: " + error)
+    }
+  }
+
+  update(2000)
 });
 
 serviceTableHead =
@@ -13,21 +28,6 @@ function generateTableRow(service, address, interfaces, onTime) {
     "</td><td>" + formatInterfaces(interfaces) +
     "</td><td>" + formatAddress(address) +
     "</td><td>" + formatOnTime(onTime) + "</td></tr>";
-}
-
-function update() {
-  worker.request("", "listServiceMeta", [], {}, function(result) {
-    tableContent = serviceTableHead
-    for (var i = 0; i < result.length; i++) {
-      var row = generateTableRow(result[i][0], result[i][1], result[i][2],
-        result[i][3])
-      tableContent += row
-    }
-    $("#ServiceTable").html(tableContent)
-  }, function(error) {
-    console.log("error: " + error)
-    setServerStatus(0)
-  })
 }
 
 function formatOnTime(onTime) {
