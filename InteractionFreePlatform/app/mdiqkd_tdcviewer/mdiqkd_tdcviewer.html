@@ -28,32 +28,35 @@
   </div>
 </div>
 
-<div class="card shadow mb-2 d-none" id="ControlBoardCard">
-  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="">
-    <p class="m-0 font-weight-bold text-primary">Channels</p>
-  </div>
-  <div class="card-body">
-    <div class="container-fluid">
-      <div class="row" id="DelayPanel">
-      </div>
-      <div class="row" id="ViewPanel">
-      </div>
-      <div class="card shadow h-100 py-0 mb-1 col-xl-2 d-none ml-4" id="DelayPaneTemp">
-        <div class="card-body" style="padding: 0.2rem">
-          <div class="row no-gutters align-items-center">
-            <div class="col mr-2">
+<div class="container-fluid" style='padding-left: 0.75rem; padding-right: 0.75rem;'>
+  <div class="row">
+    <div class="col-md-3 card" style='padding-left: 0.0rem; padding-right: 1rem; border: 0px; background-color: #00000000'>
+      <div class="card" style='padding-left: 0rem; padding-right: 0rem'>
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="">
+          <p class="m-0 font-weight-bold text-primary">Channels</p>
+        </div>
+        <div class="card-body" style='padding: 0.75rem' id='ChannelPane'>
+          <div class="card shadow mb-1 d-none" id="DelayPaneTemp">
+            <div class="card-body" style="padding: 0.2rem">
               <div class="row no-gutters align-items-center">
-                <div class="form-check ChannelCheckDiv d-none">
-                  <input class="form-check-input position-static ChannelCheck" type="checkbox" onchange="onChannelCheckChange(id)">
-                </div>
-                <div class="col-auto">
-                  <div class="h5 mb-0 mr-2 font-weight-bold text-gray-800 DPTT">Title</div>
-                </div>
                 <div class="col">
-                  <input type="text" class="form-control DPTI" onfocus="onTDCConfigInputFocus(id, false)" onblur="onTDCConfigInputFocus(id, true)">
-                </div>
-                <div class="col-auto">
-                  <div class="h5 ml-2 mb-0 mr-2 font-light text-gray-800 DPTTi">tail</div>
+                  <div class="row no-gutters align-items-center">
+                    <div class="col-auto">
+                      <div class="h5 mb-0 mr-2 font-weight-bold text-gray-800 DPTT ml-2" onclick="toggleChannelStatus(id)">00:</div>
+                    </div>
+                    <div class="card col border-0 ml-2 DIV-MID">
+                      <input type="text" class="form-control DPTC disabled" disabled=true style='background: #00000000'>
+                    </div>
+                    <div class="col-auto DIV-MID">
+                      <div class="h5 ml-2 mb-0 mr-2 font-light text-gray-800">@</div>
+                    </div>
+                    <div class="card col border-0">
+                      <input type="text" class="form-control DPTI"  style='background: #00000000' onfocus="onTDCConfigInputFocus(id, false)" onblur="onTDCConfigInputFocus(id, true)">
+                    </div>
+                    <div class="col-auto">
+                      <div class="h5 ml-2 mb-0 mr-2 font-light text-gray-800 DPTTi">ns</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -61,9 +64,66 @@
         </div>
       </div>
     </div>
+    <div class="col-md-9 card" style='padding-left: 0.0rem; padding-right: 1rem; border: 0px; background-color: #00000000'>
+      <div class="card" style='padding-left: 0rem; padding-right: 0rem'>
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="FetchingProgress">
+          <p class="m-0 font-weight-bold text-primary">Histograms</p>
+          <div class="row d-none" id="TooManyRecordsError">
+              <span class="icon text-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+              </span>
+              <span class="text text-danger ml-2 mr-4" id="TooManyRecordsErrorContent"></span>
+          </div>
+          <div class="row d-none" id="HistogramError">
+              <span class="icon text-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+              </span>
+              <span class="text text-danger ml-2 mr-4" id="HistogramErrorContent"></span>
+          </div>
+          <div class="row d-none" id="HistogramWarning">
+              <span class="icon text-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+              </span>
+              <span class="text text-warning ml-2 mr-4" id="HistogramWarningContent"></span>
+          </div>
+          <div class="d-none" id="FetchNumber">
+              <span class="text ml-2 mr-2" id="FetchNumberContent"></span>
+          </div>
+        </div>
+        <div class="card-body" style='padding: 0.75rem' id='HistoPane'>
+          <div class="container-fluid">
+            <div class="row" id="ViewPanel">
+              <div class="card shadow mb-1 d-none col-lg-3 mr-3" id="HistoPaneTemp">
+                <div class="card-body" style="padding: 0.2rem">
+                  <div class="row no-gutters align-items-center">
+                    <div class="col">
+                      <div class="row no-gutters align-items-center">
+                        <div class="col-auto">
+                          <div class="h5 mb-0 mr-2 font-weight-bold text-gray-800 DPTT">View:</div>
+                        </div>
+                        <div class="card col border-0">
+                          <input type="text" class="form-control DPTI"  style='background: #00000000' onfocus="onTDCConfigInputFocus(id, false)" onblur="onTDCConfigInputFocus(id, true)">
+                        </div>
+                        <div class="col-auto">
+                          <div class="h5 ml-2 mb-0 mr-2 font-light text-gray-800 DPTTi">ns</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" style='padding: 0.2rem'>
+          <div id="viewport"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
+<!--
 <div class="card shadow mb-4">
   <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="FetchingProgress">
     <p class="m-0 font-weight-bold text-primary">Histograms</p>
@@ -92,4 +152,4 @@
   <div class="card-body">
     <div id="viewport"></div>
   </div>
-</div>
+</div> -->
