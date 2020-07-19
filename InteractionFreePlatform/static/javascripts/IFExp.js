@@ -108,6 +108,14 @@ String.prototype.replaceAll = function(s1, s2) {
   return this.replace(new RegExp(s1, "gm"), s2);
 }
 
+Array.prototype.zip = function(that) {
+  return this.map((k, i) => [k, that[i]])
+}
+
+Array.prototype.sum = function() {
+  return this.reduce((a, b) => a + b, 0)
+}
+
 class TDCStorageStreamFetcher {
   constructor(worker, collection, updateInterval, filter, ploter, listener) {
     this.worker = worker

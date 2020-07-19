@@ -23,6 +23,14 @@ $(document).ready(async function() {
     'Data.MDIQKDEncoding.Configuration.TriggerChannel': 1,
     'Data.MDIQKDEncoding.Configuration.Period': 1,
     'Data.MDIQKDEncoding.Configuration.BinCount': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[0]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[1]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[2]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[3]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[4]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[5]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[6]': 1,
+    'Data.MDIQKDEncoding.Pulse Count of RandomNumber[7]': 1,
   }
   for (var i = 0; i < Object.keys(MEHistogramKeys).length; i++) {
     filter['Data.MDIQKDEncoding.' + MEHistogramKeys[Object.keys(
@@ -151,7 +159,61 @@ function plot(result, append) {
     listener('HistogramXsMatched', histogramXsMatched)
 
     // deal with reports
-    calculateRegionValues(MEHistograms[0].xs, MEHistograms[0].ys)
+    var regionValues = calculateRegionValues(MEHistograms)
+    console.log(regionValues);
+    // var pulseExtinctionRatio = (vAllPulses[0] + vAllPulses[1]) / vAllPulses[2] / 2
+    // var vacuumsCountRate = (vVacuums[0] + vVacuums[1]) / vVacuums(3)
+    // var Z0CountRate = (vZ0(0) + vZ0(1)) / vZ0(3)
+    // var Z1CountRate = (vZ1(0) + vZ1(1)) / vZ1(3)
+    // var XCountRate = (vX(0) + vX(1)) / vX(3)
+    // var YCountRate = (vY(0) + vY(1)) / vY(3)
+    // var ZRatio = Z0CountRate / Z1CountRate
+    // var Z0ExtinctionRatio = vZ0(0) / vZ0(1)
+    // var Z1ExtinctionRatio = vZ1(1) / vZ1(0)
+
+    // console.log(result);
+    // var pulseExtinctionRatio = (regionValues['All Pulses'][0] + regionValues['All Pulses'][1]) / regionValues['All Pulses'][2] / 2
+
+    // val vacuumsCountRate = (vVacuums(0) + vVacuums(1)) / vVacuums(3)
+
+
+    // MEConfigs = [
+    //   ['All Pulses', 'meAllPulses', [0, 1, 2, 3, 4, 5, 6, 7]],
+    //   ['Vacuum', 'meVacuum', [0, 1]],
+    //   ['Z 0', 'meZ0', [6]],
+    //   ['Z 1', 'meZ1', [7]],
+    //   ['X', 'meX', [2, 3]],
+    //   ['Y', 'meY', [4, 5]],
+    //   ['Alice Delay', 'meAliceTime', [10]],
+    //   ['Bob Delay', 'meBobTime', [11]]
+    // ]
+
+    // val Z0CountRate = (vZ0(0) + vZ0(1)) / vZ0(3)
+    // val Z1CountRate = (vZ1(0) + vZ1(1)) / vZ1(3)
+    // val XCountRate = (vX(0) + vX(1)) / vX(3)
+    // val YCountRate = (vY(0) + vY(1)) / vY(3)
+    // val ZRatio = Z0CountRate / Z1CountRate
+    // val Z0ExtinctionRatio = vZ0(0) / vZ0(1)
+    // val Z1ExtinctionRatio = vZ1(1) / vZ1(0)
+    //
+    // var reports = [
+    //   'Pulse Extinction Ratio: ' + (10 * Math.log10(pulseExtinctionRatio)).toFixed(3) + ' dB',
+    //   'Vacuum Intensity: '//   ${10 * math.log10(vacuumsCountRate / (Z0CountRate))}%.2f dB" + System.lineSeparator() +
+      //   f"X Intensity: ${XCountRate / Z0CountRate}%.3f" + System.lineSeparator() +
+      //   f"Y Intensity: ${YCountRate / Z0CountRate}%.3f" + System.lineSeparator() +
+      //   f"Z 0 / TZ 1: ${ZRatio}%.3f" + System.lineSeparator() +
+      //   System.lineSeparator() +
+      //   f"Z 0 Error Rate: ${1 / Z0ExtinctionRatio * 100}%.3f" + "%" + System.lineSeparator() +
+      //   f"Z 1 Error Rate: ${1 / Z1ExtinctionRatio * 100}%.3f" + "%" + System.lineSeparator() +
+      //   System.lineSeparator() +
+      //   f"Pulse 0 Position of Z 0: ${qberReport("pulse0Position")}%.3f" + System.lineSeparator() +
+      //   f"Pulse 0 Width of Z 0: ${qberReport("pulse0Width")}%.3f" + System.lineSeparator() +
+      //   f"Pulse 0 Rise of Z 0: ${qberReport("pulse0Rise")}%.3f" + System.lineSeparator() +
+      //   f"Pulse 0 Rise of Alice: ${qberReport("aliceRise")}%.3f" + System.lineSeparator() +
+      //   f"Pulse 0 Rise of Bob: ${qberReport("bobRise")}%.3f" + System.lineSeparator() +
+      //   System.lineSeparator() +
+    // ]
+    // console.log(reports);
   }
   for (var i = 0; i < MEConfigs.length; i++) {
     layout['title'] = MEConfigs[i][0]
@@ -164,7 +226,6 @@ function plot(result, append) {
     })
     Plotly.redraw(div)
   }
-
 }
 
 function updateIntegralData() {
@@ -253,42 +314,19 @@ function listener(event, arg) {
   }
 }
 
-function calculateRegionValues(xs, ys) {
-  console.log('calculateRegionValues');
-  console.log(xs);
-  console.log(ys);
-  counts = []
-  for (var i = 0; i < markPoints.length; i++) {
-    start = markPoints[i][0]
-    stop = markPoints[i][1]
-    count = 0
-    for (var k = 0; k < xs.length; k++) {
-      if (xs[k] >= start && xs[k] < stop) {
-        count += ys[k]
-      }
-    }
-    counts.push(count)
-  }
+function calculateRegionValues(histogram) {
+  console.log('rvs');
 
+  // MEConfigKeys = MEConfigs.map(x => x[0])
+  // var vAllPulses = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('All Pulses')])
+  // var vVacuums = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('Vacuum')])
+  // var vZ0 = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('Z 0')])
+  // var vZ1 = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('Z 1')])
+  // var vX = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('X')])
 
-  console.log(counts);
-  //
-  //  = [
-  //   [0.4, 1.4, '#F1E4C6'],
-  //   [2.4, 3.4, '#D5E9D5'],
-  //   [3.8, 4.0, '#D3E4EB']
-  // ]
-  // fillTrace = []
-  // for (var i = 0; i < markPoints.length; i++) {
-  //   markPoint = markPoints[i]
-  //   fillTrace.push({
-  //     x: [markPoint[0], markPoint[0], markPoint[1], markPoint[1]],
-  //     y: [-1e10, 1e10, 1e10, -1e10],
-  //     fill: 'toself',
-  //     type: 'scatter',
-  //     mode: 'none',
-  //     hoverinfo: 'none',
-  //     fillcolor: markPoint[2],
-  //   })
-  // }
+  // return markPoints.map(markPoint => {
+  //   start = markPoint[0]
+  //   stop = markPoint[1]
+  //   return histogram.xs.zip(histogram.ys).filter(z => z[0] >= start && z[0] < stop).map(z => z[1]).sum()
+  // })
 }
