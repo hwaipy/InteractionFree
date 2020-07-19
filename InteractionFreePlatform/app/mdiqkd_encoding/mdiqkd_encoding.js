@@ -10,6 +10,7 @@ $(document).ready(async function() {
     }
   }
   collection = parameters['collection'] || null
+  initResultPanel()
 
   worker = await IFWorker(endpoint)
 
@@ -41,6 +42,7 @@ $(document).ready(async function() {
   fetcher.start()
 })
 
+worker = null
 MEConfigs = [
   ['All Pulses', 'meAllPulses', [0, 1, 2, 3, 4, 5, 6, 7]],
   ['Vacuum', 'meVacuum', [0, 1]],
@@ -159,61 +161,7 @@ function plot(result, append) {
     listener('HistogramXsMatched', histogramXsMatched)
 
     // deal with reports
-    var regionValues = calculateRegionValues(MEHistograms)
-    console.log(regionValues);
-    // var pulseExtinctionRatio = (vAllPulses[0] + vAllPulses[1]) / vAllPulses[2] / 2
-    // var vacuumsCountRate = (vVacuums[0] + vVacuums[1]) / vVacuums(3)
-    // var Z0CountRate = (vZ0(0) + vZ0(1)) / vZ0(3)
-    // var Z1CountRate = (vZ1(0) + vZ1(1)) / vZ1(3)
-    // var XCountRate = (vX(0) + vX(1)) / vX(3)
-    // var YCountRate = (vY(0) + vY(1)) / vY(3)
-    // var ZRatio = Z0CountRate / Z1CountRate
-    // var Z0ExtinctionRatio = vZ0(0) / vZ0(1)
-    // var Z1ExtinctionRatio = vZ1(1) / vZ1(0)
-
-    // console.log(result);
-    // var pulseExtinctionRatio = (regionValues['All Pulses'][0] + regionValues['All Pulses'][1]) / regionValues['All Pulses'][2] / 2
-
-    // val vacuumsCountRate = (vVacuums(0) + vVacuums(1)) / vVacuums(3)
-
-
-    // MEConfigs = [
-    //   ['All Pulses', 'meAllPulses', [0, 1, 2, 3, 4, 5, 6, 7]],
-    //   ['Vacuum', 'meVacuum', [0, 1]],
-    //   ['Z 0', 'meZ0', [6]],
-    //   ['Z 1', 'meZ1', [7]],
-    //   ['X', 'meX', [2, 3]],
-    //   ['Y', 'meY', [4, 5]],
-    //   ['Alice Delay', 'meAliceTime', [10]],
-    //   ['Bob Delay', 'meBobTime', [11]]
-    // ]
-
-    // val Z0CountRate = (vZ0(0) + vZ0(1)) / vZ0(3)
-    // val Z1CountRate = (vZ1(0) + vZ1(1)) / vZ1(3)
-    // val XCountRate = (vX(0) + vX(1)) / vX(3)
-    // val YCountRate = (vY(0) + vY(1)) / vY(3)
-    // val ZRatio = Z0CountRate / Z1CountRate
-    // val Z0ExtinctionRatio = vZ0(0) / vZ0(1)
-    // val Z1ExtinctionRatio = vZ1(1) / vZ1(0)
-    //
-    // var reports = [
-    //   'Pulse Extinction Ratio: ' + (10 * Math.log10(pulseExtinctionRatio)).toFixed(3) + ' dB',
-    //   'Vacuum Intensity: '//   ${10 * math.log10(vacuumsCountRate / (Z0CountRate))}%.2f dB" + System.lineSeparator() +
-      //   f"X Intensity: ${XCountRate / Z0CountRate}%.3f" + System.lineSeparator() +
-      //   f"Y Intensity: ${YCountRate / Z0CountRate}%.3f" + System.lineSeparator() +
-      //   f"Z 0 / TZ 1: ${ZRatio}%.3f" + System.lineSeparator() +
-      //   System.lineSeparator() +
-      //   f"Z 0 Error Rate: ${1 / Z0ExtinctionRatio * 100}%.3f" + "%" + System.lineSeparator() +
-      //   f"Z 1 Error Rate: ${1 / Z1ExtinctionRatio * 100}%.3f" + "%" + System.lineSeparator() +
-      //   System.lineSeparator() +
-      //   f"Pulse 0 Position of Z 0: ${qberReport("pulse0Position")}%.3f" + System.lineSeparator() +
-      //   f"Pulse 0 Width of Z 0: ${qberReport("pulse0Width")}%.3f" + System.lineSeparator() +
-      //   f"Pulse 0 Rise of Z 0: ${qberReport("pulse0Rise")}%.3f" + System.lineSeparator() +
-      //   f"Pulse 0 Rise of Alice: ${qberReport("aliceRise")}%.3f" + System.lineSeparator() +
-      //   f"Pulse 0 Rise of Bob: ${qberReport("bobRise")}%.3f" + System.lineSeparator() +
-      //   System.lineSeparator() +
-    // ]
-    // console.log(reports);
+    updateReports(result, MEHistograms)
   }
   for (var i = 0; i < MEConfigs.length; i++) {
     layout['title'] = MEConfigs[i][0]
@@ -314,19 +262,86 @@ function listener(event, arg) {
   }
 }
 
-function calculateRegionValues(histogram) {
-  console.log('rvs');
+function initResultPanel() {
+  temp = $('#ResultPaneTemp')
 
-  // MEConfigKeys = MEConfigs.map(x => x[0])
-  // var vAllPulses = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('All Pulses')])
-  // var vVacuums = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('Vacuum')])
-  // var vZ0 = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('Z 0')])
-  // var vZ1 = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('Z 1')])
-  // var vX = calculateRegionValues(MEHistograms[MEConfigKeys.indexOf('X')])
+  function addResultPane(div, title, id) {
+    newItem = temp.clone(true)
+    newItem.removeClass('d-none')
+    newItem.addClass('border-left-info')
+    newItem.find('.DPTT').html(title)
+    newItem.find('.DPTC').attr('id', id)
+    $('#' + div).append(newItem)
+  }
+  addResultPane('ResultPanel_Intensity', 'Pulse Extinction Ratio: ', 'PER')
+  addResultPane('ResultPanel_Intensity', 'Vacuum Intensity: ', 'VI')
+  addResultPane('ResultPanel_Intensity', 'X Intensity: ', 'XI')
+  addResultPane('ResultPanel_Intensity', 'Y Intensity: ', 'YI')
+  addResultPane('ResultPanel_Intensity', 'Z 0 / Z 1: ', 'ZZ')
+  addResultPane('ResultPanel_Error', 'Z 0 Error Rate: ', 'Z0ER')
+  addResultPane('ResultPanel_Error', 'Z 1 Error Rate: ', 'Z1ER')
+  addResultPane('ResultPanel_Rise', 'Z 0 Rise: ', 'Z0R')
+  addResultPane('ResultPanel_Rise', 'Z 1 Rise: ', 'Z1R')
+  addResultPane('ResultPanel_Rise', 'Alice Rise: ', 'AR')
+  addResultPane('ResultPanel_Rise', 'Bob Rise: ', 'BR')
+  temp.remove()
+}
 
-  // return markPoints.map(markPoint => {
-  //   start = markPoint[0]
-  //   stop = markPoint[1]
-  //   return histogram.xs.zip(histogram.ys).filter(z => z[0] >= start && z[0] < stop).map(z => z[1]).sum()
-  // })
+function calculateRegionValues(result, histograms) {
+  regionValues = {}
+  regionWidths = markPoints.map(markPoint => markPoint[1] - markPoint[0])
+  MEConfigs.slice(0, 6).map((config, i) => {
+    regionValue = markPoints.map(markPoint => {
+      start = markPoint[0]
+      stop = markPoint[1]
+      return histograms[i].xs.zip(histograms[i].ys).filter(z =>
+        z[0] >= start && z[0] < stop).map(z => z[1]).sum()
+    })
+    correspondingPulseCount = config[2].map(r => result['Data'][
+      'MDIQKDEncoding'
+    ][
+      'Pulse Count of RandomNumber[' + r + ']'
+    ]).sum()
+    return regionValue.map((v, i) => v / regionWidths[i]).concat([
+      correspondingPulseCount
+    ])
+  }).map((v, i) => regionValues[MEConfigs[i][0]] = v)
+  return regionValues
+}
+
+async function updateReports(result, histograms) {
+  var risesPromise = ['Z 0', 'Z 1', 'Alice Delay', 'Bob Delay'].map(key => {
+    var his = MEHistograms[MEConfigs.map(c => c[0]).indexOf(key)]
+    return worker.Algorithm_Fitting.riseTimeFit(his.xs, his.ys)
+  })
+
+  var regionValues = calculateRegionValues(result, MEHistograms)
+  var pulseExtinctionRatio = (regionValues['All Pulses'][0] + regionValues[
+    'All Pulses'][1]) / (regionValues['All Pulses'][2]) / 2
+  var vacuumsCountRate = (regionValues['Vacuum'][0] + regionValues['Vacuum'][1]) /
+    regionValues['Vacuum'][3]
+  var Z0CountRate = (regionValues['Z 0'][0] + regionValues['Z 0'][1]) /
+    regionValues['Z 0'][3]
+  var Z1CountRate = (regionValues['Z 1'][0] + regionValues['Z 1'][1]) /
+    regionValues['Z 1'][3]
+  var XCountRate = (regionValues['X'][0] + regionValues['X'][1]) /
+    regionValues['X'][3]
+  var YCountRate = (regionValues['Y'][0] + regionValues['Y'][1]) /
+    regionValues['Y'][3]
+
+  $('#PER').html((10 * Math.log10(pulseExtinctionRatio)).toFixed(3) + ' dB')
+  $('#VI').html((10 * Math.log10(vacuumsCountRate / (Z0CountRate))).toFixed(2) +
+    ' dB')
+  $('#XI').html((XCountRate / Z0CountRate).toFixed(3))
+  $('#YI').html((YCountRate / Z0CountRate).toFixed(3))
+  $('#ZZ').html((Z0CountRate / Z1CountRate).toFixed(3))
+  $('#Z0ER').html((regionValues['Z 0'][1] / regionValues['Z 0'][0] * 100)
+    .toFixed(3) + '%')
+  $('#Z1ER').html((regionValues['Z 1'][0] / regionValues['Z 1'][1] * 100)
+    .toFixed(3) + '%')
+
+  var r = await Promise.all(risesPromise)
+  var doit = ['Z0', 'Z1', 'A', 'B'].map((key, i) => {
+    $('#' + key + 'R').html(r[i].toFixed(3) + ' ns')
+  })
 }

@@ -354,7 +354,7 @@ def debug_timerecord(label, level=0):
     currentTIme = time.time()
     delta = currentTIme - debug_lastRecordedTime
     debug_lastRecordedTime = currentTIme
-    # print('DEBUG[TimeRecord]: {}{} ms for {}.'.format(''.join(['\t'] * level), int(delta * 1e3), label))
+    print('DEBUG[TimeRecord]: {}{} ms for {}.'.format(''.join(['\t'] * level), int(delta * 1e3), label))
 
 
 def logging(message, exception=None, level='INFO'):
