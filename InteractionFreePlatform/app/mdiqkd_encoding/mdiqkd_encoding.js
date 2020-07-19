@@ -17,17 +17,19 @@ $(document).ready(async function() {
     'Data.Counter': 1,
     // 'Data.CoincidenceHistogram': 1,
     'Data.MDIQKDEncoding.Configuration': 1,
-    'Data.MDIQKDEncoding.Configuration.SignalChannel' : 1,
-    'Data.MDIQKDEncoding.Configuration.TimeAliceChannel' : 1,
-    'Data.MDIQKDEncoding.Configuration.TimeBobChannel' : 1,
-    'Data.MDIQKDEncoding.Configuration.TriggerChannel' : 1,
-    'Data.MDIQKDEncoding.Configuration.Period' : 1,
-    'Data.MDIQKDEncoding.Configuration.BinCount' : 1,
+    'Data.MDIQKDEncoding.Configuration.SignalChannel': 1,
+    'Data.MDIQKDEncoding.Configuration.TimeAliceChannel': 1,
+    'Data.MDIQKDEncoding.Configuration.TimeBobChannel': 1,
+    'Data.MDIQKDEncoding.Configuration.TriggerChannel': 1,
+    'Data.MDIQKDEncoding.Configuration.Period': 1,
+    'Data.MDIQKDEncoding.Configuration.BinCount': 1,
   }
   for (var i = 0; i < Object.keys(MEHistogramKeys).length; i++) {
-    filter['Data.MDIQKDEncoding.' + MEHistogramKeys[Object.keys(MEHistogramKeys)[i]]] = 1
+    filter['Data.MDIQKDEncoding.' + MEHistogramKeys[Object.keys(
+      MEHistogramKeys)[i]]] = 1
   }
-  fetcher = new TDCStorageStreamFetcher(worker, collection, 500, filter, plot, listener)
+  fetcher = new TDCStorageStreamFetcher(worker, collection, 500, filter,
+    plot, listener)
   fetcher.start()
 })
 
@@ -55,15 +57,24 @@ MEHistogramKeys = {
   11: 'Histogram Bob Time',
 }
 
-markPoints = [[0.5, 1.5], [2.5, 3.5]]
-markTraceXs = []
-markTraceYs = []
+markPoints = [
+  [0.4, 1.4, '#F1E4C6'],
+  [2.4, 3.4, '#D5E9D5'],
+  [3.8, 4.0, '#D3E4EB']
+]
+fillTrace = []
 for (var i = 0; i < markPoints.length; i++) {
   markPoint = markPoints[i]
-  markTraceXs = markTraceXs.concat([markPoint[0], markPoint[0], markPoint[1], markPoint[1]])
-  markTraceYs = markTraceYs.concat([-1e10, 1e10, 1e10, -1e10])
+  fillTrace.push({
+    x: [markPoint[0], markPoint[0], markPoint[1], markPoint[1]],
+    y: [-1e10, 1e10, 1e10, -1e10],
+    fill: 'toself',
+    type: 'scatter',
+    mode: 'none',
+    hoverinfo: 'none',
+    fillcolor: markPoint[2],
+  })
 }
-
 
 MEHistograms = new Array(MEConfigs.length)
 for (var i = 0; i < MEHistograms.length; i++) {
@@ -112,7 +123,8 @@ function plot(result, append) {
     $('#HistogramWarning')[0].classList.add('d-none')
   } else {
     var configuration = result['Data']['MDIQKDEncoding']['Configuration']
-    var xs = linspace(0, configuration['Period'] / 1000.0, configuration['BinCount'])
+    var xs = linspace(0, configuration['Period'] / 1000.0, configuration[
+      'BinCount'])
     var histogramXsMatched = true
 
     var meData = result['Data']['MDIQKDEncoding']
@@ -137,27 +149,22 @@ function plot(result, append) {
       histogramXsMatched &= MEHistograms[i].xsMatch
     }
     listener('HistogramXsMatched', histogramXsMatched)
-  }
-  fillTrace = {
-    x: markTraceXs,
-    y: markTraceYs,
-    fill: 'toself',
-    type: 'scatter',
-    mode: 'none',
-    hoverinfo: 'none',
-    fillcolor: '#E8DAEF',
+
+    // deal with reports
+    calculateRegionValues(MEHistograms[0].xs, MEHistograms[0].ys)
   }
   for (var i = 0; i < MEConfigs.length; i++) {
     layout['title'] = MEConfigs[i][0]
     layout['yaxis']['range'] = [0, Math.max(...traces[i]['y']) * 1.05]
     div = MEConfigs[i][1]
-    data = [fillTrace, traces[i]]
+    data = fillTrace.concat([traces[i]])
     Plotly.react(div, data, layout, {
       displaylogo: false,
       // responsive: true
     })
     Plotly.redraw(div)
   }
+
 }
 
 function updateIntegralData() {
@@ -171,8 +178,10 @@ function updateIntegralData() {
 }
 
 function onSelectionIntegral(isIntegral) {
-  $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" : "btn btn-success")
-  $("#selection-integral").attr("class", isIntegral ? "btn btn-success" : "btn btn-secondary")
+  $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" :
+    "btn btn-success")
+  $("#selection-integral").attr("class", isIntegral ? "btn btn-success" :
+    "btn btn-secondary")
   $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
   fetcher.changeMode(isIntegral ? "Stop" : "Instant")
 }
@@ -201,13 +210,16 @@ function listener(event, arg) {
     fetchTimeDelta = arg
     if (fetchTimeDelta > 3000) {
       $('#HistogramWarning')[0].classList.remove('d-none')
-      $('#HistogramWarningContent').html("The most recent data was fetched " + parseInt(fetchTimeDelta / 1000) + " s ago.")
+      $('#HistogramWarningContent').html("The most recent data was fetched " +
+        parseInt(fetchTimeDelta / 1000) + " s ago.")
     } else {
       $('#HistogramWarning')[0].classList.add('d-none')
     }
   } else if (event == 'FetchingProgress') {
     progress = parseInt(arg * 100)
-    $('#FetchingProgress').attr('style', 'background-image: linear-gradient(to right, #BDE6FF ' + (progress) + '%, #F8F9FC ' + (progress) + '%)')
+    $('#FetchingProgress').attr('style',
+      'background-image: linear-gradient(to right, #BDE6FF ' + (progress) +
+      '%, #F8F9FC ' + (progress) + '%)')
   } else if (event == 'FetchingNumber') {
     if (arg == null) {
       $('#FetchNumberContent').html('')
@@ -217,7 +229,8 @@ function listener(event, arg) {
       integralTotalDataCount = arg[1]
       integralTime = arg[2]
       content = integralTotalDataCount + ' items (in ' + integralTime + ' s)'
-      if (integralFetchedDataCount < integralTotalDataCount) content = integralFetchedDataCount + ' / ' + content
+      if (integralFetchedDataCount < integralTotalDataCount) content =
+        integralFetchedDataCount + ' / ' + content
       $('#FetchNumber')[0].classList.remove('d-none')
       $('#FetchNumberContent').html(content)
     }
@@ -236,6 +249,46 @@ function listener(event, arg) {
       $('#TooManyRecordsError')[0].classList.add('d-none')
     }
   } else {
-    console.log(event + ', '+ arg);
+    console.log(event + ', ' + arg);
   }
+}
+
+function calculateRegionValues(xs, ys) {
+  console.log('calculateRegionValues');
+  console.log(xs);
+  console.log(ys);
+  counts = []
+  for (var i = 0; i < markPoints.length; i++) {
+    start = markPoints[i][0]
+    stop = markPoints[i][1]
+    count = 0
+    for (var k = 0; k < xs.length; k++) {
+      if (xs[k] >= start && xs[k] < stop) {
+        count += ys[k]
+      }
+    }
+    counts.push(count)
+  }
+
+
+  console.log(counts);
+  //
+  //  = [
+  //   [0.4, 1.4, '#F1E4C6'],
+  //   [2.4, 3.4, '#D5E9D5'],
+  //   [3.8, 4.0, '#D3E4EB']
+  // ]
+  // fillTrace = []
+  // for (var i = 0; i < markPoints.length; i++) {
+  //   markPoint = markPoints[i]
+  //   fillTrace.push({
+  //     x: [markPoint[0], markPoint[0], markPoint[1], markPoint[1]],
+  //     y: [-1e10, 1e10, 1e10, -1e10],
+  //     fill: 'toself',
+  //     type: 'scatter',
+  //     mode: 'none',
+  //     hoverinfo: 'none',
+  //     fillcolor: markPoint[2],
+  //   })
+  // }
 }
