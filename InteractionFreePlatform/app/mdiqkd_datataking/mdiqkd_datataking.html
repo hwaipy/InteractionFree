@@ -1,0 +1,40 @@
+<script type="text/javascript" src="/static/javascripts/lodash.min.js"></script>
+<script type="text/javascript" src="/static/javascripts/IFExp.js"></script>
+<script type="text/javascript" src="/static/javascripts/plotly.min.js"></script>
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="FetchingProgress">
+    <p class="m-0 font-weight-bold text-primary">Device Status</p>
+  </div>
+  <div class="card-body" style='padding:0.3rem'>
+    <div class="container-fluid" style='padding-right: 1.0rem; padding-left: 1.0rem;'>
+      <div class="row" style='padding-right: 0.0rem; padding-left: 0.0rem;'>
+        <div class="card" style='padding-left: 0.0rem; padding-right: 1rem; border: 0px; background-color: #00000000'>
+          <div class="card" style='padding-left: 0rem; padding-right: 0rem; border: 0px; background-color: #00000000'>
+            <div class="card-body" style='padding: 0.75rem'>
+              <div class='row' id='DeviceStatusPanel'>
+                <div class="card border-left-info shadow mb-1 mr-2 ml-1 d-none" id="DeviceStatusPaneTemp">
+                  <div class="card-body" style="padding: 0.2rem">
+                    <div class="row no-gutters align-items-center">
+                      <div class="col">
+                        <div class="row no-gutters align-items-center">
+                          <div class="custom-control custom-switch ml-2">
+                            <input type="checkbox" class="custom-control-input ICSI" id="customSwitch1" onclick='onDeviceStatusCheck(id)'>
+                            <label class="custom-control-label ICSL" for="customSwitch1"></label>
+                          </div>
+                          <div class="mb-2 mt-2 mr-3">
+                            <div class="h5 mb-0 font-weight text-gray-800 DPTT ml-2"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
