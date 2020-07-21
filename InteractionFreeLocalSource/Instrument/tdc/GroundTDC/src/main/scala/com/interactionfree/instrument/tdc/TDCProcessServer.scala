@@ -4,6 +4,7 @@ import java.io.{BufferedOutputStream, FileOutputStream, RandomAccessFile}
 import java.net.ServerSocket
 import java.nio.LongBuffer
 import java.nio.file.Paths
+import java.nio.file.Files
 import java.time.LocalDateTime
 import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
@@ -28,6 +29,10 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
   private val finishedConnections = new AtomicInteger(0)
 
   def getFinishedConnections = finishedConnections.get
+
+  def setLocalBufferPermenent(p: Boolean) = storableBuffer.setLocalBufferPermenent(p)
+
+  def isLocalBufferPermenent() = storableBuffer.isLocalBufferPermenent()
 
   val buffer = new Array[Byte](StorableBuffer.UNIT_CAPACITY)
   Future[Any] {
@@ -131,6 +136,8 @@ class StorableBuffer(private val parser: TDCParser, private val storagePath: Str
       //      println("dump")
     }
 
+    def delete() = Files.deleteIfExists(Paths.get(filePath))
+
     def load() = if (!inMemory.get) {
       inMemory set true
       val raf = new RandomAccessFile(filePath, "rw")
@@ -148,6 +155,12 @@ class StorableBuffer(private val parser: TDCParser, private val storagePath: Str
       data
     }
   }
+
+  private val bufferPermenent = new AtomicBoolean(false)
+
+  def setLocalBufferPermenent(p: Boolean) = bufferPermenent set p
+
+  def isLocalBufferPermenent() = bufferPermenent.get
 
   private val stoped = new AtomicBoolean(false)
   private val incomingQueue = new LinkedBlockingQueue[Array[Byte]]()
@@ -178,7 +191,9 @@ class StorableBuffer(private val parser: TDCParser, private val storagePath: Str
     }
     // step 5: if the first item in bufferEntryList is used up, dump and drop.
     if (bufferEntryList.size >= 2 && !bufferEntryList.head.hasUnusedData()) {
-      bufferEntryList.remove(0).dump()
+      val item = bufferEntryList.remove(0)
+      item.dump()
+      if (!bufferPermenent.get) item.delete()
     }
   }
 

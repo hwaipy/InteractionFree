@@ -2,7 +2,8 @@ $(document).ready(async function() {
   var endpoint = "ws://" + window.location.host + "/ws"
   var worker = await IFWorker(endpoint)
 
-  async function update(inteval) {
+  var interval = 2000
+  async function update() {
     try {
       var result = await worker.listServiceMeta()
       tableContent = serviceTableHead
@@ -15,9 +16,9 @@ $(document).ready(async function() {
     } catch(error) {
       console.log("Error: " + error)
     }
+    setTimeout(update, interval)
   }
-
-  update(2000)
+  update(interval)
 });
 
 serviceTableHead =

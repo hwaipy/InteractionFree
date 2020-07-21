@@ -2,9 +2,12 @@ package com.interactionfree.instrument.tdc
 
 import java.io.FileInputStream
 import java.util.Properties
+import java.util.concurrent.atomic.AtomicBoolean
+
 import scala.jdk.CollectionConverters._
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
+
 import scala.collection.mutable
 import scala.io.Source
 import com.interactionfree.IFWorker
@@ -28,18 +31,10 @@ object GroundTDC extends App {
   val LOCAL = properties.getOrDefault("Sys.Local", false).toString.toBoolean
   val dataSourceListeningPort = properties.getOrDefault("DataSource.Port", 20156).toString.toInt
   val storeCollection = properties.getOrDefault("Storage.Collection", "Default").toString
-  //  val localStorePath = "E:\\MDIQKD_Parse\\TDCStore"
   val localStorePath = properties.getOrDefault("Storage.Local", "./local").toString
   val IFServerAddress = properties.getOrDefault("IFServer.Address", "tcp://127.0.0.1:224").toString
   val IFServerServiceName = properties.getOrDefault("IFServer.ServiceName", "GroundTDCService").toString
   val process = new TDCProcessService(dataSourceListeningPort, storeCollection, localStorePath)
-  //
-  //  properties.keys().asScala.toList.map(_.toString).filter(_.startsWith("DefaultAnalyser.")).foreach(key => {
-  //    val conf = properties.getProperty(key)
-  //    implicit val formats = org.json4s.DefaultFormats
-  //    val confMap = parse(conf).extract[Map[String, Any]]
-  //    process.turnOnAnalyser(key.split("\\.").last, confMap)
-  //  })
 
   val worker = IFWorker(IFServerAddress, IFServerServiceName, process)
   println(s"Ground TDC started on port ${dataSourceListeningPort}.")
@@ -59,6 +54,7 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
   private val dataTDA = new LongBufferToDataBlockListTDCDataAdapter(channelCount)
   private val server = new TDCProcessServer(channelCount, port, dataIncome, List(groundTDA, dataTDA), localStorePath)
   private val analysers = new mutable.HashMap[String, DataAnalyser]()
+  private val postProcessOn = new AtomicBoolean(false)
   analysers("Counter") = new CounterAnalyser(channelCount)
   analysers("MultiHistogram") = new MultiHistogramAnalyser(channelCount)
   analysers("CoincidenceHistogram") = new CoincidenceHistogramAnalyser(channelCount)
@@ -71,7 +67,7 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
 
   private def dataIncome(data: Any) = {
     if (!data.isInstanceOf[List[_]]) throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")
-    data.asInstanceOf[List[DataBlock]].foreach(dataBlockIncome)
+    if(postProcessOn.get) data.asInstanceOf[List[DataBlock]].foreach(dataBlockIncome)
   }
 
   private def dataBlockIncome(dataBlock: DataBlock) = {
@@ -124,4 +120,12 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
   def getStoraCollectionName() = storeCollection
 
   def getChannelCount() = channelCount
+
+  def setLocalBufferPermenent(p: Boolean) = server.setLocalBufferPermenent(p)
+
+  def isLocalBufferPermenent() = server.isLocalBufferPermenent()
+
+  def setPostProcessStatus(p: Boolean) = postProcessOn set p
+
+  def getPostProcessStatus() = postProcessOn.get()
 }

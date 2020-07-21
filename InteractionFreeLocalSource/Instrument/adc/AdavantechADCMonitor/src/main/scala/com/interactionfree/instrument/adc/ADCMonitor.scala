@@ -1,7 +1,8 @@
 package com.interactionfree.instrument.adc
 
 import java.time.{LocalDateTime, ZonedDateTime}
-import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
+
 import scala.io.Source
 import com.interactionfree.IFWorker
 import Automation.BDaq._
@@ -60,11 +61,14 @@ object ADCMonitor extends App {
           //        val dbd = Range(0, clockRatePerChan).toList.map(i => data.slice(i * 3, i * 3 + 3).toList ++ List(previousTime.get.get + i * timeStep))
           val dbd = Range(0, clockRate).map(i => data.slice(i * 3, i * 3 + 3)).toArray
           target.record(dbd)
-          val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
-          //            println(s"runned ${(System.currentTimeMillis()-startTime)/1000} s.")
-          //                dumperInvoker.dumpChannel(dump)
-          //          println(fetchTime)
-          asyInvoker.append(recordCollection, dump, fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00")
+
+          if(target.isStoring()){
+            val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
+            //            println(s"runned ${(System.currentTimeMillis()-startTime)/1000} s.")
+            //                dumperInvoker.dumpChannel(dump)
+            //          println(fetchTime)
+            asyInvoker.append(recordCollection, dump, fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00")
+          }
         }
       }
       catch {
@@ -73,31 +77,6 @@ object ADCMonitor extends App {
       previousTime set Some(currentTime)
     }
   }
-
-
-  aiCtrl.addBurnOutListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Burn out: $sender, $args")
-  })
-  aiCtrl.addCacheOverflowListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Cache Overflow: $sender, $args")
-  })
-  aiCtrl.addMarkOverrunListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Mark Overrun: $sender, $args")
-  })
-  aiCtrl.addOverrunListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Overrun: $sender, $args")
-  })
-  aiCtrl.addStoppedListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Stopped: $sender, $args")
-  })
-  aiCtrl.addTimeStampCacheOverflowListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Iime Stamp Cache Overflow: $sender, $args")
-  })
-  aiCtrl.addTimeStampOverrunListener((sender: Any, args: BfdAiEventArgs) => {
-    println(s"Time Stamp Overrun: $sender, $args")
-  })
-
-
 
   aiCtrl.Start()
   Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
@@ -125,4 +104,8 @@ class ADCTarget(val clockRate: Double) {
       slicedDCH.sum / slicedDCH.size
     }).toList
   }
+
+  private val storing = new AtomicBoolean(false)
+  def setStoring(s: Boolean) = storing.set(s)
+  def isStoring() = storing.get()
 }
