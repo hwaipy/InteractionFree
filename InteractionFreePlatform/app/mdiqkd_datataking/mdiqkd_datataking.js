@@ -7,24 +7,62 @@ $(document).ready(async function() {
   //   fetcher = new TDCStorageStreamFetcher(worker, collection, 500, filter,
   //     plot, listener)
   //   fetcher.start()
-  setTimeout(updateDeviceStatusLoop)
+  startDeviceStatusUpdateLoop(800)
 })
 
 worker = null
 
-async function updateDeviceStatusLoop() {
-  while (true) {
-    try {
-      var a = await worker.MDIQKD_GroundTDC.getPostProcessStatus()
-    } catch (err) {
-      console.log(err);
+function startDeviceStatusUpdateLoop(inteval) {
+  async function TDCPPSLoop() {
+    while (true) {
+      try {
+        var tdcPPS = await worker.MDIQKD_GroundTDC.getPostProcessStatus()
+        $('#ICSI_TDCPP').prop("checked", tdcPPS)
+      } catch (err) {
+        console.log(err)
+      }
+      await sleep(inteval)
     }
-    await sleep(800)
   }
+  setTimeout(TDCPPSLoop)
+
+  async function TDCLSLoop() {
+    while (true) {
+      try {
+        var tdcLS = await worker.MDIQKD_GroundTDC.isLocalBufferPermenent()
+        $('#ICSI_TDCLS').prop("checked", tdcLS)
+      } catch (err) {
+        console.log(err)
+      }
+      await sleep(inteval)
+    }
+  }
+  setTimeout(TDCLSLoop)
+
+  async function ADCStLoop() {
+    while (true) {
+      try {
+        var adcSt = await worker.MDI_ADCMonitor.isStoring()
+        $('#ICSI_ADCS').prop("checked", adcSt)
+      } catch (err) {
+        console.log(err)
+      }
+      await sleep(inteval)
+    }
+  }
+  setTimeout(ADCStLoop)
 }
 
-function onDeviceStatusCheck(id) {
-  var status = $('#' + id)[0].checked
+async function onDeviceStatusCheck(id) {
+  var status = $('#' + id).prop("checked")
+  var remoteID = id.split('_')[1]
+  if (remoteID == 'TDCPP') {
+    worker.MDIQKD_GroundTDC.setPostProcessStatus(status)
+  } else if (remoteID == 'TDCLS') {
+    worker.MDIQKD_GroundTDC.setLocalBufferPermenent(status)
+  } else if (remoteID == 'ADCS') {
+    worker.MDI_ADCMonitor.setStoring(status)
+  }
 }
 
 // fillTrace = []

@@ -119,37 +119,39 @@
           <div id="viewport"></div>
         </div>
       </div>
+
+      <div class="card mt-3" style='padding-left: 0rem; padding-right: 0rem'>
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+          <p class="m-0 font-weight-bold text-primary">Details</p>
+        </div>
+        <div class="card-body" style='padding: 0.75rem'>
+          <div class="container-fluid">
+            <div class="row" id="DetailPanel">
+              <div class="card shadow mb-1 d-none col-lg-3 mr-3" id="DetailPaneTemp">
+                <div class="card-body" style="padding: 0.2rem">
+                  <div class="row no-gutters align-items-center">
+                    <div class="col">
+                      <div class="row no-gutters align-items-center">
+                        <div class="col-auto">
+                          <div class="h5 mb-0 mr-2 font-weight-bold text-gray-800 DPTT">View:</div>
+                        </div>
+                        <div class="card col border-0">
+                          <input type="text" class="form-control DPTI"  style='background: #00000000' onfocus="onTDCConfigInputFocus(id, false)" onblur="onTDCConfigInputFocus(id, true)">
+                        </div>
+                        <div class="col-auto">
+                          <div class="h5 ml-2 mb-0 mr-2 font-light text-gray-800 DPTTi">ns</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
     </div>
   </div>
 </div>
-
-<!--
-<div class="card shadow mb-4">
-  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="FetchingProgress">
-    <p class="m-0 font-weight-bold text-primary">Histograms</p>
-    <div class="row d-none" id="TooManyRecordsError">
-        <span class="icon text-danger">
-          <i class="fas fa-exclamation-triangle"></i>
-        </span>
-        <span class="text text-danger ml-2 mr-4" id="TooManyRecordsErrorContent"></span>
-    </div>
-    <div class="row d-none" id="HistogramError">
-        <span class="icon text-danger">
-          <i class="fas fa-exclamation-triangle"></i>
-        </span>
-        <span class="text text-danger ml-2 mr-4" id="HistogramErrorContent"></span>
-    </div>
-    <div class="row d-none" id="HistogramWarning">
-        <span class="icon text-warning">
-          <i class="fas fa-exclamation-triangle"></i>
-        </span>
-        <span class="text text-warning ml-2 mr-4" id="HistogramWarningContent"></span>
-    </div>
-    <div class="d-none" id="FetchNumber">
-        <span class="text ml-2 mr-2" id="FetchNumberContent"></span>
-    </div>
-  </div>
-  <div class="card-body">
-    <div id="viewport"></div>
-  </div>
-</div> -->

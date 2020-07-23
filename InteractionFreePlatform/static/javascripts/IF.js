@@ -6,7 +6,7 @@ class IFWorkerCore {
     this.connected = false
     this.dealer.onMessage = (this._onMessage).bind(this)
     this.waitingList = new Map()
-    this.timeout = 3000
+    this.timeout = 10000
   }
 
   async connect() {

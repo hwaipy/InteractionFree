@@ -157,6 +157,25 @@ function initControlPanel(channelNum) {
   addHistoPane('From', true, 'ViewStart')
   addHistoPane('To', true, 'ViewStop')
   temp.remove()
+
+  temp = $('#DetailPaneTemp')
+
+  function addDetailPane(title, hasTail, id) {
+    newItem = temp.clone(true)
+    newItem.removeClass('d-none')
+    newItem.addClass('border-left-info')
+    newItem.attr('id', 'DetailPane_' + id)
+    newItem.find('.DPTT').html(title)
+    if (!hasTail) {
+      newItem.find('.DPTTi').addClass('d-none')
+    }
+    newItem.find('.DPTI').attr('id', 'DePTI_' + id)
+    newItem.find('.DPTI').attr('disabled', 'true')
+    $('#DetailPanel').append(newItem)
+  }
+  addDetailPane('Count 4/8', false, 'Ratio48')
+  addDetailPane('Count 5/9', false, 'Ratio59')
+  temp.remove()
 }
 
 function onTDCConfigInputFocus(id, isBlur) {
@@ -204,6 +223,8 @@ function plot(result, append) {
       $('#ChannelPane_' + i).find('.DPTC').val((counts[i] || 0).toString().replace(
         /(\d)(?=(?:\d{3})+$)/g, '$1,'))
     }
+    $('#DePTI_Ratio48').val((counts[4]/counts[8]).toFixed(3))
+    $('#DePTI_Ratio59').val((counts[5]/counts[9]).toFixed(3))
 
     // Deal delays
     if (tdcConfiger == null) {
@@ -252,6 +273,46 @@ function plot(result, append) {
     layout['uirevision'] = 'true'
     listener('HistogramXsMatched', histogramXsMatched)
   }
+  // Log Buttons
+  var updatemenus=[
+    {
+        buttons: [
+            {
+                args: ['yaxis.type', 'linear'],
+                label: 'Linear',
+                method: 'relayout'
+            },
+            {
+                args: ['yaxis.type', 'log'],
+                label:'Log',
+                method:'relayout'
+            }
+        ],
+        direction: 'left',
+        pad: {'r': 10, 't': 10},
+        showactive: true,
+        type: 'buttons',
+        x: 0.1,
+        xanchor: 'left',
+        y: 1.1,
+        yanchor: 'top'
+    }
+  ]
+  layout['updatemenus'] = updatemenus
+
+
+
+    // setTimeout(function(){
+    //   console.log('restyle');
+    //   var update = {
+    //     yaxis: {
+    //       type: 'log'
+    //     },
+    //   };
+    //   Plotly.relayout('viewport', update)
+    //   Plotly.redraw('viewport')
+    // }, 2000)
+
   Plotly.react('viewport', traces, layout, {
     displaylogo: false,
     // responsive: true

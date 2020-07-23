@@ -213,9 +213,13 @@ class TDCStorageStreamFetcher {
     if (this.rangedResultQueue.length > 0) {
       var resultSet = this.rangedResultQueue.shift()
       if (resultSet[0] == this.fetchID) {
-        this.updateResult(resultSet[1])
         this.integralFetchedDataCount += 1
-        this.updateFetchingInfo()
+        try{
+          this.updateResult(resultSet[1])
+          this.updateFetchingInfo()
+        } catch(err){
+          console.log(err);
+        }
       }
     }
     setTimeout(this.updateRangedResult.bind(this), this.rangedResultQueue.length >

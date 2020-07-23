@@ -17,6 +17,7 @@ class Reviewer:
         debug_timerecord('ready to review')
 
     def review(self):
+        r = self.worker.Storage.range(self.collectionTDC, self.startTime, self.stopTime, by='FetchTime', filter={'FetchTime': 1})
         qberSections = seq(self.worker.Storage.range(self.collectionTDC, self.startTime, self.stopTime, by='FetchTime', filter={'FetchTime': 1, 'Data.MDIQKDQBER.ChannelMonitorSync': 1})).map(lambda m: QBERSection(m))
         qbersList = QBERs.create(qberSections)
         debug_timerecord('QBER List ready')
@@ -24,20 +25,20 @@ class Reviewer:
         channelsList = Channels.create(channelSections)
         debug_timerecord('Channel List ready')
 
-        dataPairs = qbersList.map(lambda qber: [qber, channelsList.filter(lambda channel: np.abs(qber.systemTime - channel.channelMonitorSyncs[0]) < 3)]).filter(lambda z: z[1].size() > 0).map(lambda z: [z[0], z[1][0]]).list()
-        debug_timerecord('Data Pairs ready')
-        for dataPair in dataPairs:
-            debug_timerecord('in parse a data pair')
-            dpp = DataPairParser(dataPair[0], dataPair[1],
-                                 lambda id, filter: self.worker.Storage.get(self.collectionTDC, id, filter),
-                                 lambda id, filter: self.worker.Storage.get(self.collectionMonitor, id, filter),
-                                 lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime),
-                                 [[0, -0.4, 4.5], [-1, 0, 5]])
-            debug_timerecord('a data pair created')
-            dpp.parse()
-            debug_timerecord('a data pair parsed')
-            dpp.release()
-            debug_timerecord('a data pair released')
+        # dataPairs = qbersList.map(lambda qber: [qber, channelsList.filter(lambda channel: np.abs(qber.systemTime - channel.channelMonitorSyncs[0]) < 3)]).filter(lambda z: z[1].size() > 0).map(lambda z: [z[0], z[1][0]]).list()
+        # debug_timerecord('Data Pairs ready')
+        # for dataPair in dataPairs:
+        #     debug_timerecord('in parse a data pair')
+        #     dpp = DataPairParser(dataPair[0], dataPair[1],
+        #                          lambda id, filter: self.worker.Storage.get(self.collectionTDC, id, filter),
+        #                          lambda id, filter: self.worker.Storage.get(self.collectionMonitor, id, filter),
+        #                          lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime),
+        #                          [[0, -0.4, 4.5], [-1, 0, 5]])
+        #     debug_timerecord('a data pair created')
+        #     dpp.parse()
+        #     debug_timerecord('a data pair parsed')
+        #     dpp.release()
+        #     debug_timerecord('a data pair released')
         debug_timerecord('All done')
 
 
@@ -296,8 +297,7 @@ if __name__ == '__main__':
     # mainWorker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
     try:
         t1 = time.time()
-        reviewer = Reviewer(worker, 'TDCLocalTest_10k100M', 'MDIChannelMonitor', 'MDI_DataReviewer_10k100M', '2020-04-30T23:34+08:00', '2020-05-01T00:59+08:00')
-        # reviewer = Reviewer(worker, 'TDCLocalTest_10k250M_decoy', 'MDIChannelMonitor', 'MDI_DataReviewer_10k250M_decoy', '2020-05-01T01:12:32+08:00', '2020-05-01T12:59+08:00') # start from 30th QBER section
+        reviewer = Reviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-22T16:03:00+08:00', '2020-07-22T16:13:00+08:00')
         reviewer.review()
         t2 = time.time()
         print('Finished in {} s.'.format(t2 - t1))
