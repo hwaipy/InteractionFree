@@ -7,6 +7,8 @@ import scala.io.Source
 import com.interactionfree.IFWorker
 import Automation.BDaq._
 
+import scala.collection.mutable.ListBuffer
+
 object ADCMonitor extends App {
   println("ADCMonitor started!")
   val startTime = System.currentTimeMillis()
@@ -35,6 +37,7 @@ object ADCMonitor extends App {
   val previousTime = new AtomicReference[Option[Long]](None)
   val sectionIndex = new AtomicInteger(0)
   val lastDiff = new AtomicLong(-100000000)
+  val triggerThreshold = 1
 
   class DataReadyEventListener extends BfdAiEventListener {
     def BfdAiEvent(sender: Any, args: BfdAiEventArgs) = {
@@ -62,12 +65,22 @@ object ADCMonitor extends App {
           val dbd = Range(0, clockRate).map(i => data.slice(i * 3, i * 3 + 3)).toArray
           target.record(dbd)
 
-          if(target.isStoring()){
-            val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
-            //            println(s"runned ${(System.currentTimeMillis()-startTime)/1000} s.")
-            //                dumperInvoker.dumpChannel(dump)
-            //          println(fetchTime)
-            asyInvoker.append(recordCollection, dump, fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00")
+          if (target.isStoring()) {
+            val data = dbd
+            val dataTrigger = data.map(r => r(0))
+            val data1 = data.map(r => r(1))
+            val data2 = data.map(r => r(2))
+            val triggers = dataTrigger.dropRight(1).zip(dataTrigger.drop(1)).zipWithIndex.filter(z => (z._1._1 < triggerThreshold) && (z._1._2 > triggerThreshold)).map(z => z._2).map(i => previousTime.get.get + timeStep * i)
+            val result = Map(
+              "TimeFirstSample" -> previousTime.get.get,
+              "TimeLastSample" -> currentTime,
+              "Channel1" -> data1,
+              "Channel2" -> data2,
+              "Triggers" -> triggers,
+            )
+
+//            val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
+            asyInvoker.append(recordCollection, result, fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00")
           }
         }
       }
@@ -106,6 +119,8 @@ class ADCTarget(val clockRate: Double) {
   }
 
   private val storing = new AtomicBoolean(false)
+
   def setStoring(s: Boolean) = storing.set(s)
+
   def isStoring() = storing.get()
 }

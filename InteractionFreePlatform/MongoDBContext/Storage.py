@@ -35,10 +35,10 @@ class Storage:
             s[Storage.Key] = key
         await self.__collection(collection).insert_one(s)
 
-    async def latest(self, collection, after=None, filter={}):
+    async def latest(self, collection, by='_id', after=None, filter={}):
         dbFilter = self.__reformFilter(filter)
-        r = (await self.__collection(collection).find({}, dbFilter).sort("_id", -1).to_list(length=1))
-        if len(r) == 0: raise IFException('No record.')
+        r = (await self.__collection(collection).find({}, dbFilter).sort(by, -1).to_list(length=1))
+        if len(r) == 0: return None
         r = r[0]
         valid = True
         if after:

@@ -152,8 +152,7 @@ class TDCStorageStreamFetcher {
     if (this.mode == 'Instant' || this.mode == 'IntegralContinues') {
       var fetchID = this.fetchID
       try {
-        var result = await worker.Storage.latest(this.collection, this.lastTime,
-          this.filter)
+        var result = await worker.Storage.latest(this.collection, 'FetchTime', this.lastTime, this.filter)
         if (fetchID == this.fetchID) {
           if (result != null) {
             this.lastTime = result['FetchTime'];
@@ -183,12 +182,10 @@ class TDCStorageStreamFetcher {
 
   async range(beginTime, endTime) {
     var fetchID = this.fetchID
-    this.integralTime = parseInt((endTime.getTime() - beginTime.getTime()) /
-      1000)
+    this.integralTime = parseInt((endTime.getTime() - beginTime.getTime()) / 1000)
     try {
       var rangedSummaries = await worker.Storage.range(this.collection, this.dateToISO(
-          beginTime), this.dateToISO(endTime), 'FetchTime', this.filter,
-        1000)
+          beginTime), this.dateToISO(endTime), 'FetchTime', {'_id': 1}, 1000)
       this.integralTotalDataCount += rangedSummaries.length
       if (rangedSummaries.length > 1000) {
         this.changeMode('Stop')
@@ -241,8 +238,7 @@ class TDCStorageStreamFetcher {
       } else {
         if (this.integralFetchedDataCount == this.integralTotalDataCount &&
           this.integralMostRecentTime != null) {
-          fetchTimeDelta = new Date().getTime() - this.integralMostRecentTime
-            .getTime()
+          fetchTimeDelta = new Date().getTime() - this.integralMostRecentTime.getTime()
         }
       }
     }

@@ -1,13 +1,16 @@
 from IFWorker import IFWorker
 from functional import seq
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from IFCore import debug_timerecord
+from threading import Thread
+import pytz
+from queue import Queue
 
 
 class Reviewer:
-    def __init__(self, worker, collectionTDC, collectionMonitor, collectionResult, startTime, stopTime):
+    def __init__(self, worker, collectionTDC, collectionMonitor, collectionResult, startTime, stopTime=None):
         self.worker = worker
         self.collectionTDC = collectionTDC
         self.collectionMonitor = collectionMonitor
@@ -17,13 +20,12 @@ class Reviewer:
         debug_timerecord('ready to review')
 
     def review(self):
-        r = self.worker.Storage.range(self.collectionTDC, self.startTime, self.stopTime, by='FetchTime', filter={'FetchTime': 1})
         qberSections = seq(self.worker.Storage.range(self.collectionTDC, self.startTime, self.stopTime, by='FetchTime', filter={'FetchTime': 1, 'Data.MDIQKDQBER.ChannelMonitorSync': 1})).map(lambda m: QBERSection(m))
         qbersList = QBERs.create(qberSections)
         debug_timerecord('QBER List ready')
-        channelSections = seq(self.worker.Storage.range(self.collectionMonitor, self.startTime, self.stopTime, by='FetchTime', filter={'Data.Triggers': 1, 'Data.TimeFirstSample': 1, 'Data.TimeLastSample': 1})).map(lambda m: ChannelSection(m))
-        channelsList = Channels.create(channelSections)
-        debug_timerecord('Channel List ready')
+        # channelSections = seq(self.worker.Storage.range(self.collectionMonitor, self.startTime, self.stopTime, by='FetchTime', filter={'Data.Triggers': 1, 'Data.TimeFirstSample': 1, 'Data.TimeLastSample': 1})).map(lambda m: ChannelSection(m))
+        # channelsList = Channels.create(channelSections)
+        # debug_timerecord('Channel List ready')
 
         # dataPairs = qbersList.map(lambda qber: [qber, channelsList.filter(lambda channel: np.abs(qber.systemTime - channel.channelMonitorSyncs[0]) < 3)]).filter(lambda z: z[1].size() > 0).map(lambda z: [z[0], z[1][0]]).list()
         # debug_timerecord('Data Pairs ready')
@@ -41,6 +43,79 @@ class Reviewer:
         #     debug_timerecord('a data pair released')
         debug_timerecord('All done')
 
+
+class RealtimeReviewer:
+    def __init__(self, worker, collectionTDC, collectionMonitor, collectionResult, startTime):
+        self.worker = worker
+        self.collectionTDC = collectionTDC
+        self.collectionMonitor = collectionMonitor
+        self.collectionResult = collectionResult
+        self.startTime = datetime.fromisoformat(startTime)
+        self.tz = pytz.timezone('Asia/Shanghai')
+        self.tdcSummeryQueue = Queue()
+        debug_timerecord('ready to review in realtime')
+
+    def start(self):
+        Thread(target=self.__startUpdateSummaryLoop).start()
+        Thread(target=self.__startCalculateLoop).start()
+
+    def __startUpdateSummaryLoop(self):
+        latestResult = self.worker.Storage.latest(self.collectionResult, by='FetchTime', filter={'FetchTime': 1})
+        if latestResult == None:
+            rangeStart = self.startTime
+        else:
+            latestFetchTime = datetime.fromisoformat(latestResult['FetchTime']) + timedelta(milliseconds=1)
+            rangeStart = max(self.startTime, latestFetchTime)
+        rangeStop = rangeStart + timedelta(minutes=10)
+        while True:
+            data = self.worker.Storage.range(self.collectionTDC, rangeStart.isoformat(), rangeStop.isoformat(), by='FetchTime', filter={'FetchTime': 1, 'Data.MDIQKDQBER.ChannelMonitorSync': 1})
+            seq(data).map(lambda d: self.tdcSummeryQueue.put(d)).to_list()
+            if len(data) == 0:
+                rangeStop = rangeStop + timedelta(minutes=10)
+            else:
+                rangeStart = datetime.fromisoformat(data[-1]['FetchTime']) + timedelta(milliseconds=1)
+                rangeStop = rangeStart + timedelta(minutes=10)
+            if rangeStop > datetime.now().astimezone(self.tz):
+                time.sleep(3)
+
+    def __startCalculateLoop(self):
+        qberSections = []
+        while True:
+            # 1. take all items from self.tdcSummeryQueue to qberSections
+            while self.tdcSummeryQueue.qsize() > 0:
+                try:
+                    qberSections.append(QBERSection(self.tdcSummeryQueue.get()))
+                except BaseException as e:
+                    pass
+
+            # 2. find the first two sections that has slowSync
+            syncedEntryIndices = seq(qberSections).zip_with_index().filter(lambda z: z[0].slowSync).map(lambda z: z[1])
+            if syncedEntryIndices.size() >= 2:
+                # 3. take data between two slowSyncs, remove them from qberSections
+                qbers = QBERs(qberSections[syncedEntryIndices[0]:syncedEntryIndices[1] + 1])
+                qberSections = qberSections[syncedEntryIndices[1]:]
+                self.__dealCalculate(qbers)
+            else:
+                time.sleep(1)
+
+    def __dealCalculate(self, qbers):
+        rangeStart = datetime.fromtimestamp(qbers.sections[0].pcTime).astimezone(self.tz) - timedelta(seconds=3)
+        rangeStop = datetime.fromtimestamp(qbers.sections[-1].pcTime).astimezone(self.tz) + timedelta(seconds=3)
+        channelSections = seq(self.worker.Storage.range(self.collectionMonitor, rangeStart.isoformat(), rangeStop.isoformat(), by='FetchTime', filter={'Data.Triggers': 1, 'Data.TimeFirstSample': 1, 'Data.TimeLastSample': 1})).map(lambda m: ChannelSection(m))
+        channelsList = Channels.create(channelSections)
+        if channelsList.size() > 0:
+            channels = channelsList[0]
+            matched = np.abs(qbers.systemTime - channels.channelMonitorSyncs[0]) < 3
+            if matched:
+                pass
+                dpp = DataPairParser(qbers, channels,
+                                     lambda id, filter: self.worker.Storage.get(self.collectionTDC, id, filter),
+                                     lambda id, filter: self.worker.Storage.get(self.collectionMonitor, id, filter),
+                                     lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime),
+                                     [[0, -0.4, 4.5], [-1, 0, 5]])
+                dpp.parse()
+            debug_timerecord('All done')
+            print('Data parsed: {}'.format(datetime.fromtimestamp(qbers.systemTime)))
 
 class HOMandQBEREntry:
     def __init__(self, ratioLow, ratioHigh):
@@ -293,13 +368,11 @@ class ChannelEntry:
 
 
 if __name__ == '__main__':
-    worker = IFWorker("tcp://127.0.0.1:224", "MDIQKD_ResultFiltering")
-    # mainWorker = IFWorker("tcp://172.16.60.199:224", "TDCLocalParserTest")
+    worker = IFWorker("tcp://127.0.0.1:224", 'MDIQKD_ResultFiltering')
     try:
-        t1 = time.time()
-        reviewer = Reviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-22T16:03:00+08:00', '2020-07-22T16:13:00+08:00')
-        reviewer.review()
-        t2 = time.time()
-        print('Finished in {} s.'.format(t2 - t1))
+        # reviewer = Reviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-22T16:03:00+08:00', '2020-07-22T16:13:00+08:00')
+        # reviewer = RealtimeReviewer(worker, 'GroundTDCLocal', 'MDIChannelMonitor', 'MDIQKD_DataReviewer_Local', '2020-05-01T00:21:20+08:00')
+        reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-23T15:48:00+08:00')
+        reviewer.start()
     finally:
         worker.close()

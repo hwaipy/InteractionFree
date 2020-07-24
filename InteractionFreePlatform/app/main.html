@@ -45,11 +45,7 @@
           <i class="fas fa-fw fa-tachometer-alt"></i>
           <span>Dashboard</span></a>
       </li>
-
-      <!-- Divider -->
       <hr class="sidebar-divider">
-
-      <!-- Heading -->
       <div class="sidebar-heading">
         MDI-QKD
       </div>
@@ -69,31 +65,18 @@
           <i class="fas fa-fw fa-chart-bar"></i>
           <span>DataTaking</span></a>
       </li>
-
-      <!-- Divider -->
       <hr class="sidebar-divider d-none d-md-block">
-
-      <!-- Sidebar Toggler (Sidebar) -->
       <div class="text-center d-none d-md-inline">
         <button class="rounded-circle border-0" id="sidebarToggle"></button>
       </div>
 
     </ul>
-    <!-- End of Sidebar -->
-
-    <!-- Content Wrapper -->
     <div id="content-wrapper" class="d-flex flex-column">
-
-      <!-- Main Content -->
       <div id="content">
-
-        <!-- Topbar -->
         <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-          <!-- Sidebar Toggle (Topbar) -->
           <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
             <i class="fa fa-bars"></i>
           </button>
-
           {% if name != 'main' %}
             <ul class="navbar-nav mr-auto">
               <li class="nav-item no-arrow">
@@ -101,7 +84,6 @@
               </li>
             </ul>
           {% end %}
-
           <ul class="navbar-nav ml-auto">
             <li class="nav-item dropdown no-arrow">
               <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -112,129 +94,33 @@
           </ul>
 
         </nav>
-        <!-- End of Topbar -->
-
-        <!-- Begin Page Content -->
         <div class="container-fluid">
           {% module AppContent(name=name) %}
         </div>
-
       </div>
-      <!-- End of Main Content -->
-
-      <!-- Footer -->
-      <!-- <footer class="sticky-footer bg-white" style="padding: 1.2rem">
-        <div class="container my-auto">
-          <div class="row">
-            <div class="copyright text-center my-auto">
-              <span class="text-center">&copy; Hwaipy 2020</span>
-            </div>
-          </div
-        </div> -->
-
-<!-- 沪ICP备20021828号 -->
-
-      <!-- </footer> -->
-      <!-- End of Footer -->
-
-
-      <!-- Footer -->
       <footer class="page-footer font-small mdb-color pt-4">
-
-        <div class="container text-center text-md-left">
-          <!-- <div class="row text-center text-md-left mt-3 pb-3">
-            <div class="col-md-3 col-lg-3 col-xl-3 mx-auto mt-3">
-              <h6 class="text-uppercase mb-4 font-weight-bold">Company name</h6>
-              <p>Here you can use rows and columns to organize your footer content. Lorem ipsum dolor sit amet,
-                consectetur
-                adipisicing elit.</p>
+        <hr class="mb-0">
+        <div class="container-fluid">
+          <div class="row mb-2 mt-2">
+            <div class="col-lg-4"></div>
+            <div class="col-lg-4">
+              <div class="row">
+                <div class="card col-auto m-auto" style="border: 0px; background-color: #00000000">
+                  <p class="text-center mb-0">
+                    &copy; Hwaipy 2020
+                  </p>
+                </div>
+              </div>
             </div>
-            <hr class="w-100 clearfix d-md-none">
-            <div class="col-md-2 col-lg-2 col-xl-2 mx-auto mt-3">
-              <h6 class="text-uppercase mb-4 font-weight-bold">Products</h6>
-              <p>
-                <a href="#!">MDBootstrap</a>
-              </p>
-              <p>
-                <a href="#!">MDWordPress</a>
-              </p>
-              <p>
-                <a href="#!">BrandFlow</a>
-              </p>
-              <p>
-                <a href="#!">Bootstrap Angular</a>
-              </p>
-            </div>
-            <hr class="w-100 clearfix d-md-none">
-            <div class="col-md-3 col-lg-2 col-xl-2 mx-auto mt-3">
-              <h6 class="text-uppercase mb-4 font-weight-bold">Useful links</h6>
-              <p>
-                <a href="#!">Your Account</a>
-              </p>
-              <p>
-                <a href="#!">Become an Affiliate</a>
-              </p>
-              <p>
-                <a href="#!">Shipping Rates</a>
-              </p>
-              <p>
-                <a href="#!">Help</a>
-              </p>
-            </div>
-            <hr class="w-100 clearfix d-md-none">
-            <div class="col-md-4 col-lg-3 col-xl-3 mx-auto mt-3">
-              <h6 class="text-uppercase mb-4 font-weight-bold">Contact</h6>
-              <p>
-                <i class="fas fa-home mr-3"></i> New York, NY 10012, US</p>
-              <p>
-                <i class="fas fa-envelope mr-3"></i> info@gmail.com</p>
-              <p>
-                <i class="fas fa-phone mr-3"></i> + 01 234 567 88</p>
-              <p>
-                <i class="fas fa-print mr-3"></i> + 01 234 567 89</p>
-            </div>
-          </div> -->
-          <hr>
-          <!-- Grid row -->
-          <div class="row d-flex align-items-center">
-
-            <!-- Grid column -->
-            <div class="col-md-7 col-lg-8">
-
-              <!--Copyright-->
-              <p class="text-center text-md-left">
-                <a href="http://www.beian.miit.gov.cn/" target="view_window">
-                  <span style="color: #AAAAAA">沪ICP备20021828号</span>
-                </a>
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&copy; Hwaipy 2020
-              </p>
-
-            </div>
-
-            <div class="col-md-5 col-lg-4 ml-lg-0">
-              <div class="text-center text-md-right">
-                <ul class="list-unstyled list-inline">
-                  <!-- <li class="list-inline-item">
-                    <a class="btn-floating btn-sm rgba-white-slight mx-1">
-                      <i class="fab fa-facebook-f"></i>
+            <div class="col-lg-4">
+              <div class="row">
+                <div class="card col-auto ml-auto text-right" style="border: 0px; background-color: #00000000">
+                  <p class="text-center mb-0">
+                    <a href="http://www.beian.miit.gov.cn/" target="view_window">
+                      <span style="color: #AAAAAA">沪ICP备20021828号</span>
                     </a>
-                  </li>
-                  <li class="list-inline-item">
-                    <a class="btn-floating btn-sm rgba-white-slight mx-1">
-                      <i class="fab fa-twitter"></i>
-                    </a>
-                  </li>
-                  <li class="list-inline-item">
-                    <a class="btn-floating btn-sm rgba-white-slight mx-1">
-                      <i class="fab fa-google-plus-g"></i>
-                    </a>
-                  </li>
-                  <li class="list-inline-item">
-                    <a class="btn-floating btn-sm rgba-white-slight mx-1">
-                      <i class="fab fa-linkedin-in"></i>
-                    </a>
-                  </li> -->
-                </ul>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -242,8 +128,6 @@
       </footer>
     </div>
   </div>
-  <!-- End of Page Wrapper -->
-  <!-- Scroll to Top Button-->
   <a class="scroll-to-top rounded" href="#page-top">
     <i class="fas fa-angle-up"></i>
   </a>
@@ -257,6 +141,82 @@
   <script type="text/javascript" src="/static/javascripts/IF.js"></script>
   {% module AppScript(name=name) %}
 
+  <link rel="stylesheet" href="/static/stylesheets/gh-fork-ribbon.css">
+  <a class="github-fork-ribbon left-bottom fixed" target="view_window" href="https://github.com/hwaipy/InteractionFree" data-ribbon="Fork me on GitHub" title="Fork me on GitHub" style="">Fork me on GitHub</a>
 </body>
 
 </html>
+
+  <!-- <div class="row text-center text-md-left mt-3 pb-3">
+    <div class="col-md-3 col-lg-3 col-xl-3 mx-auto mt-3">
+      <h6 class="text-uppercase mb-4 font-weight-bold">Company name</h6>
+      <p>Here you can use rows and columns to organize your footer content. Lorem ipsum dolor sit amet,
+        consectetur
+        adipisicing elit.</p>
+    </div>
+    <hr class="w-100 clearfix d-md-none">
+    <div class="col-md-2 col-lg-2 col-xl-2 mx-auto mt-3">
+      <h6 class="text-uppercase mb-4 font-weight-bold">Products</h6>
+      <p>
+        <a href="#!">MDBootstrap</a>
+      </p>
+      <p>
+        <a href="#!">MDWordPress</a>
+      </p>
+      <p>
+        <a href="#!">BrandFlow</a>
+      </p>
+      <p>
+        <a href="#!">Bootstrap Angular</a>
+      </p>
+    </div>
+    <hr class="w-100 clearfix d-md-none">
+    <div class="col-md-3 col-lg-2 col-xl-2 mx-auto mt-3">
+      <h6 class="text-uppercase mb-4 font-weight-bold">Useful links</h6>
+      <p>
+        <a href="#!">Your Account</a>
+      </p>
+      <p>
+        <a href="#!">Become an Affiliate</a>
+      </p>
+      <p>
+        <a href="#!">Shipping Rates</a>
+      </p>
+      <p>
+        <a href="#!">Help</a>
+      </p>
+    </div>
+    <hr class="w-100 clearfix d-md-none">
+    <div class="col-md-4 col-lg-3 col-xl-3 mx-auto mt-3">
+      <h6 class="text-uppercase mb-4 font-weight-bold">Contact</h6>
+      <p>
+        <i class="fas fa-home mr-3"></i> New York, NY 10012, US</p>
+      <p>
+        <i class="fas fa-envelope mr-3"></i> info@gmail.com</p>
+      <p>
+        <i class="fas fa-phone mr-3"></i> + 01 234 567 88</p>
+      <p>
+        <i class="fas fa-print mr-3"></i> + 01 234 567 89</p>
+    </div>
+  </div> -->
+
+    <!-- <li class="list-inline-item">
+      <a class="btn-floating btn-sm rgba-white-slight mx-1">
+        <i class="fab fa-facebook-f"></i>
+      </a>
+    </li>
+    <li class="list-inline-item">
+      <a class="btn-floating btn-sm rgba-white-slight mx-1">
+        <i class="fab fa-twitter"></i>
+      </a>
+    </li>
+    <li class="list-inline-item">
+      <a class="btn-floating btn-sm rgba-white-slight mx-1">
+        <i class="fab fa-google-plus-g"></i>
+      </a>
+    </li>
+    <li class="list-inline-item">
+      <a class="btn-floating btn-sm rgba-white-slight mx-1">
+        <i class="fab fa-linkedin-in"></i>
+      </a>
+    </li> -->

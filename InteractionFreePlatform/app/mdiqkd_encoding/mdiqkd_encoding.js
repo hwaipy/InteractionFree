@@ -137,6 +137,8 @@ function plot(result, append) {
       'BinCount'])
     var histogramXsMatched = true
 
+    if (!append) MEHistograms.map(h => h.clear())
+
     var meData = result['Data']['MDIQKDEncoding']
     for (var i = 0; i < MEConfigs.length; i++) {
       var hisIs = MEConfigs[i][2]

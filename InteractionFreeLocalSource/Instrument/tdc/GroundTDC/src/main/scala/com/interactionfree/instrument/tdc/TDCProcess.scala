@@ -67,7 +67,11 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
 
   private def dataIncome(data: Any) = {
     if (!data.isInstanceOf[List[_]]) throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")
-    if(postProcessOn.get) data.asInstanceOf[List[DataBlock]].foreach(dataBlockIncome)
+    if(postProcessOn.get) {
+      data.
+        asInstanceOf[List[DataBlock]].
+        foreach(dataBlockIncome)
+    }
   }
 
   private def dataBlockIncome(dataBlock: DataBlock) = {

@@ -1,56 +1,81 @@
 $(document).ready(async function() {
   initDeviceStatusPanel()
+  initDataStatusPanel()
   var endpoint = 'ws://' + window.location.host + '/ws'
 
+  collection = 'MDIQKD_DataReviewer'
+  // collection = 'MDI_DataReviewer_10k100M'
   worker = await IFWorker(endpoint)
 
-  //   fetcher = new TDCStorageStreamFetcher(worker, collection, 500, filter,
-  //     plot, listener)
-  //   fetcher.start()
+  fetcher = new TDCStorageStreamFetcher(worker, collection, 3000, {'FetchTime': 1}, plot, listener)
+  fetcher.changeMode("Stop")
+  fetcher.start()
+
   startDeviceStatusUpdateLoop(800)
+  startDataStatusUpdateLoop(800)
+  startCPRUpdateLoop(400)
 })
 
 worker = null
+collection = null
 
 function startDeviceStatusUpdateLoop(inteval) {
-  async function TDCPPSLoop() {
+  async function DSULoop(device, functionname, id) {
     while (true) {
       try {
-        var tdcPPS = await worker.MDIQKD_GroundTDC.getPostProcessStatus()
-        $('#ICSI_TDCPP').prop("checked", tdcPPS)
+        var status = await worker[device][functionname]()
+        $('#' + id).prop("checked", status)
       } catch (err) {
-        console.log(err)
+        $('#' + id).prop("checked", false)
       }
       await sleep(inteval)
     }
   }
-  setTimeout(TDCPPSLoop)
+  setTimeout(DSULoop, 0, 'MDIQKD_GroundTDC', 'getPostProcessStatus', 'ICSI_TDCPP')
+  setTimeout(DSULoop, 0, 'MDIQKD_GroundTDC', 'isLocalBufferPermenent', 'ICSI_TDCLS')
+  setTimeout(DSULoop, 0, 'MDI_ADCMonitor', 'isStoring', 'ICSI_ADCS')
+}
 
-  async function TDCLSLoop() {
+function startDataStatusUpdateLoop(inteval) {
+  async function RecentDataLoop(collection, id) {
     while (true) {
       try {
-        var tdcLS = await worker.MDIQKD_GroundTDC.isLocalBufferPermenent()
-        $('#ICSI_TDCLS').prop("checked", tdcLS)
+        var latestData = await worker.Storage.latest(collection, 'FetchTime', null, {'FetchTime':1})
+        var date = latestData['FetchTime'].split('.')[0].split('+')[0].replaceAll('T', ' ')
+        $('#' + id).html(date)
       } catch (err) {
+        $('#' + id).html('')
         console.log(err)
       }
       await sleep(inteval)
     }
   }
-  setTimeout(TDCLSLoop)
+  setTimeout(RecentDataLoop, 0, 'MDIQKD_GroundTDC', 'DPTC_RDTDC')
+  setTimeout(RecentDataLoop, 0, 'MDI_ADCMonitor', 'DPTC_RDADC')
+  setTimeout(RecentDataLoop, 0, 'MDIQKD_DataReviewer', 'DPTC_RDF')
+}
 
-  async function ADCStLoop() {
+function startCPRUpdateLoop(inteval) {
+  async function CPRUpdateLoop() {
     while (true) {
       try {
-        var adcSt = await worker.MDI_ADCMonitor.isStoring()
-        $('#ICSI_ADCS').prop("checked", adcSt)
+        CCRPaneOption = $('#CountChannelRelationPanel').find('.CCRPortPane .NI').first()
+        devID = CCRPaneOption.attr('id')
+        if (devID) {
+          dataID = devID.split('_')[1]
+          console.log(dataID)
+          figData = await worker.CountPowerRelationshipManager.plotCountPowerRelationship(collection, dataID)
+          var imgData = "data:image/png;base64," + figData
+          $('#' + devID)[0].src = imgData
+          $('#' + devID).removeClass('NI')
+        }
       } catch (err) {
         console.log(err)
       }
       await sleep(inteval)
     }
   }
-  setTimeout(ADCStLoop)
+  setTimeout(CPRUpdateLoop, 0)
 }
 
 async function onDeviceStatusCheck(id) {
@@ -93,7 +118,12 @@ async function onDeviceStatusCheck(id) {
 // }
 // $('.MEViewPane').remove()
 //
-// function plot(result, append) {
+function plot(result, append) {
+  plotCountChannelRelations(result, append)
+  // console.log(result);
+  // console.log(append);
+
+
 //   var layout = {
 //     xaxis: {
 //       title: 'Time (ns)'
@@ -167,94 +197,204 @@ async function onDeviceStatusCheck(id) {
 //     })
 //     Plotly.redraw(div)
 //   }
-// }
-//
-// function updateIntegralData() {
-//   var beginTime = onBlurIntegralRange('input-integral-from')
-//   var endTime = onBlurIntegralRange('input-integral-to')
-//   invalid = $("#input-integral-from")[0].classList.contains('is-invalid') ||
-//     $("#input-integral-to")[0].classList.contains('is-invalid')
-//   var isToNow = $("#input-integral-to")[0].value
-//   var isToNow = isToNow.length == 0 || isToNow.toLowerCase() == 'now'
-//   if (!invalid) fetcher.updateIntegralData(beginTime, endTime, isToNow)
-// }
-//
-// function onSelectionIntegral(isIntegral) {
-//   $("#selection-instant").attr("class", isIntegral ? "btn btn-secondary" :
-//     "btn btn-success")
-//   $("#selection-integral").attr("class", isIntegral ? "btn btn-success" :
-//     "btn btn-secondary")
-//   $("#IntegralConfig").collapse(isIntegral ? "show" : "hide")
-//   fetcher.changeMode(isIntegral ? "Stop" : "Instant")
-// }
-//
-// function onBlurIntegralRange(id) {
-//   element = $("#" + id)[0]
-//   text = element.value
-//   isNow = false
-//   if (text.length == 0 || text.toLowerCase() == "now") {
-//     parsedDate = new Date()
-//     isNow = (id == 'input-integral-to')
-//   } else parsedDate = parseSimpleDate(text)
-//   classList = element.classList
-//   if (parsedDate) {
-//     classList.remove('is-invalid')
-//     if (!isNow) element.value = dateToString(parsedDate)
-//   } else {
-//     classList.add('is-invalid')
-//   }
-//   return parsedDate
-// }
-//
-//
-// function listener(event, arg) {
-//   if (event == 'FetchTimeDelta') {
-//     fetchTimeDelta = arg
-//     if (fetchTimeDelta > 3000) {
-//       $('#HistogramWarning')[0].classList.remove('d-none')
-//       $('#HistogramWarningContent').html("The most recent data was fetched " +
-//         parseInt(fetchTimeDelta / 1000) + " s ago.")
-//     } else {
-//       $('#HistogramWarning')[0].classList.add('d-none')
-//     }
-//   } else if (event == 'FetchingProgress') {
-//     progress = parseInt(arg * 100)
-//     $('#FetchingProgress').attr('style',
-//       'background-image: linear-gradient(to right, #BDE6FF ' + (progress) +
-//       '%, #F8F9FC ' + (progress) + '%)')
-//   } else if (event == 'FetchingNumber') {
-//     if (arg == null) {
-//       $('#FetchNumberContent').html('')
-//       $('#FetchNumber')[0].classList.add('d-none')
-//     } else {
-//       integralFetchedDataCount = arg[0]
-//       integralTotalDataCount = arg[1]
-//       integralTime = arg[2]
-//       content = integralTotalDataCount + ' items (in ' + integralTime + ' s)'
-//       if (integralFetchedDataCount < integralTotalDataCount) content =
-//         integralFetchedDataCount + ' / ' + content
-//       $('#FetchNumber')[0].classList.remove('d-none')
-//       $('#FetchNumberContent').html(content)
-//     }
-//   } else if (event == 'HistogramXsMatched') {
-//     if (!arg) {
-//       $('#HistogramError')[0].classList.remove('d-none')
-//       $('#HistogramErrorContent').html("Histogram Config Not Matched.")
-//     } else {
-//       $('#HistogramError')[0].classList.add('d-none')
-//     }
-//   } else if (event == 'TooManyRecords') {
-//     if (arg) {
-//       $('#TooManyRecordsError')[0].classList.remove('d-none')
-//       $('#TooManyRecordsErrorContent').html("Too Many Records.")
-//     } else {
-//       $('#TooManyRecordsError')[0].classList.add('d-none')
-//     }
-//   } else {
-//     console.log(event + ', ' + arg);
-//   }
-// }
-//
+}
+
+function plotCountChannelRelations(result, append) {
+  if (result == null) {
+    console.log('clear');
+    $('#CountChannelRelationPanel').find('.CCRPortPane').remove()
+  } else {
+    console.log(result);
+    // var ccr = result['Data']['CountChannelRelations']['Data']
+    var fetchTime = result['FetchTime'].split('.')[0].replaceAll('T', ' ')
+    var dataID = result['_id']
+    // var counts1 = ccr.map(row => row[0])
+    // var counts2 = ccr.map(row => row[1])
+    // var power1 = ccr.map(row => row[2])
+    // var power2 = ccr.map(row => row[3])
+
+    temp = $('#CCRPortPaneTemp')
+    newItem = temp.clone(true)
+    newItem.removeClass('d-none')
+    newItem.find('.CCRHeader').html(fetchTime)
+    newItem.find('.CCRPort').attr('id', 'CCRPort_' + dataID)
+    $('#CountChannelRelationPanel').append(newItem)
+
+    // Plotly.newPlot('CCRPort_' + dataID, [{
+    //   x: power1,
+    //   y: counts1,
+    //   mode: 'markers',
+    //   type: 'scatter',
+    //   name: ''
+    // },{
+    //   x: power2,
+    //   y: counts2,
+    //   mode: 'markers',
+    //   type: 'scatter',
+    //   name: ''
+    // }], {
+    //   margin: {
+    //     l: 30,
+    //     r: 20,
+    //     b: 30,
+    //     t: 20,
+    //     pad: 4
+    //   },
+    //   width: 300,
+    //   height: 250,
+    //   showlegend: false,
+    // }, {
+    //   displayModeBar: false,
+    // })
+  }
+  //   var layout = {
+  //     xaxis: {
+  //       title: 'Time (ns)'
+  //     },
+  //     yaxis: {
+  //       title: 'Count'
+  //     },
+  //     margin: {
+  //       l: 50,
+  //       r: 30,
+  //       b: 50,
+  //       t: 30,
+  //       pad: 4
+  //     },
+  //     // width: 300,
+  //     height: 250,
+  //     showlegend: false,
+  //   }
+  //   var traces = []
+  //   if (result == null) {
+  //     for (var i = 0; i < MEHistograms.length; i++) {
+  //       MEHistograms[i].clear()
+  //       traces.push({
+  //         x: [0],
+  //         y: [0],
+  //         type: 'scatter',
+  //         name: ''
+  //       })
+  //     }
+  //     $('#HistogramWarning')[0].classList.add('d-none')
+  //   } else {
+  //     var configuration = result['Data']['MDIQKDEncoding']['Configuration']
+  //     var xs = linspace(0, configuration['Period'] / 1000.0, configuration[
+  //       'BinCount'])
+  //     var histogramXsMatched = true
+  //
+  //     var meData = result['Data']['MDIQKDEncoding']
+  //     for (var i = 0; i < MEConfigs.length; i++) {
+  //       var hisIs = MEConfigs[i][2]
+  //       for (var j = 0; j < hisIs.length; j++) {
+  //         var hisKey = MEHistogramKeys[hisIs[j]]
+  //         var his = meData[hisKey]
+  //         MEHistograms[i].append(xs, his)
+  //       }
+  //       traces.push({
+  //         x: MEHistograms[i].xs,
+  //         y: MEHistograms[i].ys,
+  //         type: 'scatter',
+  //         name: 'Trace',
+  //         line: {
+  //           color: '#2874A6',
+  //         }
+  //       })
+  //     }
+  //     for (var i = 0; i < MEHistograms.length; i++) {
+  //       histogramXsMatched &= MEHistograms[i].xsMatch
+  //     }
+  //     listener('HistogramXsMatched', histogramXsMatched)
+  //
+  //     // deal with reports
+  //     updateReports(result, MEHistograms)
+  //   }
+  //   for (var i = 0; i < MEConfigs.length; i++) {
+  //     layout['title'] = MEConfigs[i][0]
+  //     layout['yaxis']['range'] = [0, Math.max(...traces[i]['y']) * 1.05]
+  //     div = MEConfigs[i][1]
+  //     data = fillTrace.concat([traces[i]])
+
+  //     Plotly.redraw(div)
+  //   }
+}
+
+function updateIntegralData() {
+  var beginTime = onBlurIntegralRange('input-integral-from')
+  var endTime = onBlurIntegralRange('input-integral-to')
+  invalid = $("#input-integral-from")[0].classList.contains('is-invalid') ||
+    $("#input-integral-to")[0].classList.contains('is-invalid')
+  var isToNow = $("#input-integral-to")[0].value
+  var isToNow = isToNow.length == 0 || isToNow.toLowerCase() == 'now'
+  if (!invalid) fetcher.updateIntegralData(beginTime, endTime, isToNow)
+}
+
+function onBlurIntegralRange(id) {
+  element = $("#" + id)[0]
+  text = element.value
+  isNow = false
+  if (text.length == 0 || text.toLowerCase() == "now") {
+    parsedDate = new Date()
+    isNow = (id == 'input-integral-to')
+  } else parsedDate = parseSimpleDate(text)
+  classList = element.classList
+  if (parsedDate) {
+    classList.remove('is-invalid')
+    if (!isNow) element.value = dateToString(parsedDate)
+  } else {
+    classList.add('is-invalid')
+  }
+  return parsedDate
+}
+
+function listener(event, arg) {
+  if (event == 'FetchTimeDelta') {
+    fetchTimeDelta = arg
+    if (fetchTimeDelta > 3000) {
+      $('#HistogramWarning')[0].classList.remove('d-none')
+      $('#HistogramWarningContent').html("The most recent data was fetched " +
+        parseInt(fetchTimeDelta / 1000) + " s ago.")
+    } else {
+      $('#HistogramWarning')[0].classList.add('d-none')
+    }
+  } else if (event == 'FetchingProgress') {
+    progress = parseInt(arg * 100)
+    $('#FetchingProgress').attr('style',
+      'background-image: linear-gradient(to right, #BDE6FF ' + (progress) +
+      '%, #F8F9FC ' + (progress) + '%)')
+  } else if (event == 'FetchingNumber') {
+    if (arg == null) {
+      $('#FetchNumberContent').html('')
+      $('#FetchNumber')[0].classList.add('d-none')
+    } else {
+      integralFetchedDataCount = arg[0]
+      integralTotalDataCount = arg[1]
+      integralTime = arg[2]
+      content = integralTotalDataCount + ' items (in ' + integralTime + ' s)'
+      if (integralFetchedDataCount < integralTotalDataCount) content =
+        integralFetchedDataCount + ' / ' + content
+      $('#FetchNumber')[0].classList.remove('d-none')
+      $('#FetchNumberContent').html(content)
+    }
+  } else if (event == 'HistogramXsMatched') {
+    if (!arg) {
+      $('#HistogramError')[0].classList.remove('d-none')
+      $('#HistogramErrorContent').html("Histogram Config Not Matched.")
+    } else {
+      $('#HistogramError')[0].classList.add('d-none')
+    }
+  } else if (event == 'TooManyRecords') {
+    if (arg) {
+      $('#TooManyRecordsError')[0].classList.remove('d-none')
+      $('#TooManyRecordsErrorContent').html("Too Many Records.")
+    } else {
+      $('#TooManyRecordsError')[0].classList.add('d-none')
+    }
+  } else {
+    console.log(event + ', ' + arg);
+  }
+}
+
 function initDeviceStatusPanel() {
   temp = $('#DeviceStatusPaneTemp')
 
@@ -262,7 +402,6 @@ function initDeviceStatusPanel() {
     newItem = temp.clone(true)
     newItem.removeClass('d-none')
     newItem.find('.DPTT').html(title)
-      //     newItem.find('.DPTC').attr('id', id)
     newItem.find('.ICSI').attr('id', 'ICSI_' + id)
     newItem.find('.ICSL').attr('for', 'ICSI_' + id)
     $('#DeviceStatusPanel').append(newItem)
@@ -270,6 +409,22 @@ function initDeviceStatusPanel() {
   addDeviceStatusPane('TDCService PostProcess', 'TDCPP')
   addDeviceStatusPane('TDCService LocalStore', 'TDCLS')
   addDeviceStatusPane('ADCMonitor Store', 'ADCS')
+  temp.remove()
+}
+
+function initDataStatusPanel() {
+  temp = $('#DataStatusPaneTemp')
+
+  function addDataStatusPane(title, id) {
+    newItem = temp.clone(true)
+    newItem.removeClass('d-none')
+    newItem.find('.DPTT').html(title)
+    newItem.find('.DPTC').attr('id', 'DPTC_' + id)
+    $('#DataStatusPanel').append(newItem)
+  }
+  addDataStatusPane('Recent TDC Data:', 'RDTDC')
+  addDataStatusPane('Recent ADC Data:', 'RDADC')
+  addDataStatusPane('Recent Filtering Data:', 'RDF')
   temp.remove()
 }
 

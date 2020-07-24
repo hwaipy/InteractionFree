@@ -300,19 +300,6 @@ function plot(result, append) {
   ]
   layout['updatemenus'] = updatemenus
 
-
-
-    // setTimeout(function(){
-    //   console.log('restyle');
-    //   var update = {
-    //     yaxis: {
-    //       type: 'log'
-    //     },
-    //   };
-    //   Plotly.relayout('viewport', update)
-    //   Plotly.redraw('viewport')
-    // }, 2000)
-
   Plotly.react('viewport', traces, layout, {
     displaylogo: false,
     // responsive: true
