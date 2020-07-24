@@ -1,0 +1,20 @@
+<script type="text/javascript" src="/app/weathers/weathers.js"></script>
+<div class="w3-container w3-center" style="padding:32px 16px">
+  <h1 class="w3-margin w3-xxxlarge">Weathers</h1>
+  <div id="viewport"></div>
+  <div id="bufferport" class="w3-hide"></div>
+  <!-- <canvas id="canvas" width="300" height="300"></canvas> -->
+  <!-- <p>Shanghai</p><img id="testimg" src="http://www.7timer.info/bin/astro.php?lon=30&lat=30&lang=zh-CN&ac=0&unit=metric&tzshift=0" onload="loaded(this.id)"/> -->
+
+  <script type="text/template" id="card_template">
+    <div class="w3-card" id="ViewCard_VTR_ID">
+      <header class="w3-container w3-white w3-left">
+        <h3>VTR_HEADING</h3>
+      </header>
+        <div class="w3-container">
+          <object class="w3-center" type="image/svg+xml" data="weathers/loading.svg" id="LoadingImg_VTR_ID"/>
+          <canvas id="ViewCanvas_VTR_ID" class="w3-hide" width=580 height=230></canvas>
+        </div>
+    </div>
+  </script>
+</div>

@@ -1,0 +1,13 @@
+name := "InteractionFreeDB"
+version := "0.1.0"
+scalaVersion := "2.12.8"
+organization := "com.interactionfree"
+libraryDependencies += "com.interactionfree" %% "interactionfree" % "0.1.0"
+libraryDependencies += "org.mongodb.scala" %% "mongo-scala-driver" % "2.6.0"
+libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.12.8"
+libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.12.8"
+libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+scalacOptions ++= Seq("-feature")
+scalacOptions ++= Seq("-deprecation")
+//fork := true

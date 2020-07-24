@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<IFDisplay title="Hello IFDisplay">
+    <container font="xlarge,bold" color="44,56,225">
+        <label font="large">123</label>
+    </container>
+    <container font="xlarge,bold" color="144,156,25">
+        <label font="large">456</label>
+    </container>
+</IFDisplay>

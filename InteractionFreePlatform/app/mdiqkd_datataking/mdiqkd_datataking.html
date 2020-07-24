@@ -1,0 +1,158 @@
+<script type="text/javascript" src="/static/javascripts/lodash.min.js"></script>
+<script type="text/javascript" src="/static/javascripts/IFExp.js"></script>
+<script type="text/javascript" src="/static/javascripts/plotly.min.js"></script>
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+    <p class="m-0 font-weight-bold text-primary">Device Status</p>
+  </div>
+  <div class="card-body" style='padding:0.3rem'>
+    <div class="container-fluid" style='padding-right: 1.0rem; padding-left: 1.0rem;'>
+      <div class="row" style='padding-right: 0.0rem; padding-left: 0.0rem;'>
+        <div class="card" style='padding-left: 0.0rem; padding-right: 1rem; border: 0px; background-color: #00000000'>
+          <div class="card" style='padding-left: 0rem; padding-right: 0rem; border: 0px; background-color: #00000000'>
+            <div class="card-body" style='padding: 0.75rem'>
+              <div class='row' id='DeviceStatusPanel'>
+                <div class="card border-left-info shadow mb-1 mr-2 ml-1 d-none" id="DeviceStatusPaneTemp">
+                  <div class="card-body" style="padding: 0.2rem">
+                    <div class="row no-gutters align-items-center">
+                      <div class="col">
+                        <div class="row no-gutters align-items-center">
+                          <div class="custom-control custom-switch ml-2">
+                            <input type="checkbox" class="custom-control-input ICSI" id="customSwitch1" onclick='onDeviceStatusCheck(id)'>
+                            <label class="custom-control-label ICSL" for="customSwitch1"></label>
+                          </div>
+                          <div class="mb-2 mt-2 mr-3">
+                            <div class="h5 mb-0 font-weight text-gray-800 DPTT ml-2"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row" style='padding-right: 0.0rem; padding-left: 0.0rem;'>
+        <div class="card" style='padding-left: 0.0rem; padding-right: 1rem; border: 0px; background-color: #00000000'>
+          <div class="card" style='padding-left: 0rem; padding-right: 0rem; border: 0px; background-color: #00000000'>
+            <div class="card-body" style='padding: 0.75rem'>
+              <div class='row' id='DataStatusPanel'>
+                <div class="card border-left-info shadow mb-1 mr-2 ml-1 d-none" id="DataStatusPaneTemp">
+                  <div class="card-body" style="padding: 0.2rem">
+                    <div class="row no-gutters align-items-center">
+                      <div class="col">
+                        <div class="row no-gutters align-items-center">
+                          <div class="col-auto text-right mb-2 mt-2">
+                            <div class="h5 mb-0 font-weight text-gray-800 DPTT ml-2">Title:</div>
+                          </div>
+                          <div class="col-auto mb-2 mt-2">
+                            <div class="h5 mb-0 mr-2 font-weight-bold text-gray-800 DPTC ml-2"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style='padding-left: 0rem; padding-right: 0rem'>
+  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" id="FetchingProgress">
+    <div class="container-fluid">
+      <div class="row">
+        <p class="m-0 font-weight-bold text-primary mt-2 mr-5">Review</p>
+        <div class="row width ml-2 mr-3" id="IntegralConfig">
+          <div class="card shadow">
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text" id="basic-addon1">From</span>
+              </div>
+              <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" onblur="onBlurIntegralRange('input-integral-from')" id="input-integral-from">
+              <div class="input-group-prepend">
+                <span class="input-group-text" id="basic-addon1">to</span>
+              </div>
+              <input type="text" class="form-control" placeholder="now" aria-label="Username" aria-describedby="basic-addon1" onblur="onBlurIntegralRange('input-integral-to')" id="input-integral-to">
+              <div class="input-group-append" id="button-addon4">
+                <button type="button" class="btn btn-secondary" onclick="updateIntegralData()">Update</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- <div class="m-0 ml-3 font-weight-bold text-primary mt-2 mr-2">
+          <span class="text ml-2 mr-2">Review</span>
+        </div> -->
+        <div class="row d-none mt-2" id="TooManyRecordsError">
+            <span class="icon text-danger">
+              <i class="fas fa-exclamation-triangle"></i>
+            </span>
+            <span class="text text-danger ml-2 mr-4" id="TooManyRecordsErrorContent"></span>
+        </div>
+        <div class="row d-none mt-2" id="HistogramError">
+            <span class="icon text-danger">
+              <i class="fas fa-exclamation-triangle"></i>
+            </span>
+            <span class="text text-danger ml-2 mr-4" id="HistogramErrorContent"></span>
+        </div>
+        <div class="row d-none mt-2" id="HistogramWarning">
+            <span class="icon text-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+            </span>
+            <span class="text text-warning ml-2 mr-4" id="HistogramWarningContent"></span>
+        </div>
+        <div class="d-none mt-2" id="FetchNumber">
+            <span class="text ml-2 mr-2" id="FetchNumberContent"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card-body" style='padding: 0.75rem' id='HistoPane'>
+    <div class="container-fluid">
+
+      <div class="row" id="ViewPanel">
+        <div class="card shadow mb-1 d-none col-lg-3 mr-3" id="HistoPaneTemp">
+          <div class="card-body" style="padding: 0.2rem">
+            <div class="row no-gutters align-items-center">
+              <div class="col">
+                <div class="row no-gutters align-items-center">
+                  <div class="col-auto">
+                    <div class="h5 mb-0 mr-2 font-weight-bold text-gray-800 DPTT">View:</div>
+                  </div>
+                  <div class="card col border-0">
+                    <input type="text" class="form-control DPTI"  style='background: #00000000' onfocus="onTDCConfigInputFocus(id, false)" onblur="onTDCConfigInputFocus(id, true)">
+                  </div>
+                  <div class="col-auto">
+                    <div class="h5 ml-2 mb-0 mr-2 font-light text-gray-800 DPTTi">ns</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card-body" style='padding: 0.2rem'>
+    <div id="viewport"></div>
+  </div>
+  <div class="card-body" style='padding: 0.2rem'>
+    <div class="row ml-0" id="CountChannelRelationPanel">
+    </div>
+    <div class="card d-none m-1 CCRPortPane" id="CCRPortPaneTemp">
+      <div class="card-header">
+        <p class="m-0 font-weight-bold text-primary mt-2 mr-5 CCRHeader"></p>
+      </div>
+      <div class="card-body" style="padding: 0.3rem">
+        <img src="" class="CCRPort NI">
+        </div>
+      </div>
+  </div>
+</div>

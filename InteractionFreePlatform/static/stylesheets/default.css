@@ -1,0 +1,30 @@
+.sidebar .sidebar-brand {
+    text-transform: none;
+    font-size: 1rem
+}
+
+.bg-gradient-primary {
+    background-image: linear-gradient(180deg,#444A50 10%,#242830 100%);
+}
+
+body {
+    color: #000000;
+}
+
+.head-title {
+  font-size: 1.8rem
+}
+
+.table {
+  color: #000000;
+}
+
+.github-fork-ribbon.left-bottom:before {
+    background-color: #ECF0F1;
+}
+
+.github-fork-ribbon.left-bottom:after {
+  color: #17202A;
+  text-shadow: 0 -0.08em rgba(23, 32, 42, 0.5);
+  border-color: rgba(23, 32, 42, 0.7)
+}
