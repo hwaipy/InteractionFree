@@ -18,16 +18,17 @@ class Shower:
         self.end = end
 
     def show(self):
-        ids = self.worker.Storage.range(self.collection, self.begin, self.end, by='FetchTime', filter={})
+        ids = self.worker.Storage.range(self.collection, self.begin, self.end, filter={'FetchTime': 1})
+        print(len(ids))
         if len(ids) == 0:
             print('No Record.')
             return
         conditions = None
         mergedData = None
         for id in ids[:]:
-            content = self.worker.Storage.get(self.collection, id['_id'], {'Data': 1})['Data']
-            countChannelRelations = content['CountChannelRelations']
-            countChannelRelationsData = np.array(countChannelRelations['Data'])
+            content = self.worker.Storage.get(self.collection, id['_id'], '_id', {'Data.HOMandQBERs': 1})['Data']
+            # countChannelRelations = content['CountChannelRelations']
+            # countChannelRelationsData = np.array(countChannelRelations['Data'])
             # plt.scatter(countChannelRelationsData[:, 0], countChannelRelationsData[:, 2])
             # plt.scatter(countChannelRelationsData[:, 1], countChannelRelationsData[:, 3])
             # plt.show()
@@ -35,6 +36,11 @@ class Shower:
             HOMandQBERs = content['HOMandQBERs']
             totalEntryCount = HOMandQBERs['TotalEntryCount']
             data = np.array(HOMandQBERs['SortedEntries'])
+
+            # vd = data[:, 6: 8]
+            # print(vd)
+            # break
+
             condition = data[:, :2]
             tobeMerged = data[:, 2:]
             if conditions is None:
@@ -81,7 +87,7 @@ class Shower:
             ax2 = ax.twinx()
             ax.semilogx(ratios, HOMs[:, i * 2] / (HOMs[:, i * 2 + 1] - 1e-10), color='blue')
             ax2.semilogx(ratios, HOMs[:, i * 2 + 1], color='orange')
-            ax.set_ylim((0.4, 2))
+            ax.set_ylim((0.5, 0.6))
             ax.grid()
         plt.show()
         # independents = data[:, head.index(independentName)]
@@ -152,6 +158,7 @@ if __name__ == '__main__':
     # worker = IFWorker('tcp://172.16.60.199:224')
     worker = IFWorker('tcp://127.0.0.1:224')
     # shower = Shower(worker, 'MDI_DataReviewer_10k100M', '2020-03-12 11:04:05', '2020-06-12 22:04:05')
-    shower = Shower(worker, 'MDI_DataReviewer_10k250M', '2020-03-12 11:04:05', '2020-06-12 22:04:05')
+    # shower = Shower(worker, 'MDIQKD_DataReviewer_ReProcess_4', '2020-07-25T15:38:00+08:00', '2020-07-25T15:40:00+08:00')
+    shower = Shower(worker, 'MDIQKD_DataReviewer_ReProcess_2', '2020-07-25T16:49:05+08:00', '2020-07-25T17:02:30+08:00')
     shower.show()
     worker.close()

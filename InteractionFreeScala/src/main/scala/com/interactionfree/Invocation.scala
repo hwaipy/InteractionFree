@@ -9,6 +9,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.reflect.runtime.currentMirror
 import scala.reflect.runtime.universe._
+import com.interactionfree.MsgpackSerializer
 
 object Invocation {
   val KeyType = "Type"
@@ -22,7 +23,6 @@ object Invocation {
   val ValueTypeRequest = "Request"
   val ValueTypeResponse = "Response"
   val Preserved = List(KeyType, KeyFunciton, KeyArguments, KeyKeyworkArguments, KeyRespopnseID, KeyResult, KeyError, KeyWarning)
-  protected[interactionfree] val maxDeepth = 100
 
   def newRequest(functionName: String, args: List[Any] = Nil, kwargs: Map[String, Any] = Map()) = new Invocation(Map(
     Invocation.KeyType -> ValueTypeRequest,
@@ -45,56 +45,10 @@ object Invocation {
 
   def deserialize(bytes: Array[Byte], serialization: String = "Msgpack") = serialization match {
     case "Msgpack" => {
-      val unpacker = org.msgpack.core.MessagePack.newDefaultUnpacker(bytes)
-      val value = unpacker.unpackValue()
-      val map = convert(value).asInstanceOf[Map[String, Any]]
+      val map = MsgpackSerializer.deserialize(bytes).asInstanceOf[Map[String, Any]]
       new Invocation(map)
     }
     case _ => throw new IFException(s"Bad serialization: ${serialization}")
-  }
-
-  private def convert(value: Value, deepth: Int = 0): Any = {
-    if (deepth > maxDeepth) throw new IllegalArgumentException("Message over deepth.")
-    import org.msgpack.value.ValueType._
-    value.getValueType match {
-      case ARRAY => {
-        val arrayValue = value.asArrayValue
-        val list: ListBuffer[Any] = ListBuffer()
-        val it = arrayValue.iterator
-        while (it.hasNext) {
-          list += convert(it.next, deepth + 1)
-        }
-        list.toList
-      }
-      case MAP => {
-        val mapValue = value.asMapValue
-        val map: mutable.HashMap[Any, Any] = new mutable.HashMap
-        val it = mapValue.entrySet.iterator
-        while (it.hasNext) {
-          val entry = it.next
-          map += (convert(entry.getKey, deepth + 1) -> convert(entry.getValue, deepth + 1))
-        }
-        map.toMap
-      }
-      case BINARY => value.asBinaryValue.asByteArray
-      case BOOLEAN => value.asBooleanValue.getBoolean
-      case FLOAT => value.asFloatValue.toDouble
-      case INTEGER => {
-        val integerValue = value.asIntegerValue
-        if (integerValue.isInLongRange) {
-          if (integerValue.isInIntRange) {
-            integerValue.toInt
-          } else {
-            integerValue.toLong
-          }
-        } else {
-          BigInt.javaBigInteger2bigInt(integerValue.asBigInteger)
-        }
-      }
-      case NIL => None
-      case STRING => value.asStringValue.toString
-      case _ => throw new IllegalArgumentException(s"Unknown ValueType: ${value.getValueType}")
-    }
   }
 }
 
@@ -136,92 +90,7 @@ class Invocation(private val content: Map[String, Any]) {
   def getResponseID = if (isResponse) content(Invocation.KeyRespopnseID).asInstanceOf[String] else throw new IFException("Not a Response.")
 
   def serialize(serialization: String = "Msgpack") = serialization match {
-    case "Msgpack" => {
-      val packer = org.msgpack.core.MessagePack.newDefaultBufferPacker
-
-      def doFeed(value: Any, deepth: Int = 0, target: Option[String] = null): Unit = {
-        if (deepth > Invocation.maxDeepth) {
-          throw new IFException("Message over deepth.")
-        }
-        value match {
-          case n if n == null || n == None => packer.packNil
-          case i: Int => packer.packInt(i)
-          case i: AtomicInteger => packer.packInt(i.get)
-          case s: String => packer.packString(s)
-          case b: Boolean => packer.packBoolean(b)
-          case b: AtomicBoolean => packer.packBoolean(b.get)
-          case l: Long => packer.packLong(l)
-          case l: AtomicLong => packer.packLong(l.get)
-          case s: Short => packer.packShort(s)
-          case c: Char => packer.packShort(c.toShort)
-          case b: Byte => packer.packByte(b)
-          case f: Float => packer.packFloat(f)
-          case d: Double => packer.packDouble(d)
-          case bi: BigInteger => packer.packBigInteger(bi)
-          case bi: BigInt => packer.packBigInteger(bi.bigInteger)
-          case bytes: Array[Byte] => {
-            packer.packBinaryHeader(bytes.length)
-            packer.writePayload(bytes)
-          }
-          case array: Array[_] => {
-            packer.packArrayHeader(array.length)
-            for (i <- Range(0, array.length)) {
-              doFeed(array(i), deepth + 1, target)
-            }
-          }
-          case seq: Seq[_] => {
-            packer.packArrayHeader(seq.size)
-            seq.foreach(i => doFeed(i, deepth + 1, target))
-          }
-          case set: Set[_] => {
-            packer.packArrayHeader(set.size)
-            set.foreach(i => doFeed(i, deepth + 1, target))
-          }
-          case set: java.util.Set[_] => {
-            packer.packArrayHeader(set.size)
-            val it = set.iterator
-            while (it.hasNext) {
-              doFeed(it.next, deepth + 1, target)
-            }
-          }
-          case list: java.util.List[_] => {
-            packer.packArrayHeader(list.size)
-            val it = list.iterator
-            while (it.hasNext) {
-              doFeed(it.next, deepth + 1, target)
-            }
-          }
-          case map: scala.collection.Map[_, Any] => {
-            packer.packMapHeader(map.size)
-            map.foreach(entry => {
-              doFeed(entry._1, deepth + 1, target)
-              doFeed(entry._2, deepth + 1, target)
-            })
-          }
-          case map: java.util.Map[_, _] => {
-            packer.packMapHeader(map.size)
-            val it = map.entrySet.iterator
-            while (it.hasNext) {
-              val entry = it.next
-              doFeed(entry.getKey, deepth + 1, target)
-              doFeed(entry.getValue, deepth + 1, target)
-            }
-          }
-          case unit if (unit == () || unit == scala.runtime.BoxedUnit.UNIT) => packer.packNil
-          case p: Product => {
-            packer.packArrayHeader(p.productArity)
-            val it = p.productIterator
-            while (it.hasNext) {
-              doFeed(it.next(), deepth + 1, target)
-            }
-          }
-          case _ => throw new IFException(s"Unrecognized value: ${value}")
-        }
-      }
-
-      doFeed(content)
-      packer.toByteArray
-    }
+    case "Msgpack" => MsgpackSerializer.serialize(content)
     case _ => throw new IFException(s"Bad serialization: ${serialization}")
   }
 

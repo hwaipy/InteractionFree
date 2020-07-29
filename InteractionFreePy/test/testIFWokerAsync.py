@@ -11,7 +11,7 @@ from asyncio import Queue
 
 
 class AsyncIFWorkerTest(unittest.TestCase):
-    testPort = 20111
+    testPort = 20112
     brokerAddress = 'tcp://127.0.0.1:{}'.format(testPort)
 
     @classmethod

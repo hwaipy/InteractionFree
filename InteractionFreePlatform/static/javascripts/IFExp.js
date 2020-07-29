@@ -152,7 +152,7 @@ class TDCStorageStreamFetcher {
     if (this.mode == 'Instant' || this.mode == 'IntegralContinues') {
       var fetchID = this.fetchID
       try {
-        var result = await worker.Storage.latest(this.collection, 'FetchTime', this.lastTime, this.filter)
+        var result = (this.mode == 'Instant') ? (await worker.Storage.latest(this.collection, 'FetchTime', this.lastTime, this.filter)) : (await worker.Storage.first(this.collection, 'FetchTime', this.lastTime, this.filter))
         if (fetchID == this.fetchID) {
           if (result != null) {
             this.lastTime = result['FetchTime'];
@@ -161,8 +161,7 @@ class TDCStorageStreamFetcher {
             }
           }
           if (this.mode == 'IntegralContinues') {
-            this.integralTime = parseInt((new Date().getTime() - this.integralBeginTime
-              .getTime()) / 1000)
+            this.integralTime = parseInt((new Date().getTime() - this.integralBeginTime.getTime()) / 1000)
             if (result != null) {
               this.integralTotalDataCount += 1
               this.integralFetchedDataCount += 1
@@ -197,9 +196,11 @@ class TDCStorageStreamFetcher {
             'FetchTime'
           ]))
           var item = await worker.Storage.get(this.collection,
-            rangedSummaries[i]['_id'], this.filter)
+            rangedSummaries[i]['_id'], '_id', this.filter)
           this.rangedResultQueue.push([fetchID, item])
         }
+        if (rangedSummaries.length > 0) this.lastTime = rangedSummaries[rangedSummaries.length - 1]['FetchTime']
+        else this.lastTime = this.dateToISO(beginTime)
       }
     } catch (error) {
       console.log("Error: " + error)
@@ -291,7 +292,7 @@ class TDCStorageStreamFetcher {
     this.integralEndTime = endTime
     this.changeMode("Stop")
     this.changeMode(isToNow ? "IntegralContinues" : "Integral")
-    if (isToNow) this.lastTime = this.dateToISO(endTime)
+    // if (isToNow) this.lastTime = this.dateToISO(endTime)
     this.range(beginTime, endTime)
   }
 

@@ -20,7 +20,7 @@ class CountPowerRelationshipManager:
         self.storage = worker.asyncInvoker('Storage')
 
     async def plotCountPowerRelationship(self, collection, id):
-        result = await self.storage.get(collection, id, {'Data': 1})
+        result = await self.storage.get(collection, id, '_id', {'Data': 1})
         data = np.array(result['Data']['CountChannelRelations']['Data'])
         fig = plt.figure(figsize=(3.2, 2.5))
         ax = fig.add_subplot(1, 1, 1)

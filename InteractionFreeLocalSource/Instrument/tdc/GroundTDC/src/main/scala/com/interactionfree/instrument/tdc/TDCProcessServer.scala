@@ -5,15 +5,18 @@ import java.net.ServerSocket
 import java.nio.LongBuffer
 import java.nio.file.Paths
 import java.nio.file.Files
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneOffset}
 import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
+
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent.{ExecutionContext, Future}
 import com.interactionfree.NumberTypeConversions._
 import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
+import org.msgpack.core.MessagePack
+import com.interactionfree.{Invocation, Message, MsgpackSerializer}
 
 class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val localStorePath: String) {
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
@@ -280,7 +283,16 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
   }
 }
 
-class DataBlock(val content: Array[Array[Long]], val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long)
+class DataBlock(val content: Array[Array[Long]], val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long) {
+  def store(path: String) = {
+    val creationTimeISO = LocalDateTime.ofEpochSecond(creationTime / 1000, ((creationTime % 1000) * 1000000).toInt, ZoneOffset.ofHours(8)).toString.replaceAll(":", "-")
+    val raf = new RandomAccessFile(path + "/" + creationTimeISO + ".datablock", "rw")
+    val packer = org.msgpack.core.MessagePack.newDefaultBufferPacker
+    val bytes = MsgpackSerializer.serialize(Map("Content" -> content, "CreationTime" -> creationTime, "DataTimeBegin" -> dataTimeBegin, "DataTimeEnd" -> dataTimeEnd))
+    raf.write(bytes)
+    raf.close()
+  }
+}
 
 abstract class DataAnalyser {
   protected val on = new AtomicBoolean(false)

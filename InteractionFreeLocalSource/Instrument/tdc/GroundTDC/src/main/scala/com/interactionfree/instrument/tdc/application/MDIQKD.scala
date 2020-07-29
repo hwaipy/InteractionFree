@@ -164,6 +164,7 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
   override protected def analysis(dataBlock: DataBlock) = {
     val t1 = System.nanoTime()
 
+    val map = mutable.HashMap[String, Any]()
     val randomNumbersAlice = configuration("AliceRandomNumbers").asInstanceOf[List[Int]].map(r => new RandomNumber(r)).toArray
     val randomNumbersBob = configuration("BobRandomNumbers").asInstanceOf[List[Int]].map(r => new RandomNumber(r)).toArray
     val period: Double = configuration("Period")
@@ -218,17 +219,8 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     }
 
     val coincidences = generateCoincidences(validItem1s.iterator, validItem2s.iterator)
-
     val validCoincidences = coincidences.filter(_.valid)
-    val map = mutable.HashMap[String, Any]()
-    //    map.put("Count 1", item1s.size)
-    //    map.put("Valid Count 1", validItem1s.size)
-    //    map.put("Count 2", item2s.size)
-    //    map.put("Valid Count 2", validItem2s.size)
-    //    map.put("Coincidence Count", coincidences.size)
-    //    map.put("Basis Matched Coincidence Count", basisMatchedCoincidences.size)
-    //    map.put("Valid Coincidence Count", validCoincidences.size)
-    //
+
     val basisStrings = List("O", "X", "Y", "Z")
     val qberSections = Range(0, qberSectionCount).toArray.map(i => new Array[Int](4 * 4 * 2)) // 4 basis * 4 basis * (right/wrong)
     Range(0, 4).foreach(basisAlice => Range(0, 4).foreach(basisBob => {
@@ -242,7 +234,7 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       if (sectionIndex >= 0 && sectionIndex < qberSections.size) qberSections(sectionIndex)(category) += 1
     })
     map.put(s"QBER Sections", qberSections)
-    //    map.put(s"QBER Sections Detail", s"1000*32 Array. 1000 for 1000 sections. 32 for (Alice[O,X,Y,Z] * 4 + Bob[O,X,Y,Z]) * 2 + (0 for Correct and 1 for Wrong)")
+    map.put(s"QBER Sections Detail", s"1000*32 Array. 1000 for 1000 sections. 32 for (Alice[O,X,Y,Z] * 4 + Bob[O,X,Y,Z]) * 2 + (0 for Correct and 1 for Wrong)")
 
     val basisMatchedCoincidences = coincidences.filter(_.basisMatched)
     val ccsXX0Coincidences = basisMatchedCoincidences.filter(c => c.randomNumberAlice.isX && c.randomNumberBob.isX).filter(c => (c.r1 == 0) && (c.r2 == 0))
@@ -261,6 +253,7 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
 
     val ccsAll0Coincidences = coincidences.filter(c => (c.r1 == 0) && (c.r2 == 0))
     val ccsAllOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+
     val ccsAll0 = ccsAll0Coincidences.size
     val ccsAllOther = ccsAllOtherCoincidences.map(_.size)
     map.put("HOM, All0-All0", List(ccsAll0, ccsAllOther.sum.toDouble / ccsAllOther.size))
@@ -278,21 +271,6 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     val homTransposed = Range(0, homSections(0).size).map(_ => new Array[Double](homSections.size)).toArray
     homSections.zipWithIndex.foreach(z1 => z1._1.zipWithIndex.foreach(z2 => homTransposed(z2._2)(z1._2) = homSections(z1._2)(z2._2)))
     map.put(s"HOM Sections", homTransposed)
-    //    map.put(s"HOM Sections Detail", s"4*1000 Array. 1000 for 1000 sections. 4 for: X-X, 0&0 without and with delays; All, 0&0 without and with delays")
-
-    //    val ccsAllOtherLeftCoincidences = Range(-14, 10).toList.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator).filter(c => (c.r1 == 0) && (c.r2 == 0)))
-    //    val ccsAllOtherOverallCoincidences = ccsAllOtherLeftCoincidences ++ ccsAllOtherCoincidences
-
-    //    def statisticCoincidenceSections(cl: List[Coincidence]) = {
-    //      val sections = new Array[Int](qberSectionCount)
-    //      cl.foreach(c => {
-    //        val sectionIndex = ((c.triggerTime - dataBlock.dataTimeBegin).toDouble / (dataBlock.dataTimeEnd - dataBlock.dataTimeBegin) * qberSectionCount).toInt
-    //        if (sectionIndex >= 0 && sectionIndex < qberSections.size) sections(sectionIndex) += 1
-    //      })
-    //      sections
-    //    }
-    //    val ccsAllOtherOverallCoincidencesSections = ccsAllOtherOverallCoincidences.map(statisticCoincidenceSections)
-    //    map.put(s"HOM Detailed Sections", ccsAllOtherOverallCoincidencesSections)
 
     val channelMonitorSyncList = dataBlock.content(channelMonitorSyncChannel)
     map.put("ChannelMonitorSync", Array[Long](dataBlock.dataTimeBegin, dataBlock.dataTimeEnd) ++ (channelMonitorSyncList.size match {
@@ -309,10 +287,9 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       if (sectionIndex >= 0 && sectionIndex < qberSections.size) countSections(sectionIndex)(z._2) += 1
     }))
     map.put(s"Count Sections", countSections)
-    //    map.put(s"Count Sections Detail", s"1000*2 Array. 1000 for 1000 sections. 2 for signalList1 and signalList2")
 
     val t2 = System.nanoTime()
-    println((t2 - t1) / 1e6)
+    //    println((t2 - t1) / 1e6)
 
     map.toMap
   }

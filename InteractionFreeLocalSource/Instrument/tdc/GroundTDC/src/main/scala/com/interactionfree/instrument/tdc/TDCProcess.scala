@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.jdk.CollectionConverters._
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
-import com.interactionfree.instrument.tdc.local.LocalTDCDataFeeder
+import com.interactionfree.instrument.tdc.local.{LocalDataBlockFeeder, LocalTDCDataFeeder}
 
 import scala.collection.mutable
 import scala.io.Source
@@ -29,6 +29,7 @@ object GroundTDC extends App {
 
   val DEBUG = properties.getOrDefault("Sys.Debug", false).toString.toBoolean
   val LOCAL = properties.getOrDefault("Sys.Local", false).toString.toBoolean
+  val LOCAL_DATABLOCK = properties.getOrDefault("Sys.Local.DataBlock", false).toString.toBoolean
   val dataSourceListeningPort = properties.getOrDefault("DataSource.Port", 20156).toString.toInt
   val storeCollection = properties.getOrDefault("Storage.Collection", "Default").toString
   val localStorePath = properties.getOrDefault("Storage.Local", "./local").toString
@@ -41,6 +42,10 @@ object GroundTDC extends App {
   if (LOCAL) {
     println("LOCAL mode, starting LocalTDCDataFeeder.")
     LocalTDCDataFeeder.start(dataSourceListeningPort)
+  }
+  if (LOCAL_DATABLOCK) {
+    println("LOCAL_DATABLOCK mode starting.")
+    LocalDataBlockFeeder.start()
   }
   Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
   println("Stoping Ground TDC...")
@@ -67,11 +72,10 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
 
   private def dataIncome(data: Any) = {
     if (!data.isInstanceOf[List[_]]) throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")
-    if(postProcessOn.get) {
-      data.
-        asInstanceOf[List[DataBlock]].
-        foreach(dataBlockIncome)
-    }
+    data.asInstanceOf[List[DataBlock]].foreach(dataBlock => {
+      if (postProcessOn.get) dataBlockIncome(dataBlock)
+      if (isLocalBufferPermenent()) dataBlock.store(localStorePath)
+    })
   }
 
   private def dataBlockIncome(dataBlock: DataBlock) = {
@@ -127,7 +131,7 @@ class TDCProcessService(private val port: Int, private val storeCollection: Stri
 
   def setLocalBufferPermenent(p: Boolean) = server.setLocalBufferPermenent(p)
 
-  def isLocalBufferPermenent() = server.isLocalBufferPermenent()
+  def isLocalBufferPermenent(): Boolean = server.isLocalBufferPermenent()
 
   def setPostProcessStatus(p: Boolean) = postProcessOn set p
 

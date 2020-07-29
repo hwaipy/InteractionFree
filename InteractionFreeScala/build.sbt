@@ -1,5 +1,5 @@
 name := "InteractionFreeScala"
-version := "1.0.0"
+version := "1.0.1"
 scalaVersion := "2.13.3"
 organization := "com.interactionfree"
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.3"

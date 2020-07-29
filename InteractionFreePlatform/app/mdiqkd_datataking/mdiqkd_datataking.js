@@ -2,8 +2,18 @@ $(document).ready(async function() {
   initDeviceStatusPanel()
   initDataStatusPanel()
   var endpoint = 'ws://' + window.location.host + '/ws'
+  var parameterString = window.location.search
+  var parameters = {}
+  if (parameterString.length > 0) {
+    parameterStrings = parameterString.split('?')[1].split('&')
+    for (var i = 0; i < parameterStrings.length; i++) {
+      paras = parameterStrings[i].split('=')
+      if (paras.length == 2) parameters[paras[0]] = paras[1]
+    }
+  }
 
   collection = 'MDIQKD_DataReviewer'
+  if (parameters['collection']) collection = parameters['collection']
   // collection = 'MDI_DataReviewer_10k100M'
   worker = await IFWorker(endpoint)
 
@@ -63,7 +73,6 @@ function startCPRUpdateLoop(inteval) {
         devID = CCRPaneOption.attr('id')
         if (devID) {
           dataID = devID.split('_')[1]
-          console.log(dataID)
           figData = await worker.CountPowerRelationshipManager.plotCountPowerRelationship(collection, dataID)
           var imgData = "data:image/png;base64," + figData
           $('#' + devID)[0].src = imgData
@@ -90,38 +99,8 @@ async function onDeviceStatusCheck(id) {
   }
 }
 
-// fillTrace = []
-// for (var i = 0; i < markPoints.length; i++) {
-//   markPoint = markPoints[i]
-//   fillTrace.push({
-//     x: [markPoint[0], markPoint[0], markPoint[1], markPoint[1]],
-//     y: [-1e10, 1e10, 1e10, -1e10],
-//     fill: 'toself',
-//     type: 'scatter',
-//     mode: 'none',
-//     hoverinfo: 'none',
-//     fillcolor: markPoint[2],
-//   })
-// }
-//
-// MEHistograms = new Array(MEConfigs.length)
-// for (var i = 0; i < MEHistograms.length; i++) {
-//   MEHistograms[i] = new Histogram()
-// }
-// for (var i = 0; i < MEConfigs.length; i++) {
-//   newItem = $('.MEViewPane').clone(true)
-//   newItem.removeClass('d-none')
-//   newItem.removeClass('MEViewPane')
-//   newItem.attr('id', 'MEViewPane_' + MEConfigs[i][1])
-//   $('.MEViewRow').append(newItem)
-//   newItem.find('.MEViewPort').attr('id', MEConfigs[i][1])
-// }
-// $('.MEViewPane').remove()
-//
 function plot(result, append) {
   plotCountChannelRelations(result, append)
-  // console.log(result);
-  // console.log(append);
 
 
 //   var layout = {
@@ -201,122 +180,20 @@ function plot(result, append) {
 
 function plotCountChannelRelations(result, append) {
   if (result == null) {
-    console.log('clear');
     $('#CountChannelRelationPanel').find('.CCRPortPane').remove()
   } else {
-    console.log(result);
     // var ccr = result['Data']['CountChannelRelations']['Data']
     var fetchTime = result['FetchTime'].split('.')[0].replaceAll('T', ' ')
     var dataID = result['_id']
-    // var counts1 = ccr.map(row => row[0])
-    // var counts2 = ccr.map(row => row[1])
-    // var power1 = ccr.map(row => row[2])
-    // var power2 = ccr.map(row => row[3])
 
     temp = $('#CCRPortPaneTemp')
     newItem = temp.clone(true)
     newItem.removeClass('d-none')
     newItem.find('.CCRHeader').html(fetchTime)
     newItem.find('.CCRPort').attr('id', 'CCRPort_' + dataID)
+    newItem.removeAttr('id')
     $('#CountChannelRelationPanel').append(newItem)
-
-    // Plotly.newPlot('CCRPort_' + dataID, [{
-    //   x: power1,
-    //   y: counts1,
-    //   mode: 'markers',
-    //   type: 'scatter',
-    //   name: ''
-    // },{
-    //   x: power2,
-    //   y: counts2,
-    //   mode: 'markers',
-    //   type: 'scatter',
-    //   name: ''
-    // }], {
-    //   margin: {
-    //     l: 30,
-    //     r: 20,
-    //     b: 30,
-    //     t: 20,
-    //     pad: 4
-    //   },
-    //   width: 300,
-    //   height: 250,
-    //   showlegend: false,
-    // }, {
-    //   displayModeBar: false,
-    // })
   }
-  //   var layout = {
-  //     xaxis: {
-  //       title: 'Time (ns)'
-  //     },
-  //     yaxis: {
-  //       title: 'Count'
-  //     },
-  //     margin: {
-  //       l: 50,
-  //       r: 30,
-  //       b: 50,
-  //       t: 30,
-  //       pad: 4
-  //     },
-  //     // width: 300,
-  //     height: 250,
-  //     showlegend: false,
-  //   }
-  //   var traces = []
-  //   if (result == null) {
-  //     for (var i = 0; i < MEHistograms.length; i++) {
-  //       MEHistograms[i].clear()
-  //       traces.push({
-  //         x: [0],
-  //         y: [0],
-  //         type: 'scatter',
-  //         name: ''
-  //       })
-  //     }
-  //     $('#HistogramWarning')[0].classList.add('d-none')
-  //   } else {
-  //     var configuration = result['Data']['MDIQKDEncoding']['Configuration']
-  //     var xs = linspace(0, configuration['Period'] / 1000.0, configuration[
-  //       'BinCount'])
-  //     var histogramXsMatched = true
-  //
-  //     var meData = result['Data']['MDIQKDEncoding']
-  //     for (var i = 0; i < MEConfigs.length; i++) {
-  //       var hisIs = MEConfigs[i][2]
-  //       for (var j = 0; j < hisIs.length; j++) {
-  //         var hisKey = MEHistogramKeys[hisIs[j]]
-  //         var his = meData[hisKey]
-  //         MEHistograms[i].append(xs, his)
-  //       }
-  //       traces.push({
-  //         x: MEHistograms[i].xs,
-  //         y: MEHistograms[i].ys,
-  //         type: 'scatter',
-  //         name: 'Trace',
-  //         line: {
-  //           color: '#2874A6',
-  //         }
-  //       })
-  //     }
-  //     for (var i = 0; i < MEHistograms.length; i++) {
-  //       histogramXsMatched &= MEHistograms[i].xsMatch
-  //     }
-  //     listener('HistogramXsMatched', histogramXsMatched)
-  //
-  //     // deal with reports
-  //     updateReports(result, MEHistograms)
-  //   }
-  //   for (var i = 0; i < MEConfigs.length; i++) {
-  //     layout['title'] = MEConfigs[i][0]
-  //     layout['yaxis']['range'] = [0, Math.max(...traces[i]['y']) * 1.05]
-  //     div = MEConfigs[i][1]
-  //     data = fillTrace.concat([traces[i]])
-
-  //     Plotly.redraw(div)
-  //   }
 }
 
 function updateIntegralData() {
