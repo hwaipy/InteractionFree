@@ -18,7 +18,7 @@ class Shower:
         self.end = end
 
     def show(self):
-        ids = self.worker.Storage.range(self.collection, self.begin, self.end, filter={'FetchTime': 1})
+        ids = self.worker.Storage.range(self.collection, self.begin, self.end, filter={'FetchTime': 1, 'Invalid': 1})
         print(len(ids))
         if len(ids) == 0:
             print('No Record.')
@@ -26,6 +26,8 @@ class Shower:
         conditions = None
         mergedData = None
         for id in ids[:]:
+            if (id.__contains__('Invalid')):
+                continue
             content = self.worker.Storage.get(self.collection, id['_id'], '_id', {'Data.HOMandQBERs': 1})['Data']
             # countChannelRelations = content['CountChannelRelations']
             # countChannelRelationsData = np.array(countChannelRelations['Data'])
@@ -87,7 +89,7 @@ class Shower:
             ax2 = ax.twinx()
             ax.semilogx(ratios, HOMs[:, i * 2] / (HOMs[:, i * 2 + 1] - 1e-10), color='blue')
             ax2.semilogx(ratios, HOMs[:, i * 2 + 1], color='orange')
-            ax.set_ylim((0.5, 0.6))
+            ax.set_ylim((0.3, 1.5))
             ax.grid()
         plt.show()
         # independents = data[:, head.index(independentName)]
@@ -159,6 +161,6 @@ if __name__ == '__main__':
     worker = IFWorker('tcp://127.0.0.1:224')
     # shower = Shower(worker, 'MDI_DataReviewer_10k100M', '2020-03-12 11:04:05', '2020-06-12 22:04:05')
     # shower = Shower(worker, 'MDIQKD_DataReviewer_ReProcess_4', '2020-07-25T15:38:00+08:00', '2020-07-25T15:40:00+08:00')
-    shower = Shower(worker, 'MDIQKD_DataReviewer_ReProcess_2', '2020-07-25T16:49:05+08:00', '2020-07-25T17:02:30+08:00')
+    shower = Shower(worker, 'MDIQKD_DataReviewer', '2020-08-01T01:29:30+08:00', '2020-08-01T01:36:30+08:00')
     shower.show()
     worker.close()

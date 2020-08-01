@@ -4,7 +4,7 @@ from scipy.optimize import curve_fit
 import numpy as np
 import matplotlib.pyplot as plt
 
-def riseTimeFit(xs, ys):
+def riseTimeFitOld(xs, ys):
     # in case there is a large background
     bgs = ys[int(len(ys) * 0.8):-1]
     bg = sum(bgs) / len(bgs)
@@ -35,3 +35,23 @@ def riseTimeFit(xs, ys):
 
     rise = -popt[1] / popt[0]
     return rise
+
+
+def riseTimeFit(tList,sList):                      #设定最大值的(0.1-0.8)范围内且计数率增长的是有效数据，根据有效数据线性拟合
+    x, y = [], []
+    upper, lower = max(sList) * 0.8, max(sList) * 0.1
+    for i in range(len(sList) - 1):
+        if lower <= sList[i] <= upper:
+            if sList[i] < sList[i + 1]:
+                x.append(tList[i])
+                y.append(sList[i])
+    while True:  # 剔除不连续时间的数据
+        deltas = []
+        for i in range(len(x) - 1): deltas.append(x[i + 1] - x[i])
+        if len(set(deltas)) > 1:
+            x = np.delete(x, -1)
+            y = np.delete(y, -1)
+        else:
+            break
+    a = np.polyfit(x, y, 1)  # 计数率连续上升时间段的数据拟合
+    return -a[1] / a[0]

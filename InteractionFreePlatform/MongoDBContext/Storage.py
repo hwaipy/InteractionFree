@@ -77,6 +77,9 @@ class Storage:
             value = datetime.fromisoformat(value)
         await self.__collection(collection).delete_one({key: value})
 
+    async def update(self, collection, id, value):
+        await self.__collection(collection).update_one({'_id': ObjectId(id)}, {'$set': value})
+
     def __collection(self, collection):
         return self.db['Storage_{}'.format(collection)].with_options(codec_options=CodecOptions(tz_aware=True, tzinfo=self.tz))
 

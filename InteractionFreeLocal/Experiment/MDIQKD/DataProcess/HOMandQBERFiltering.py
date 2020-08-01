@@ -32,9 +32,15 @@ class Reviewer:
                                  lambda id, filter: self.worker.Storage.get(self.collectionTDC, id, '_id', filter),
                                  lambda id, filter: self.worker.Storage.get(self.collectionMonitor, id, '_id', filter),
                                  lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime),
-                                 [[0, -0.4, 4.5], [-1, 0, 5]])
+                                 [[0, -0.4, 4.5], [-1, -0.4, 4.5]])
             dpp.parse()
             dpp.release()
+
+    def deleteExists(self):
+        data = self.worker.Storage.range(self.collectionResult, self.startTime, self.stopTime, by='FetchTime', filter={'FetchTime': 1})
+        for d in data:
+            id = d['_id']
+            self.worker.Storage.delete(self.collectionResult, id, '_id')
 
 
 class RealtimeReviewer:
@@ -500,16 +506,11 @@ class DataBlockFilter:
 
 
 if __name__ == '__main__':
-    worker = IFWorker("tcp://127.0.0.1:224", 'MDIQKD_ResultFiltering')
-    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-28T15:00:00+08:00', [[-1, -0.4, 4.5], [1, -0.4, 4.5]]) #channelMonitorConfig: two arrays. for each array, [0] defined the related power channel, [1] defines the related min of power, [2] defines the max of related power.
-    reviewer.start()
-    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC_ReProcess', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer_ReProcess_2', '2020-07-25T15:00:00+08:00', [[1, -0.4, 4.5], [-1, -0.4, 4.5]]) #channelMonitorConfig: two arrays. for each array, [0] defined the related power channel, [1] defines the related min of power, [2] defines the max of related power.
-    # reviewer.start()
-    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC_ReProcess', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer_ReProcess_4', '2020-07-25T15:00:00+08:00', [[-1, -0.4, 4.5], [1, -0.4, 4.5]]) #channelMonitorConfig: two arrays. for each array, [0] defined the related power channel, [1] defines the related min of power, [2] defines the max of related power.
+    # worker = IFWorker("tcp://127.0.0.1:224", 'MDIQKD_ResultFiltering')
+    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-01T13:39:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])
     # reviewer.start()
 
-    # worker = IFWorker("tcp://127.0.0.1:224")
-    # fdb = DataBlockFilter(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'E:/MDIQKD_Parse/DataBlock', 'E:/MDIQKD_Parse/DataBlock/PowerMonitoredDataBlocks', '2020-07-27T23:44:46.000+08:00',
-    #                       '2020-07-27T23:46:55+08:00')  # , 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-25T15:00:00+08:00', [[-1, -0.4, 4.5], [1, -0.4, 4.5]])
-    # fdb = DataBlockFilter(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'E:/MDIQKD_Parse/DataBlock', 'E:/MDIQKD_Parse/DataBlock/PowerMonitoredDataBlocks', '2020-07-25T16:49:05+08:00', '2020-07-25T16:49:20+08:00')  # , 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-07-25T15:00:00+08:00', [[-1, -0.4, 4.5], [1, -0.4, 4.5]])
-    # fdb.perform()
+    worker = IFWorker("tcp://127.0.0.1:224")
+    reviewer = Reviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-01T01:29:30+08:00',  '2020-08-01T01:36:30+08:00')
+    reviewer.deleteExists()
+    reviewer.review()

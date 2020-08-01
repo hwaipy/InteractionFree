@@ -17,7 +17,7 @@ $(document).ready(async function() {
   // collection = 'MDI_DataReviewer_10k100M'
   worker = await IFWorker(endpoint)
 
-  fetcher = new TDCStorageStreamFetcher(worker, collection, 3000, {'FetchTime': 1}, plot, listener)
+  fetcher = new TDCStorageStreamFetcher(worker, collection, 3000, {'FetchTime': 1, 'Invalid': 1}, plot, listener)
   fetcher.changeMode("Stop")
   fetcher.start()
 
@@ -77,6 +77,7 @@ function startCPRUpdateLoop(inteval) {
           var imgData = "data:image/png;base64," + figData
           $('#' + devID)[0].src = imgData
           $('#' + devID).removeClass('NI')
+          $('#CCRCB_' + dataID).removeClass('d-none')
         }
       } catch (err) {
         console.log(err)
@@ -185,14 +186,20 @@ function plotCountChannelRelations(result, append) {
     // var ccr = result['Data']['CountChannelRelations']['Data']
     var fetchTime = result['FetchTime'].split('.')[0].replaceAll('T', ' ')
     var dataID = result['_id']
-
-    temp = $('#CCRPortPaneTemp')
-    newItem = temp.clone(true)
-    newItem.removeClass('d-none')
-    newItem.find('.CCRHeader').html(fetchTime)
-    newItem.find('.CCRPort').attr('id', 'CCRPort_' + dataID)
-    newItem.removeAttr('id')
-    $('#CountChannelRelationPanel').append(newItem)
+    var invalid = result['Invalid']
+    if (invalid) {
+      
+    } else {
+      temp = $('#CCRPortPaneTemp')
+      newItem = temp.clone(true)
+      newItem.removeClass('d-none')
+      newItem.find('.CCRHeader').html(fetchTime)
+      newItem.find('.CCRPort').attr('id', 'CCRPort_' + dataID)
+      newItem.find('.CCRCB').attr('id', 'CCRCB_' + dataID)
+      newItem.removeAttr('id')
+      newItem.attr('id', 'CCRPortPane_' + dataID)
+      $('#CountChannelRelationPanel').append(newItem)
+    }
   }
 }
 
@@ -303,6 +310,12 @@ function initDataStatusPanel() {
   addDataStatusPane('Recent ADC Data:', 'RDADC')
   addDataStatusPane('Recent Filtering Data:', 'RDF')
   temp.remove()
+}
+
+async function onButtonCloseCCR(id) {
+  dataID = id.split('_')[1]
+  $('#CCRPortPane_' + dataID).addClass('d-none')
+  await worker.Storage.update(collection, dataID, {'Invalid': 1})
 }
 
 // function calculateRegionValues(result, histograms) {

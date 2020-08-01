@@ -74,12 +74,24 @@ object ADCMonitor extends App {
             val result = Map(
               "TimeFirstSample" -> previousTime.get.get,
               "TimeLastSample" -> currentTime,
-              "Channel1" -> data1,
-              "Channel2" -> data2,
+              "Channel1" -> {
+                target.storeConfigChannel1.get match {
+                  case 0 => data1
+                  case 1 => data2
+                  case _ => data1.map(_ => 1)
+                }
+              },
+              "Channel2" -> {
+                target.storeConfigChannel2.get match {
+                  case 0 => data1
+                  case 1 => data2
+                  case _ => data1.map(_ => 1)
+                }
+              },
               "Triggers" -> triggers,
             )
 
-//            val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
+            //            val dump = Map("Data" -> dbd, "TimeDuration" -> List(previousTime.get.get, currentTime))
             asyInvoker.append(recordCollection, result, fetchTime = LocalDateTime.now().toString.dropRight(3) + "+08:00")
           }
         }
@@ -101,6 +113,9 @@ object ADCMonitor extends App {
 class ADCTarget(val clockRate: Double) {
   private val voltages = new AtomicReference[Array[Array[Double]]](null)
   private val recordTime = new AtomicLong(System.currentTimeMillis())
+  //  val recordingChannelReversed = new AtomicBoolean(false)
+  val storeConfigChannel1 = new AtomicInteger(0)
+  val storeConfigChannel2 = new AtomicInteger(1)
 
   def record(r: Array[Array[Double]]) = {
     this.voltages set r
@@ -123,4 +138,11 @@ class ADCTarget(val clockRate: Double) {
   def setStoring(s: Boolean) = storing.set(s)
 
   def isStoring() = storing.get()
+
+  //  def setRecordingChannelReversed(isReversed: Boolean) = recordingChannelReversed set isReversed
+  //
+  def configStorage(c1: Int, c2: Int) = {
+    storeConfigChannel1 set c1
+    storeConfigChannel2 set c2
+  }
 }

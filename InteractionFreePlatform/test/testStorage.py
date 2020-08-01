@@ -50,6 +50,10 @@ class StorageTest(unittest.TestCase):
             self.assertTrue(await StorageTest.storage.range(StorageTest.collection, '2020-07-01T00:00:40+08:00', '2020-07-01T00:01:00+08:00', 'FetchTime', {'FetchTime': 1, '_id': 0, 'Data.Content': 1}) == exp[41:50] + exp[51:60])
             self.assertTrue(await StorageTest.storage.get(StorageTest.collection, '2020-07-01T00:00:50+08:00', 'FetchTime', {'FetchTime': 1, '_id': 0, 'Data.Content': 1}) == None)
 
+            id = ((await StorageTest.storage.get(StorageTest.collection, '2020-07-01T00:00:00+08:00', 'FetchTime', {'FetchTime': 1, '_id': 1}))['_id'])
+            await StorageTest.storage.update(StorageTest.collection, id, {'NewKey': 'NewValue'})
+            print(await StorageTest.storage.get(StorageTest.collection, '2020-07-01T00:00:00+08:00', 'FetchTime', {'FetchTime': 1, '_id':0, 'NewKey': 1}) == {'FetchTime': '2020-07-01T00:00:00+08:00', 'NewKey': 'NewValue'})
+
         IOLoop.current().run_sync(test)
 
     def tearDown(self):

@@ -35,7 +35,7 @@ if __name__ == '__main__':
         (r'/(favicon.ico)', web.StaticFileHandler, {"path": "static"}),
     ]
     settings = {
-        'debug': False,
+        'debug': True,
         'static_path': 'static',
         'ui_modules': uimodules,
         # 'default_handler_class': NotFoundHandler
