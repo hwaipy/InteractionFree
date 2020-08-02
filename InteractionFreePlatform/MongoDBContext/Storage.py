@@ -3,7 +3,7 @@ from datetime import datetime
 from bson.objectid import ObjectId
 import pytz
 from bson.codec_options import CodecOptions
-from IFCore import IFException
+
 
 class Storage:
     Data = 'Data'
@@ -67,8 +67,10 @@ class Storage:
         if key == 'FetchTime':
             value = datetime.fromisoformat(value)
         r = (await self.__collection(collection).find({key: value}, dbFilter).to_list(length=1))
-        if len(r) > 0: return self.__reformResult(r[0])
-        else: return None
+        if len(r) > 0:
+            return self.__reformResult(r[0])
+        else:
+            return None
 
     async def delete(self, collection, value, key='_id'):
         if key == '_id':
@@ -113,6 +115,8 @@ class Storage:
 
 if __name__ == '__main__':
     from motor import MotorClient
+
+
     async def testFunc():
         motor = MotorClient('mongodb://IFDataAdmin:fwaejio8798fwjoiewf@172.16.60.199:27019/IFData')
         storage = Storage(motor.IFData)
@@ -120,5 +124,7 @@ if __name__ == '__main__':
 
         print(get)
 
+
     import asyncio
+
     asyncio.get_event_loop().run_until_complete(testFunc())

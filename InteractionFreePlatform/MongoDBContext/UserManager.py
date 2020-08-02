@@ -1,4 +1,4 @@
-from IFCore import IFException
+from interactionfreepy import IFException
 import random
 import string
 from hashlib import md5

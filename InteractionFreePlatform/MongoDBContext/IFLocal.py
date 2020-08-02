@@ -1,4 +1,4 @@
-from IFCore import IFException
+from interactionfreepy import IFException
 
 class IFLocal:
     LauncherName = 'LauncherName'
