@@ -4,7 +4,7 @@ import math
 import matplotlib.pyplot as plt
 import sys
 import numpy as np
-from IFWorker import IFWorker
+from interactionfreepy import IFWorker
 from datetime import datetime
 import time
 import numpy as np
@@ -91,6 +91,17 @@ class Shower:
             ax2.semilogx(ratios, HOMs[:, i * 2 + 1], color='orange')
             ax.set_ylim((0.3, 1.5))
             ax.grid()
+
+        for i in range(1, 4):
+            ax = axs[1, i - 1]
+            ax2 = ax.twinx()
+            correct = QBERs[:, i * 10]
+            wrong = QBERs[:, i * 10 + 1]
+            ax.semilogx(ratios, wrong / (correct + wrong + 1e-10), color='blue')
+            ax2.semilogx(ratios, wrong + correct, color='orange')
+            # ax.set_ylim((0.3, 1.5))
+            ax.grid()
+
         plt.show()
         # independents = data[:, head.index(independentName)]
 
@@ -161,6 +172,6 @@ if __name__ == '__main__':
     worker = IFWorker('tcp://127.0.0.1:224')
     # shower = Shower(worker, 'MDI_DataReviewer_10k100M', '2020-03-12 11:04:05', '2020-06-12 22:04:05')
     # shower = Shower(worker, 'MDIQKD_DataReviewer_ReProcess_4', '2020-07-25T15:38:00+08:00', '2020-07-25T15:40:00+08:00')
-    shower = Shower(worker, 'MDIQKD_DataReviewer', '2020-08-01T01:29:30+08:00', '2020-08-01T01:36:30+08:00')
+    shower = Shower(worker, 'MDIQKD_DataReviewer', '2020-08-14T15:48:15+08:00', '2020-08-14T15:50:15+08:00')
     shower.show()
     worker.close()

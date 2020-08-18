@@ -1,5 +1,5 @@
 name := "ADCMonitor"
-version := "1.0.3"
+version := "1.0.4"
 scalaVersion := "2.13.3"
 organization := "com.interactionfree"
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.3"

@@ -1,4 +1,4 @@
-from IFWorker import IFWorker
+from interactionfreepy import IFWorker
 from functional import seq
 import numpy as np
 from datetime import datetime, timedelta
@@ -506,11 +506,11 @@ class DataBlockFilter:
 
 
 if __name__ == '__main__':
-    # worker = IFWorker("tcp://127.0.0.1:224", 'MDIQKD_ResultFiltering')
-    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-01T13:39:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])
-    # reviewer.start()
+    worker = IFWorker("tcp://127.0.0.1:224", 'MDIQKD_ResultFiltering')
+    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-18T06:20:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])
+    reviewer.start()
 
-    worker = IFWorker("tcp://127.0.0.1:224")
-    reviewer = Reviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-01T01:29:30+08:00',  '2020-08-01T01:36:30+08:00')
-    reviewer.deleteExists()
-    reviewer.review()
+    # worker = IFWorker("tcp://127.0.0.1:224")
+    # reviewer = Reviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-01T01:29:30+08:00',  '2020-08-01T01:36:30+08:00')
+    # reviewer.deleteExists()
+    # reviewer.review()

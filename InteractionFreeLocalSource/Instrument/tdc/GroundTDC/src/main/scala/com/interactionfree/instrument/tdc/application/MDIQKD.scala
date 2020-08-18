@@ -1,12 +1,16 @@
 package com.interactionfree.instrument.tdc.application
 
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 
 import com.interactionfree.instrument.tdc.{DataAnalyser, DataBlock, Histogram}
 import com.interactionfree.NumberTypeConversions._
+import com.interactionfree.instrument.tdc.local.BenchMarking
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 class MDIQKDEncodingAnalyser(channelCount: Int) extends DataAnalyser {
   configuration("RandomNumbers") = List(1)
@@ -109,6 +113,8 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
   configuration("QBERSectionCount") = 1000
   configuration("HOMSidePulses") = List(-100, -99, -98, 98, 99, 100)
   configuration("ChannelMonitorSyncChannel") = 2
+  val executionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(4))
+  private val benchMarker = ListBuffer[BenchMarking]()
 
   override def configure(key: String, value: Any) = key match {
     case "AliceRandomNumbers" => value.asInstanceOf[List[Int]] != null
@@ -158,11 +164,15 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       val sc: Int = value
       sc >= 0 && sc < channelCount
     }
+    case "BenchMarking" => {
+      benchMarker addOne value.asInstanceOf[BenchMarking]
+      false
+    }
     case _ => false
   }
 
   override protected def analysis(dataBlock: DataBlock) = {
-    val t1 = System.nanoTime()
+    benchMarker.foreach(b => b.tag("begin analysis"))
 
     val map = mutable.HashMap[String, Any]()
     val randomNumbersAlice = configuration("AliceRandomNumbers").asInstanceOf[List[Int]].map(r => new RandomNumber(r)).toArray
@@ -186,10 +196,24 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     val monitorListAlice = dataBlock.content(channelMonitorAlice)
     val monitorListBob = dataBlock.content(channelMonitorBob)
 
-    val item1s = analysisSingleChannel(triggerList, signalList1, period, delay, gate, pulseDiff, randomNumbersAlice.size)
-    val item2s = analysisSingleChannel(triggerList, signalList2, period, delay, gate, pulseDiff, randomNumbersBob.size)
-    val validItem1s = item1s.filter(_._3 >= 0)
-    val validItem2s = item2s.filter(_._3 >= 0)
+    // bellow consider parallels
+    benchMarker.foreach(b => b.tag("config done"))
+
+    val item1sFuture = Future[Tuple2[Array[Tuple4[Long, Long, Int, Long]], Array[Tuple4[Long, Long, Int, Long]]]] {
+      val items = analysisSingleChannel(triggerList, signalList1, period, delay, gate, pulseDiff, randomNumbersAlice.size)
+      (items, items.filter(_._3 >= 0))
+    }(executionContext)
+    val item2sFuture = Future[Tuple2[Array[Tuple4[Long, Long, Int, Long]], Array[Tuple4[Long, Long, Int, Long]]]] {
+      val items = analysisSingleChannel(triggerList, signalList2, period, delay, gate, pulseDiff, randomNumbersBob.size)
+      (items, items.filter(_._3 >= 0))
+    }(executionContext)
+    val item1sFutureResult = Await.result(item1sFuture, Duration.Inf)
+    val item2sFutureResult = Await.result(item2sFuture, Duration.Inf)
+    val item1s = item1sFutureResult._1
+    val validItem1s = item1sFutureResult._2
+    val item2s = item2sFutureResult._1
+    val validItem2s = item2sFutureResult._2
+    benchMarker.foreach(b => b.tag("valid items's"))
 
     def generateCoincidences(iterator1: Iterator[Tuple4[Long, Long, Int, Long]], iterator2: Iterator[Tuple4[Long, Long, Int, Long]]) = {
       val item1Ref = new AtomicReference[Tuple4[Long, Long, Int, Long]]()
@@ -218,8 +242,21 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       resultBuffer.toList
     }
 
-    val coincidences = generateCoincidences(validItem1s.iterator, validItem2s.iterator)
+    def generateCoincidencesInFuture(delta: Int) = {
+      Future[List[Coincidence]] {
+        val i2it = if (delta == 0) validItem2s.iterator else validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator
+        generateCoincidences(validItem1s.iterator, i2it)
+      }(executionContext)
+    }
+
+    val coincidencesFuture = generateCoincidencesInFuture(0)
+    val sideCoincidencesFutures = HOMSidePulses.map(delta => generateCoincidencesInFuture(delta))
+
+//    val coincidences = generateCoincidences(validItem1s.iterator, validItem2s.iterator)
+    val coincidences = Await.result(coincidencesFuture, Duration.Inf)
     val validCoincidences = coincidences.filter(_.valid)
+    val basisMatchedCoincidences = coincidences.filter(_.basisMatched)
+    benchMarker.foreach(b => b.tag("coincidences"))
 
     val basisStrings = List("O", "X", "Y", "Z")
     val qberSections = Range(0, qberSectionCount).toArray.map(i => new Array[Int](4 * 4 * 2)) // 4 basis * 4 basis * (right/wrong)
@@ -235,24 +272,30 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     })
     map.put(s"QBER Sections", qberSections)
     map.put(s"QBER Sections Detail", s"1000*32 Array. 1000 for 1000 sections. 32 for (Alice[O,X,Y,Z] * 4 + Bob[O,X,Y,Z]) * 2 + (0 for Correct and 1 for Wrong)")
+    benchMarker.foreach(b => b.tag("QBER sections"))
 
-    val basisMatchedCoincidences = coincidences.filter(_.basisMatched)
+    val sideCoincidences = sideCoincidencesFutures.map(f => Await.result(f, Duration.Inf).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+    benchMarker.foreach(b => b.tag("side coincidences"))
+
     val ccsXX0Coincidences = basisMatchedCoincidences.filter(c => c.randomNumberAlice.isX && c.randomNumberBob.isX).filter(c => (c.r1 == 0) && (c.r2 == 0))
-    val ccsXXOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator)
-      .filter(_.basisMatched).filter(c => c.randomNumberAlice.isX && c.randomNumberBob.isX).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+//    val ccsXXOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator)
+//      .filter(_.basisMatched).filter(c => c.randomNumberAlice.isX && c.randomNumberBob.isX).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+    val ccsXXOtherCoincidences = sideCoincidences.map(sideCs => sideCs.filter(c => c.randomNumberAlice.isX && c.randomNumberBob.isX))
     val ccsXX0 = ccsXX0Coincidences.size
     val ccsXXOther = ccsXXOtherCoincidences.map(_.size)
     map.put("HOM X0-X0", List(ccsXX0, ccsXXOther.sum.toDouble / ccsXXOther.size))
 
     val ccsYY0Coincidences = basisMatchedCoincidences.filter(c => c.randomNumberAlice.isY && c.randomNumberBob.isY).filter(c => (c.r1 == 0) && (c.r2 == 0))
-    val ccsYYOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator)
-      .filter(_.basisMatched).filter(c => c.randomNumberAlice.isY && c.randomNumberBob.isY).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+//    val ccsYYOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator)
+//      .filter(_.basisMatched).filter(c => c.randomNumberAlice.isY && c.randomNumberBob.isY).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+    val ccsYYOtherCoincidences = sideCoincidences.map(sideCs => sideCs.filter(c => c.randomNumberAlice.isY && c.randomNumberBob.isY))
     val ccsYY0 = ccsYY0Coincidences.size
     val ccsYYOther = ccsYYOtherCoincidences.map(_.size)
     map.put("HOM Y0-Y0", List(ccsYY0, ccsYYOther.sum.toDouble / ccsYYOther.size))
 
     val ccsAll0Coincidences = coincidences.filter(c => (c.r1 == 0) && (c.r2 == 0))
-    val ccsAllOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+//    val ccsAllOtherCoincidences = HOMSidePulses.map(delta => generateCoincidences(validItem1s.iterator, validItem2s.map(i => (i._1 + delta, i._2, i._3, i._4)).iterator).filter(c => (c.r1 == 0) && (c.r2 == 0)))
+    val ccsAllOtherCoincidences = sideCoincidences
 
     val ccsAll0 = ccsAll0Coincidences.size
     val ccsAllOther = ccsAllOtherCoincidences.map(_.size)
@@ -271,6 +314,7 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
     val homTransposed = Range(0, homSections(0).size).map(_ => new Array[Double](homSections.size)).toArray
     homSections.zipWithIndex.foreach(z1 => z1._1.zipWithIndex.foreach(z2 => homTransposed(z2._2)(z1._2) = homSections(z1._2)(z2._2)))
     map.put(s"HOM Sections", homTransposed)
+    benchMarker.foreach(b => b.tag("HOM Sections"))
 
     val channelMonitorSyncList = dataBlock.content(channelMonitorSyncChannel)
     map.put("ChannelMonitorSync", Array[Long](dataBlock.dataTimeBegin, dataBlock.dataTimeEnd) ++ (channelMonitorSyncList.size match {
@@ -280,6 +324,7 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       }
       case s => channelMonitorSyncList
     }))
+    benchMarker.foreach(b => b.tag("CMS"))
 
     val countSections = Range(0, qberSectionCount).toArray.map(i => new Array[Int](2))
     List(monitorListAlice, monitorListBob).zipWithIndex.foreach(z => z._1.foreach(event => {
@@ -287,9 +332,8 @@ class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
       if (sectionIndex >= 0 && sectionIndex < qberSections.size) countSections(sectionIndex)(z._2) += 1
     }))
     map.put(s"Count Sections", countSections)
-
-    val t2 = System.nanoTime()
-    //    println((t2 - t1) / 1e6)
+    benchMarker.foreach(b => b.tag("Count Sections"))
+    benchMarker.foreach(b => b.tag("Finish"))
 
     map.toMap
   }
@@ -341,4 +385,15 @@ class Coincidence(val r1: Int, val r2: Int, val randomNumberAlice: RandomNumber,
   val basisMatched = randomNumberAlice.intensity == randomNumberBob.intensity
   val valid = (r1 == 0 && r2 == 1) || (r1 == 1 && r2 == 0)
   val isCorrect = randomNumberAlice.encode != randomNumberBob.encode
+}
+
+object DebugT {
+  private val previousT = new AtomicLong(System.nanoTime())
+
+  def tag(msg: String): Unit = {
+    val currentT = System.nanoTime()
+    val deltaT = currentT - previousT.get
+    previousT set currentT
+    println(f"${deltaT / 1e6}%.0f -- $msg")
+  }
 }

@@ -2,7 +2,7 @@ package com.interactionfree.instrument.tdc
 
 import java.io.{BufferedOutputStream, FileOutputStream, RandomAccessFile}
 import java.net.ServerSocket
-import java.nio.LongBuffer
+import java.nio.{ByteBuffer, LongBuffer}
 import java.nio.file.Paths
 import java.nio.file.Files
 import java.time.{LocalDateTime, ZoneOffset}
@@ -291,6 +291,41 @@ class DataBlock(val content: Array[Array[Long]], val creationTime: Long, val dat
     val bytes = MsgpackSerializer.serialize(Map("Content" -> content, "CreationTime" -> creationTime, "DataTimeBegin" -> dataTimeBegin, "DataTimeEnd" -> dataTimeEnd))
     raf.write(bytes)
     raf.close()
+  }
+
+  def serialize() = {
+    val t1 = System.nanoTime()
+
+    def serializeAChannel(list: Array[Long]) = {
+      println(s"serializing a channel: ${list.size}")
+      //      println(s"serializing a list: ${list.size}")
+      val offset = list.min
+      val deltas = list.drop(1).zip(list.dropRight(1)).map(z => z._1 - z._2)
+      val buffer = ArrayBuffer[Byte]()
+      val unit = new Array[Byte](8)
+      val lengths = deltas.map(d => {
+        var value = d
+        var length = 0
+        while (value > 0) {
+          unit(length) = (value & 0xFF).toByte
+          value >>= 8
+          length += +1
+        }
+        buffer addOne length.toByte
+        Range(0, length).foreach(i => buffer addOne unit(length - 1 - i))
+        length
+      })
+
+
+      println(buffer.size / 1.0 / list.size)
+    }
+
+    serializeAChannel(content(0))
+    serializeAChannel(content(4))
+    serializeAChannel(content(8))
+
+    val t2 = System.nanoTime()
+    println(f"${(t2 - t1) / 1e6}%.1f ms")
   }
 }
 

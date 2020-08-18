@@ -76,6 +76,7 @@ class AWGEncoder:
         self.pulseWidthTime0 = 1.9
         self.pulseWidthTime1 = 1.9
         self.pulseWidthPM = 2
+        self.pulseWidthPR = 4
         self.pulseDiff = 3
         self.delayDecoy = 0
         self.delayTime1 = 0
@@ -111,6 +112,8 @@ class AWGEncoder:
             self.pulseWidthTime1 = value
         elif 'pulseWidthPM'.__eq__(key):
             self.pulseWidthPM = value
+        elif 'pulseWidthPR'.__eq__(key):
+            self.pulseWidthPR = value
         elif 'pulseDiff'.__eq__(key):
             self.pulseDiff = value
         elif 'ampDecoyZ'.__eq__(key):
@@ -194,7 +197,7 @@ class AWGEncoder:
             'PM': ModulatorConfig(self.pulseWidthPM / waveformPeriod, self.delayPM,
                                   self.pulseDiff / waveformPeriod, waveformPeriodLength, self.waveformLength,
                                   self.sampleRate, 8, self.__ampModPhase),
-            'PR': ModulatorConfig(1, self.delayPR,
+            'PR': ModulatorConfig(self.pulseWidthPR / waveformPeriod, self.delayPR,
                                   self.pulseDiff / waveformPeriod, waveformPeriodLength, self.waveformLength,
                                   self.sampleRate, self.phaseRandomizationSlice, self.__ampModPR)
         }
@@ -291,58 +294,48 @@ class AWGEncoder:
     #     print('Trigger started.')
 
 if __name__ == '__main__':
-    from IFWorker import IFWorker
-    from IFCore import IFLoop
+    from interactionfreepy import IFWorker
+    from interactionfreepy import IFLoop
 
     workerAlice = IFWorker('tcp://172.16.60.199:224')
     workerBob = IFWorker('tcp://172.16.60.199:224')
-    # devAlice = AWGEncoder(workerAlice, ['USTCAWG_Test_A1', 'USTCAWG_Test_A2'])
-    # devBob = AWGEncoder(workerBob, ['USTCAWG_Test_B1', 'USTCAWG_Test_B2'])
-    # workerAlice.bindService('AWGEncoderTest-Alice', devAlice, {
-    #         'AMDecoy': [0, 3],
-    #         'AMTime1': [1, 1],
-    #         'AMTime2': [1, 3],
-    #         'PM': [0, 2],
-    #         'PR': [0, 1],
-    #     })
-    # workerBob.bindService('AWGEncoderTest-Bob', devBob, {
-    #         'AMDecoy': [0, 3],
-    #         'AMTime1': [1, 1],
-    #         'AMTime2': [1, 3],
-    #         'PM': [0, 2],
-    #         'PR': [0, 1],
-    #     })
-    devAlice = AWGEncoder(workerAlice, 'USTCAWG_Alice', {'AMDecoy': 2, 'AMTime1': 4, 'AMTime2': 6, 'PM': 1, 'PR': 0})
-    devBob = AWGEncoder(workerBob, 'USTCAWG_Bob', {'AMDecoy': 2, 'AMTime1': 4, 'AMTime2': 6, 'PM': 1, 'PR': 0})
-    workerAlice.bindService('MDIQKD_AWGEncoder_Alice', devAlice)
-    workerBob.bindService('MDIQKD_AWGEncoder_Bob', devBob)
-    try:
-        # randomNumbersAlice = [0, 1, 2, 3, 4, 5, 6, 7]
-        # devBob.configure('firstLaserPulseMode', False)
-        # devBob.configure('waveformLength', len(randomNumbersAlice) * 8)
-        # devBob.configure('pulseWidthDecoy', 0.9)
-        # devBob.configure('pulseWidthTime0', 1.9)
-        # devBob.configure('pulseWidthTime1', 1.9)
-        # devBob.configure('pulseWidthPM', 1.9)
-        # devBob.configure('pulseDiff', 1.9)
-        # devBob.configure('ampDecoyZ', 1)
-        # devBob.configure('ampDecoyX', 0.4)
-        # devBob.configure('ampDecoyY', 0.8)
-        # devBob.configure('ampDecoyO', 0)
-        # devBob.configure('ampTime', 1)
-        # devBob.configure('ampPM', 1)
-        # # dev.configure('ampPR', 1)
-        # devBob.configure('delayDecoy', 0)
-        # devBob.configure('delayTime0', 0)
-        # devBob.configure('delayTime1', 0)
-        # devBob.configure('delayPM', 0)
-        # devBob.configure('delayPR', 0)
-        # devBob.setRandomNumbers(randomNumbersAlice)
-        # devBob.startPlay()
-        from tornado.ioloop import IOLoop
-        IOLoop.current().add_callback(devAlice.startTrigger)
-        IOLoop.current().add_callback(devBob.startTrigger)
-        IFLoop.join()
-    finally:
-        workerAlice.close()
-        workerBob.close()
+
+    devAlice = AWGEncoder(workerAlice, '_USTCAWG_Alice', {'AMDecoy': 2, 'AMTime1': 4, 'AMTime2': 6, 'PM': 1, 'PR': 0})
+    # devBob = AWGEncoder(workerBob, 'USTCAWG_Bob', {'AMDecoy': 2, 'AMTime1': 4, 'AMTime2': 6, 'PM': 1, 'PR': 0})
+    # workerAlice.bindService('MDIQKD_AWGEncoder_Alice_', devAlice)
+    # workerBob.bindService('MDIQKD_AWGEncoder_Bob', devBob)
+
+    import asyncio
+    asyncio.get_event_loop().run_until_complete(devAlice.generateNewWaveform())
+    print('done')
+
+    # try:
+    #     # randomNumbersAlice = [0, 1, 2, 3, 4, 5, 6, 7]
+    #     # devBob.configure('firstLaserPulseMode', False)
+    #     # devBob.configure('waveformLength', len(randomNumbersAlice) * 8)
+    #     # devBob.configure('pulseWidthDecoy', 0.9)
+    #     # devBob.configure('pulseWidthTime0', 1.9)
+    #     # devBob.configure('pulseWidthTime1', 1.9)
+    #     # devBob.configure('pulseWidthPM', 1.9)
+    #     # devBob.configure('pulseDiff', 1.9)
+    #     # devBob.configure('ampDecoyZ', 1)
+    #     # devBob.configure('ampDecoyX', 0.4)
+    #     # devBob.configure('ampDecoyY', 0.8)
+    #     # devBob.configure('ampDecoyO', 0)
+    #     # devBob.configure('ampTime', 1)
+    #     # devBob.configure('ampPM', 1)
+    #     # # dev.configure('ampPR', 1)
+    #     # devBob.configure('delayDecoy', 0)
+    #     # devBob.configure('delayTime0', 0)
+    #     # devBob.configure('delayTime1', 0)
+    #     # devBob.configure('delayPM', 0)
+    #     # devBob.configure('delayPR', 0)
+    #     # devBob.setRandomNumbers(randomNumbersAlice)
+    #     # devBob.startPlay()
+    #     from tornado.ioloop import IOLoop
+    #     IOLoop.current().add_callback(devAlice.startTrigger)
+    #     IOLoop.current().add_callback(devBob.startTrigger)
+    #     IFLoop.join()
+    # finally:
+    #     workerAlice.close()
+    #     workerBob.close()

@@ -42,6 +42,7 @@ object LocalTDCDataFeeder {
     process.setDelay(9, -510600)
 
     process.setPostProcessStatus(true)
+    process.setLocalBufferPermenent(true)
 
     val socket = new Socket("localhost", port)
     val outputStream = socket.getOutputStream
