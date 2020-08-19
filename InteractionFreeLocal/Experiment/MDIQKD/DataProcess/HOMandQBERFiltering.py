@@ -506,8 +506,8 @@ class DataBlockFilter:
 
 
 if __name__ == '__main__':
-    worker = IFWorker("tcp://127.0.0.1:224", 'MDIQKD_ResultFiltering')
-    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-18T06:20:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])
+    worker = IFWorker("tcp://172.16.60.199:224", 'MDIQKD_ResultFiltering')
+    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-18T21:40:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])
     reviewer.start()
 
     # worker = IFWorker("tcp://127.0.0.1:224")

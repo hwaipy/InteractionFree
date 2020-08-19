@@ -38,5 +38,5 @@ class KeyRate:
         return 0
 
 
-session = IFWorker('tcp://127.0.0.1:224', 'MDI-QKD KeyRate', KeyRate())
+session = IFWorker('tcp://172.16.60.199:224', 'MDI-QKD KeyRate', KeyRate())
 IFLoop.join()
