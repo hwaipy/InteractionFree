@@ -1,0 +1,11 @@
+name := "GroundTDCAdaptor"
+version := "0.0.1"
+scalaVersion := "2.13.3"
+organization := "com.interactionfree.instrument"
+libraryDependencies += "com.interactionfree" %% "interactionfreescala" % "1.0.1"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.0" % "test"
+//libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
+//libraryDependencies += "org.json4s" %% "json4s-core" % "3.7.0-M4"
+//libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.7.0-M4"
+scalacOptions ++= Seq("-feature")
+scalacOptions ++= Seq("-deprecation")

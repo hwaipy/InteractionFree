@@ -34,9 +34,11 @@ class KeyRate:
         retults = result.split('\n')
         for r in retults:
             if r.startswith('Line 0'):
+                print(r)
                 return float(r.split(',')[1][3:]) * repeRate
         return 0
 
 
 session = IFWorker('tcp://172.16.60.199:224', 'MDI-QKD KeyRate', KeyRate())
 IFLoop.join()
+

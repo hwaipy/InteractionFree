@@ -40,6 +40,7 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
   val buffer = new Array[Byte](StorableBuffer.UNIT_CAPACITY)
   Future[Any] {
     while (!server.isClosed) {
+      println("listening...")
       val socket = server.accept
       val remoteAddress = socket.getRemoteSocketAddress
       println(s"Connection from ${remoteAddress} accepted.")

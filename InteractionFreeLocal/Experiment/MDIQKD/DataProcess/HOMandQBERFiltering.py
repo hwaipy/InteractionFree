@@ -69,6 +69,7 @@ class RealtimeReviewer:
         while True:
             try:
                 data = self.worker.Storage.range(self.collectionTDC, rangeStart.isoformat(), rangeStop.isoformat(), by='FetchTime', filter={'FetchTime': 1, 'Data.MDIQKDQBER.ChannelMonitorSync': 1})
+                debug_info(1, 'fetched {}'.format(len(data)))
                 seq(data).map(lambda d: self.tdcSummeryQueue.put(d)).to_list()
                 if len(data) == 0:
                     rangeStop = rangeStop + timedelta(minutes=10)
@@ -77,6 +78,7 @@ class RealtimeReviewer:
                     rangeStop = rangeStart + timedelta(minutes=10)
                 if rangeStop > datetime.now().astimezone(self.tz):
                     time.sleep(3)
+                debug_info(1, 'Loop done. {} ~ {}'.format(rangeStart, rangeStop))
             except BaseException as e:
                 print(e)
                 time.sleep(3)
@@ -95,11 +97,14 @@ class RealtimeReviewer:
 
                 # 2. find the first two sections that has slowSync
                 syncedEntryIndices = seq(qberSections).zip_with_index().filter(lambda z: z[0].slowSync).map(lambda z: z[1])
+                debug_info(2, 'SumQueue orgnized. {}'.format(syncedEntryIndices.size()))
                 if syncedEntryIndices.size() >= 2:
                     # 3. take data between two slowSyncs, remove them from qberSections
                     qbers = QBERs(qberSections[syncedEntryIndices[0]:syncedEntryIndices[1] + 1])
                     qberSections = qberSections[syncedEntryIndices[1]:]
+                    debug_info(2, 'before DCC')
                     self.__dealCalculate(qbers)
+                    debug_info(2, 'don e DCC')
                 else:
                     time.sleep(1)
             except BaseException as e:
@@ -120,11 +125,14 @@ class RealtimeReviewer:
             channels = channelsList[0]
             matched = np.abs(qbers.systemTime - channels.channelMonitorSyncs[0]) < 3
             if matched:
+                t1 = time.time()
                 dpp = DataPairParser(qbers, channels,
                                      lambda id, filter: self.worker.Storage.get(self.collectionTDC, id, '_id', filter),
                                      lambda id, filter: self.worker.Storage.get(self.collectionMonitor, id, '_id', filter),
                                      lambda result, fetchTime: self.worker.Storage.append(self.collectionResult, result, fetchTime),
                                      self.channelMonitorConfig)
+                t2 = time.time()
+                print("$"*20,t2-t1)
                 dpp.parse()
             else:
                 print('Not Matched')
@@ -504,10 +512,14 @@ class DataBlockFilter:
             memfile.close()
             outputFile.close()
 
+def debug_info(level, msg):
+    print('[{}] {}'.format(level, msg))
 
 if __name__ == '__main__':
-    worker = IFWorker("tcp://172.16.60.199:224", 'MDIQKD_ResultFiltering')
-    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-08-18T21:40:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])
+    print(datetime.now(pytz.timezone('Asia/Shanghai')).isoformat())
+    worker = IFWorker("tcp://172.16.60.199:224", 'MDIQKD_ResultFiltering', timeout=10)
+    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', datetime.now(pytz.timezone('Asia/Shanghai')).isoformat(), [[0, -0.4, 4.5], [1, -0.4, 4.5]])    #2020.8.21
+    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-01-01T00:00:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])                               #2020.8.22
     reviewer.start()
 
     # worker = IFWorker("tcp://127.0.0.1:224")
