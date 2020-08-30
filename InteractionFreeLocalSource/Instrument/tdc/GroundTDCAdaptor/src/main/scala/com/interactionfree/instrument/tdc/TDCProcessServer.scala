@@ -10,6 +10,7 @@ import java.nio.file.Files
 import java.time.{LocalDateTime, ZoneOffset}
 import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
+
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -17,6 +18,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import com.interactionfree.NumberTypeConversions._
 import org.msgpack.core.MessagePack
 import com.interactionfree.{Invocation, Message, MsgpackSerializer}
+
+import scala.util.Random
 
 class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val localStorePath: String) {
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
@@ -131,6 +134,47 @@ object DataBlock {
     dataBlock.contentRef set content
     dataBlock
   }
+
+  def generate(generalConfig: Map[String, Long], channelConfig: Map[Int, List[Any]]) = {
+    val creationTime = generalConfig.get("CreationTime") match {
+      case Some(ct) => ct
+      case None => System.currentTimeMillis()
+    }
+    val dataTimeBegin = generalConfig.get("DataTimeBegin") match {
+      case Some(dtb) => dtb
+      case None => 0
+    }
+    val dataTimeEnd = generalConfig.get("DataTimeEnd") match {
+      case Some(dte) => dte
+      case None => 0
+    }
+    val content = Range(0, 16).toArray.map(channel => channelConfig.get(channel) match {
+      case None => Array[Long]()
+      case Some(config) => config(0).toString match {
+        case "Period" => {
+          val count: Int = config(1)
+          val period = (dataTimeEnd - dataTimeBegin) / count.toDouble
+          Range(0, count).toArray.map(i => (i * period).toLong)
+        }
+        case "Random" => {
+          val count: Int = config(1)
+          val averagePeriod = (dataTimeEnd - dataTimeBegin) / count
+          val random = new Random()
+          val randomGaussians = Range(0, count).toArray.map(_ => (random.nextGaussian() / 3 + 1) * averagePeriod)
+          val randGaussSumRatio = (dataTimeEnd - dataTimeBegin) / randomGaussians.sum
+          val randomDeltas = randomGaussians.map(rg => rg * randGaussSumRatio)
+          val deltas = ListBuffer[Long]()
+          randomDeltas.foldLeft(0.0)((a, b) => {
+            deltas += a.toLong
+            a + b
+          })
+          deltas.toArray
+        }
+        case _ => throw new RuntimeException
+      }
+    })
+    create(content, creationTime, dataTimeBegin, dataTimeEnd)
+  }
 }
 
 class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long, val sizes: Array[Int]) {
@@ -139,6 +183,13 @@ class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dat
   def release() = contentRef set null
 
   def isReleased = contentRef.get == null
+
+  def content = contentRef.get match {
+    case null => None
+    case c => Some(c)
+  }
+
+  def getContent = contentRef.get
 
   //  def store(path: String) = {
   //    val creationTimeISO = LocalDateTime.ofEpochSecond(creationTime / 1000, ((creationTime % 1000) * 1000000).toInt, ZoneOffset.ofHours(8)).toString.replaceAll(":", "-")
@@ -149,311 +200,35 @@ class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dat
   //    raf.close()
   //  }
   //
-  //  def serialize() = {
-  //    val t1 = System.nanoTime()
-  //
-  //    def serializeAChannel(list: Array[Long]) = {
-  //      println(s"serializing a channel: ${list.size}")
-  //      //      println(s"serializing a list: ${list.size}")
-  //      val offset = list.min
-  //      val deltas = list.drop(1).zip(list.dropRight(1)).map(z => z._1 - z._2)
-  //      val buffer = ArrayBuffer[Byte]()
-  //      val unit = new Array[Byte](8)
-  //      val lengths = deltas.map(d => {
-  //        var value = d
-  //        var length = 0
-  //        while (value > 0) {
-  //          unit(length) = (value & 0xFF).toByte
-  //          value >>= 8
-  //          length += +1
-  //        }
-  //        buffer addOne length.toByte
-  //        Range(0, length).foreach(i => buffer addOne unit(length - 1 - i))
-  //        length
-  //      })
-  //
-  //
-  //      println(buffer.size / 1.0 / list.size)
-  //    }
-  //
-  //    serializeAChannel(content(0))
-  //    serializeAChannel(content(4))
-  //    serializeAChannel(content(8))
-  //
-  //    val t2 = System.nanoTime()
-  //    println(f"${(t2 - t1) / 1e6}%.1f ms")
-  //  }
-}
+  def serialize() = {
 
-//abstract class DataAnalyser {
-//  protected val on = new AtomicBoolean(false)
-//  protected val configuration = new mutable.HashMap[String, Any]()
-//
-//  def dataIncome(dataBlock: DataBlock): Option[Map[String, Any]] = if (on.get) Some(analysis(dataBlock) ++ Map("Configuration" -> configuration)) else None
-//
-//  def turnOn(paras: Map[String, Any]) = {
-//    on.set(true)
-//    configure(paras)
-//  }
-//
-//  def turnOff() = on.set(false)
-//
-//  protected def analysis(dataBlock: DataBlock): Map[String, Any]
-//
-//  def configure(paras: Map[String, Any]): Unit = paras.foreach(e => if (configure(e._1, e._2)) configuration(e._1) = e._2)
-//
-//  protected def configure(key: String, value: Any): Boolean = true
-//
-//  def getConfiguration() = configuration.toMap
-//
-//  def isTurnedOn() = on.get
-//}
-//
-//class CounterAnalyser(channelCount: Int) extends DataAnalyser {
-//
-//  override protected def analysis(dataBlock: DataBlock) = Range(0, dataBlock.content.size).map(_.toString()).zip(dataBlock.content.map(list => list.size)).toMap
-//}
-//
-////class HistogramAnalyser(channelCount: Int) extends DataAnalyser {
-////  configuration("Sync") = 1
-////  configuration("SyncFrac") = 1
-////  configuration("Signal") = 1
-////  configuration("ViewStart") = -100000
-////  configuration("ViewStop") = 100000
-////  configuration("BinCount") = 1000
-////  configuration("Divide") = 1
-////
-////  override def configure(key: String, value: Any) = {
-////    key match {
-////      case "Sync" => {
-////        val sc: Int = value
-////        sc >= 0 && sc < channelCount
-////      }
-////      case "SyncFrac" => {
-////        val sc: Int = value
-////        sc > 0
-////      }
-////      case "Signal" => {
-////        val sc: Int = value
-////        sc >= 0 && sc < channelCount
-////      }
-////      case "ViewStart" => true
-////      case "ViewStop" => true
-////      case "BinCount" => {
-////        val sc: Int = value
-////        sc > 0 && sc < 2000
-////      }
-////      case "Divide" => {
-////        val sc: Int = value
-////        sc > 0
-////      }
-////      case _ => false
-////    }
-////  }
-////
-////  override protected def analysis(dataBlock: DataBlock) = {
-////    val deltas = new ArrayBuffer[Long]()
-////    val syncChannel: Int = configuration("Sync")
-////    val syncFrac: Int = configuration("SyncFrac")
-////    val signalChannel: Int = configuration("Signal")
-////    val viewStart: Long = configuration("ViewStart")
-////    val viewStop: Long = configuration("ViewStop")
-////    val binCount: Int = configuration("BinCount")
-////    val divide: Int = configuration("Divide")
-////    val tList = dataBlock.content(syncChannel).zipWithIndex.filter(_._2 % syncFrac == 0).map(_._1)
-////    val sList = dataBlock.content(signalChannel)
-////    val viewFrom = viewStart
-////    val viewTo = viewStop
-////    if (tList.size > 0 && sList.size > 0) {
-////      var preStartT = 0
-////      val lengthT = tList.size
-////      sList.foreach(s => {
-////        var cont = true
-////        while (preStartT < lengthT && cont) {
-////          val t = tList(preStartT)
-////          val delta = s - t
-////          if (delta > viewTo) {
-////            preStartT += 1
-////          } else cont = false
-////        }
-////        var tIndex = preStartT
-////        cont = true
-////        while (tIndex < lengthT && cont) {
-////          val t = tList(tIndex)
-////          val delta = s - t
-////          if (delta > viewFrom) {
-////            deltas += delta
-////            tIndex += 1
-////          } else cont = false
-////        }
-////      })
-////    }
-////    val histo = new Histogram(deltas.toArray, binCount, viewFrom, viewTo, divide)
-////    Map[String, Any]("SyncChannel" -> syncChannel, "SignalChannel" -> signalChannel,
-////      "ViewFrom" -> viewFrom, "ViewTo" -> viewTo, "Divide" -> divide, "Histogram" -> histo.yData.toList)
-////  }
-////}
-//
-//class MultiHistogramAnalyser(channelCount: Int) extends DataAnalyser {
-//  configuration("Sync") = 0
-//  configuration("Signals") = List(1)
-//  configuration("ViewStart") = -100000
-//  configuration("ViewStop") = 100000
-//  configuration("BinCount") = 1000
-//  configuration("Divide") = 1
-//
-//  override def configure(key: String, value: Any) = {
-//    key match {
-//      case "Sync" => {
-//        val sc: Int = value
-//        sc >= 0 && sc < channelCount
-//      }
-//      case "Signals" => {
-//        val sc: List[Int] = value.asInstanceOf[List[Int]]
-//        sc.forall(c => c >= 0 && c < channelCount)
-//      }
-//      case "ViewStart" => true
-//      case "ViewStop" => true
-//      case "BinCount" => {
-//        val sc: Int = value
-//        sc > 0 && sc < 2000
-//      }
-//      case "Divide" => {
-//        val sc: Int = value
-//        sc > 0
-//      }
-//      case _ => false
-//    }
-//  }
-//
-//  override protected def analysis(dataBlock: DataBlock) = {
-//    val syncChannel: Int = configuration("Sync")
-//    val signalChannels = configuration("Signals").asInstanceOf[List[Int]]
-//    val viewStart: Long = configuration("ViewStart")
-//    val viewStop: Long = configuration("ViewStop")
-//    val binCount: Int = configuration("BinCount")
-//    val divide: Int = configuration("Divide")
-//    val tList = dataBlock.content(syncChannel)
-//    val viewFrom = viewStart
-//    val viewTo = viewStop
-//    val histograms = signalChannels.map(signalChannel => {
-//      val deltas = new ArrayBuffer[Long]()
-//      val sList = dataBlock.content(signalChannel)
-//      if (tList.size > 0 && sList.size > 0) {
-//        var preStartT = 0
-//        val lengthT = tList.size
-//        sList.foreach(s => {
-//          var cont = true
-//          while (preStartT < lengthT && cont) {
-//            val t = tList(preStartT)
-//            val delta = s - t
-//            if (delta > viewTo) {
-//              preStartT += 1
-//            } else cont = false
-//          }
-//          var tIndex = preStartT
-//          cont = true
-//          while (tIndex < lengthT && cont) {
-//            val t = tList(tIndex)
-//            val delta = s - t
-//            if (delta > viewFrom) {
-//              deltas += delta
-//              tIndex += 1
-//            } else cont = false
-//          }
-//        })
-//      }
-//      new Histogram(deltas.toArray, binCount, viewFrom, viewTo, divide).yData.toList
-//    })
-//    Map[String, Any]("Histograms" -> histograms)
-//  }
-//}
-//
-//class CoincidenceHistogramAnalyser(channelCount: Int) extends DataAnalyser {
-//  configuration("ChannelA") = 0
-//  configuration("ChannelB") = 1
-//  configuration("ViewStart") = -100000
-//  configuration("ViewStop") = 100000
-//  configuration("BinCount") = 1000
-//
-//  override def configure(key: String, value: Any) = {
-//    key match {
-//      case "ChannelA" => {
-//        val sc: Int = value
-//        sc >= 0 && sc < channelCount
-//      }
-//      case "ChannelB" => {
-//        val sc: Int = value
-//        sc >= 0 && sc < channelCount
-//      }
-//      case "ViewStart" => true
-//      case "ViewStop" => true
-//      case "BinCount" => {
-//        val sc: Int = value
-//        sc > 0 && sc < 2000
-//      }
-//      case _ => false
-//    }
-//  }
-//
-//  override protected def analysis(dataBlock: DataBlock) = {
-//    val deltas = new ArrayBuffer[Long]()
-//    val syncChannel: Int = configuration("ChannelA")
-//    val signalChannel: Int = configuration("ChannelB")
-//    val viewStart: Long = configuration("ViewStart")
-//    val viewStop: Long = configuration("ViewStop")
-//    val binCount: Int = configuration("BinCount")
-//    val tList = dataBlock.content(syncChannel)
-//    val sList = dataBlock.content(signalChannel)
-//    val viewFrom = viewStart
-//    val viewTo = viewStop
-//    if (tList.size > 0 && sList.size > 0) {
-//      var preStartT = 0
-//      val lengthT = tList.size
-//      sList.foreach(s => {
-//        var cont = true
-//        while (preStartT < lengthT && cont) {
-//          val t = tList(preStartT)
-//          val delta = s - t
-//          if (delta > viewTo) {
-//            preStartT += 1
-//          } else cont = false
-//        }
-//        var tIndex = preStartT
-//        cont = true
-//        while (tIndex < lengthT && cont) {
-//          val t = tList(tIndex)
-//          val delta = s - t
-//          if (delta > viewFrom) {
-//            deltas += delta
-//            tIndex += 1
-//          } else cont = false
-//        }
-//      })
-//    }
-//    val histo = new Histogram(deltas.toArray, binCount, viewFrom, viewTo, 1)
-//    Map[String, Any]("Histogram" -> histo.yData.toList)
-//  }
-//}
-//
-//class Histogram(deltas: Array[Long], binCount: Int, viewFrom: Long, viewTo: Long, divide: Int) {
-//  val min = viewFrom.toDouble
-//  val max = viewTo.toDouble
-//  val binSize = (max - min) / binCount / divide
-//  val xData = Range(0, binCount).map(i => (i * binSize + min) + binSize / 2).toArray
-//  val yData = new Array[Int](binCount)
-//  deltas.foreach(delta => {
-//    val deltaDouble = delta.toDouble
-//    if (deltaDouble < min) {
-//      /* this data is smaller than min */
-//    } else if (deltaDouble == max) { // the value falls exactly on the max value
-//      yData(binCount - 1) += 1
-//    } else if (deltaDouble > max) {
-//      /* this data point is bigger than max */
-//    } else {
-//      val bin = ((deltaDouble - min) / binSize).toInt % binCount
-//      yData(bin) += 1
-//    }
-//  })
-//}
-//
+    def serializeAChannel(list: Array[Long]) = {
+      //      println(s"serializing a channel: ${list.size}")
+      // deal with length == 0 or 1
+      val offset = list(0)
+      val deltas = Range(0, list.size - 1).toArray.map(i => list(i + 1) - list(i)) // 5ms // val deltas = list.drop(1).zip(list.dropRight(1)).map(z => z._1 - z._2) // 16ms
+      val buffer = ByteBuffer.allocate(list.size * 8)
+      //      val buffer = new ArrayBuffer[Byte]()
+      val unit = new Array[Byte](8)
+      val lengths = deltas.map(delta => {
+        var value = if (delta >= 0) delta else -delta
+        var length = 0
+        while (value > 0) {
+          unit(length) = (value & 0xFF).toByte
+          value >>= 8
+          length += +1
+        }
+        buffer put length.toByte
+        Range(0, length).foreach(i => buffer put unit(length - 1 - i))
+        length
+      })
+      //      println(buffer.position() / 1.0 / list.size)
+      //      buffer.toArray
+      buffer.array().slice(0, buffer.position())
+    } 
+
+    serializeAChannel(getContent(0))
+    serializeAChannel(getContent(1))
+    //    serializeAChannel(content(8))
+  }
+}

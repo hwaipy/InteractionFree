@@ -84,3 +84,6 @@ if __name__ == '__main__':
         results = WeatherFetcher.fetchAll(stations)
         worker.Storage.append('Weathers', results, datetime.now(pytz.timezone('Asia/Shanghai')).isoformat())
         time.sleep(3600 * 4)
+
+
+
