@@ -1,28 +1,20 @@
 package com.interactionfree.instrument.tdc
 
-import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.Future
-import java.io.{BufferedOutputStream, FileOutputStream, RandomAccessFile}
 import java.net.ServerSocket
 import java.nio.{ByteBuffer, LongBuffer}
-import java.nio.file.Paths
-import java.nio.file.Files
-import java.time.{LocalDateTime, ZoneOffset}
-import java.util.concurrent.{Executors, LinkedBlockingQueue}
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 
-import scala.jdk.CollectionConverters._
-import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent.{ExecutionContext, Future}
 import com.interactionfree.NumberTypeConversions._
-import org.msgpack.core.MessagePack
-import com.interactionfree.{Invocation, Message, MsgpackSerializer}
+import com.interactionfree.MsgpackSerializer
 
+import scala.collection.IterableOnce
 import scala.util.Random
 
 class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val localStorePath: String) {
-  private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r) => {
+  private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor(r => {
     val t = new Thread(r)
     t.setDaemon(true)
     t
@@ -36,7 +28,7 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
     while (!server.isClosed) {
       val socket = server.accept
       val remoteAddress = socket.getRemoteSocketAddress
-      println(s"Connection from ${remoteAddress} accepted.")
+      println(s"Connection from $remoteAddress accepted.")
       val totalDataSize = new AtomicLong(0)
       try {
         val in = socket.getInputStream
@@ -51,16 +43,16 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
           }
         }
       } catch {
-        case e: Throwable => // e.printStackTrace()
+        case _: Throwable => // e.printStackTrace()
       } finally {
-        println(s"End of connection: ${remoteAddress}. Total Data Size: ${totalDataSize.get}")
+        println(s"End of connection: $remoteAddress. Total Data Size: ${totalDataSize.get}")
       }
     }
   }(executionContext)
 
-  def stop() = {
-    server.close
-    tdcParser.stop
+  def stop(): Unit = {
+    server.close()
+    tdcParser.stop()
   }
 
   //  private val sectionStartTime = new AtomicLong(0)
@@ -96,7 +88,7 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
 
   def flush(data: Any): AnyRef = offer(data)
 
-  private def dataIncome(data: Any) = {
+  private def dataIncome(data: Any): Unit = {
     if (!data.isInstanceOf[LongBuffer]) throw new IllegalArgumentException(s"LongBuffer expected, not ${data.getClass}")
     val buffer = data.asInstanceOf[LongBuffer]
     while (buffer.hasRemaining) {
@@ -119,7 +111,7 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
     timeEvents(channel) += time
   }
 
-  private def flush() = {
+  private def flush(): Unit = {
     val data = timeEvents.map(_.toArray).toArray
     timeEvents.foreach(_.clear())
     val creationTime = System.currentTimeMillis() - 1000
@@ -129,13 +121,13 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
 }
 
 object DataBlock {
-  def create(content: Array[Array[Long]], creationTime: Long, dataTimeBegin: Long, dataTimeEnd: Long) = {
-    val dataBlock = new DataBlock(creationTime, dataTimeBegin, dataTimeEnd, content.map(_.size))
+  def create(content: Array[Array[Long]], creationTime: Long, dataTimeBegin: Long, dataTimeEnd: Long): DataBlock = {
+    val dataBlock = new DataBlock(creationTime, dataTimeBegin, dataTimeEnd, content.map(_.length))
     dataBlock.contentRef set content
     dataBlock
   }
 
-  def generate(generalConfig: Map[String, Long], channelConfig: Map[Int, List[Any]]) = {
+  def generate(generalConfig: Map[String, Long], channelConfig: Map[Int, List[Any]]): DataBlock = {
     val creationTime = generalConfig.get("CreationTime") match {
       case Some(ct) => ct
       case None => System.currentTimeMillis()
@@ -150,7 +142,7 @@ object DataBlock {
     }
     val content = Range(0, 16).toArray.map(channel => channelConfig.get(channel) match {
       case None => Array[Long]()
-      case Some(config) => config(0).toString match {
+      case Some(config) => config.head.toString match {
         case "Period" => {
           val count: Int = config(1)
           val period = (dataTimeEnd - dataTimeBegin) / count.toDouble
@@ -175,21 +167,60 @@ object DataBlock {
     })
     create(content, creationTime, dataTimeBegin, dataTimeEnd)
   }
+
+  def deserialize(data: Array[Byte]) = {
+    val recovered = MsgpackSerializer.deserialize(data).asInstanceOf[Map[String, Any]]
+    val sizes = recovered("Sizes").asInstanceOf[IterableOnce[Int]].iterator.toArray
+    val dataBlock = new DataBlock(recovered("CreationTime"), recovered("DataTimeBegin"), recovered("DataTimeEnd"), sizes)
+
+    def deserializeAChannel(chData: Array[Byte], size: Int): Array[Long] = chData.size match {
+      case 0 => Array[Long]()
+      case _ => {
+        val buffer = ByteBuffer.wrap(chData)
+        val longBuffer = LongBuffer.allocate(size)
+        val offset = buffer.getLong()
+        longBuffer.put(offset)
+        var previous = offset
+
+        while (buffer.hasRemaining) {
+          val lengthU = buffer.get()
+          val length = lengthU & 0x7F
+          val minus = (lengthU & 0x80) > 0
+          var delta = 0L
+          var i = length - 1
+          while (i >= 0) {
+            var v = buffer.get().toLong
+            if (v < 0) v += 256
+            delta += (v << (8 * i))
+            i -= 1
+          }
+          previous += (if (minus) -delta else delta)
+          longBuffer.put(previous)
+        }
+        longBuffer.array()
+      }
+    }
+
+    val chDatas = recovered("Content").asInstanceOf[IterableOnce[Array[Byte]]].iterator.toArray
+    val content = chDatas.zip(sizes).map(z => deserializeAChannel(z._1, z._2))
+    dataBlock.contentRef set (if (content.isEmpty) null else content)
+    dataBlock
+  }
 }
 
 class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long, val sizes: Array[Int]) {
   private val contentRef = new AtomicReference[Array[Array[Long]]]()
 
-  def release() = contentRef set null
+  def release(): Unit = contentRef set null
 
-  def isReleased = contentRef.get == null
+  def isReleased: Boolean = contentRef.get == null
 
-  def content = contentRef.get match {
+  def content: Option[Array[Array[Long]]] = contentRef.get match {
     case null => None
     case c => Some(c)
   }
 
-  def getContent = contentRef.get
+  def getContent: Array[Array[Long]] = contentRef.get
 
   //  def store(path: String) = {
   //    val creationTimeISO = LocalDateTime.ofEpochSecond(creationTime / 1000, ((creationTime % 1000) * 1000000).toInt, ZoneOffset.ofHours(8)).toString.replaceAll(":", "-")
@@ -199,36 +230,44 @@ class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dat
   //    raf.write(bytes)
   //    raf.close()
   //  }
-  //
-  def serialize() = {
 
-    def serializeAChannel(list: Array[Long]) = {
-      //      println(s"serializing a channel: ${list.size}")
-      // deal with length == 0 or 1
-      val offset = list(0)
-      val deltas = Range(0, list.size - 1).toArray.map(i => list(i + 1) - list(i)) // 5ms // val deltas = list.drop(1).zip(list.dropRight(1)).map(z => z._1 - z._2) // 16ms
-      val buffer = ByteBuffer.allocate(list.size * 8)
-      //      val buffer = new ArrayBuffer[Byte]()
-      val unit = new Array[Byte](8)
-      val lengths = deltas.map(delta => {
-        var value = if (delta >= 0) delta else -delta
-        var length = 0
-        while (value > 0) {
-          unit(length) = (value & 0xFF).toByte
-          value >>= 8
-          length += +1
+  def serialize(): Array[Byte] = {
+
+    def serializeAChannel(list: Array[Long]) = list.size match {
+      case 0 => Array[Byte]()
+      case _ => {
+        val buffer = ByteBuffer.allocate(list.length * 8)
+        buffer.putLong(list(0))
+        var i = 0
+        val unit = new Array[Byte](8)
+        while (i < list.length - 1) {
+          val delta = (list(i + 1) - list(i))
+          i += 1
+          var value = if (delta >= 0) delta else -delta
+          var length = 0
+          while (value > 0) {
+            unit(7 - length) = (value & 0xFF).toByte
+            value >>= 8
+            length += 1
+          }
+          buffer put (length | (if (delta > 0) 0x00 else 0x80)).toByte
+          buffer.put(unit, 8 - length, length)
         }
-        buffer put length.toByte
-        Range(0, length).foreach(i => buffer put unit(length - 1 - i))
-        length
-      })
-      //      println(buffer.position() / 1.0 / list.size)
-      //      buffer.toArray
-      buffer.array().slice(0, buffer.position())
-    } 
+        buffer.array().slice(0, buffer.position())
+      }
+    }
 
-    serializeAChannel(getContent(0))
-    serializeAChannel(getContent(1))
-    //    serializeAChannel(content(8))
+    val serializedContent = content match {
+      case Some(c) => c.map(ch => serializeAChannel(ch))
+      case None => null
+    }
+    val result = Map(
+      "CreationTime" -> creationTime,
+      "DataTimeBegin" -> dataTimeBegin,
+      "DataTimeEnd" -> dataTimeEnd,
+      "Sizes" -> sizes,
+      "Content" -> serializedContent
+    )
+    MsgpackSerializer.serialize(result)
   }
 }
