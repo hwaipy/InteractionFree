@@ -518,8 +518,8 @@ def debug_info(level, msg):
 if __name__ == '__main__':
     print(datetime.now(pytz.timezone('Asia/Shanghai')).isoformat())
     worker = IFWorker("tcp://172.16.60.199:224", 'MDIQKD_ResultFiltering', timeout=10)
-    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', datetime.now(pytz.timezone('Asia/Shanghai')).isoformat(), [[0, -0.4, 4.5], [1, -0.4, 4.5]])    #2020.8.21
-    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-01-01T00:00:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])                               #2020.8.22
+    reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', datetime.now(pytz.timezone('Asia/Shanghai')).isoformat(), [[0, -0.4, 4.5], [1, -0.4, 4.5]])    #2020.8.21
+    # reviewer = RealtimeReviewer(worker, 'MDIQKD_GroundTDC', 'MDI_ADCMonitor', 'MDIQKD_DataReviewer', '2020-01-01T00:00:00+08:00', [[0, -0.4, 4.5], [1, -0.4, 4.5]])                               #2020.8.22
     reviewer.start()
 
     # worker = IFWorker("tcp://127.0.0.1:224")

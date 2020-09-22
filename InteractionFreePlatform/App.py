@@ -46,8 +46,8 @@ if __name__ == '__main__':
     app = web.Application(handlers_array, **settings)
     app.listen(webPort)
 
-    fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
-        IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
+    # fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
+    #     IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
     stSer = IFWorker(brokerURL, serviceName='Storage', serviceObject=MongoDBContext.MongoDBContext.IFData.storage)
 
     # ArduinoZMQBridge.start()

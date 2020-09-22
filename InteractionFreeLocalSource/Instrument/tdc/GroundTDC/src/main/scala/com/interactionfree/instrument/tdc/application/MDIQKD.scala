@@ -19,6 +19,7 @@ class MDIQKDEncodingAnalyser(channelCount: Int) extends DataAnalyser {
   configuration("SignalChannel") = 1
   configuration("TimeAliceChannel") = 4
   configuration("TimeBobChannel") = 5
+  configuration("TimeDavidChannel") = 6
   configuration("BinCount") = 100
 
   override def configure(key: String, value: Any) = key match {
@@ -43,6 +44,10 @@ class MDIQKDEncodingAnalyser(channelCount: Int) extends DataAnalyser {
       val sc: Int = value
       sc >= 0 && sc < channelCount
     }
+    case "TimeDavidChannel" => {
+      val sc: Int = value
+      sc >= 0 && sc < channelCount
+    }
     case "BinCount" => {
       val sc: Int = value
       sc > 0 && sc < 2000
@@ -56,6 +61,7 @@ class MDIQKDEncodingAnalyser(channelCount: Int) extends DataAnalyser {
     val triggerChannel: Int = configuration("TriggerChannel")
     val timeAliceChannel: Int = configuration("TimeAliceChannel")
     val timeBobChannel: Int = configuration("TimeBobChannel")
+    val timeDavidChannel: Int = configuration("TimeDavidChannel")
     val signalChannel: Int = configuration("SignalChannel")
     val binCount: Int = configuration("BinCount")
     val map = mutable.HashMap[String, Any]()
@@ -64,6 +70,7 @@ class MDIQKDEncodingAnalyser(channelCount: Int) extends DataAnalyser {
     val triggerList = dataBlock.content(triggerChannel)
     val timeAliceList = dataBlock.content(timeAliceChannel)
     val timeBobList = dataBlock.content(timeBobChannel)
+    val timeDavidList = dataBlock.content(timeDavidChannel)
     val meta = this.meta(signalList, triggerList, period, randomNumbers)
     RandomNumber.ALL_RANDOM_NUMBERS.foreach(rn => {
       val validMeta = meta.filter(z => z._1 == rn)
@@ -77,6 +84,9 @@ class MDIQKDEncodingAnalyser(channelCount: Int) extends DataAnalyser {
     val metaTimeBob = this.meta(timeBobList, triggerList, period, randomNumbers)
     val histoTimeBob = new Histogram(metaTimeBob.map(_._2), binCount, 0, period.toLong, 1)
     map.put(s"Histogram Bob Time", histoTimeBob.yData.toList)
+    val metaTimeDavid = this.meta(timeDavidList, triggerList, period, randomNumbers)
+    val histoTimeDavid = new Histogram(metaTimeDavid.map(_._2), binCount, 0, period.toLong, 1)
+    map.put(s"Histogram David Time", histoTimeDavid.yData.toList)
     map.toMap
   }
 
