@@ -27,3 +27,4 @@ node_modules
 _gsdata_
 Config.ini
 config.properties
+venv
