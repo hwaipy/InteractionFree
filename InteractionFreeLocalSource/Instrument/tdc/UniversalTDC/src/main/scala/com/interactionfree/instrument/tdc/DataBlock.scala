@@ -2,15 +2,19 @@ package com.interactionfree.instrument.tdc
 
 import java.nio.{ByteBuffer, LongBuffer}
 import java.util.concurrent.atomic.AtomicReference
+
 import scala.collection.mutable.ListBuffer
 import com.interactionfree.NumberTypeConversions._
-import com.interactionfree.MsgpackSerializer
+import com.interactionfree.instrument.tdc.DataBlock.PROTOCOL_V1
+import com.interactionfree.{IFException, MsgpackSerializer}
 
 import scala.collection.IterableOnce
 import scala.util.Random
 
 object DataBlock {
   private val FINENESS = 100000
+  private val DEFAULT_PROTOCOL = PROTOCOL_V1
+  val PROTOCOL_V1 = "DataBlock_V1"
 
   def create(content: Array[Array[Long]], creationTime: Long, dataTimeBegin: Long, dataTimeEnd: Long): DataBlock = {
     val dataBlock = new DataBlock(creationTime, dataTimeBegin, dataTimeEnd, content.map(_.length))
@@ -43,7 +47,7 @@ object DataBlock {
           val count: Int = config(1)
           val averagePeriod = (dataTimeEnd - dataTimeBegin) / count
           val random = new Random()
-          val randomGaussians = Range(0, count).toArray.map(_ => (random.nextGaussian() / 3 + 1) * averagePeriod)
+          val randomGaussians = Range(0, count).toArray.map(_ => (1 + random.nextGaussian() / 3) * averagePeriod)
           val randGaussSumRatio = (dataTimeEnd - dataTimeBegin) / randomGaussians.sum
           val randomDeltas = randomGaussians.map(rg => rg * randGaussSumRatio)
           val deltas = ListBuffer[Long]()
@@ -53,6 +57,14 @@ object DataBlock {
           })
           deltas.toArray
         }
+        case "Pulse" => {
+          val pulseCount: Int = config(1)
+          val eventCount: Int = config(2)
+          val sigma: Double = config(3)
+          val period = (dataTimeEnd - dataTimeBegin) / pulseCount
+          val random = new Random()
+          Range(0, eventCount).toArray.map(_ => random.nextInt(pulseCount) * period + (random.nextGaussian() * sigma).toLong).sorted
+        }
         case _ => throw new RuntimeException
       }
     })
@@ -61,6 +73,7 @@ object DataBlock {
 
   def deserialize(data: Array[Byte]) = {
     val recovered = MsgpackSerializer.deserialize(data).asInstanceOf[Map[String, Any]]
+    if (recovered("Format") != PROTOCOL_V1) throw new IFException(s"Data format not supported: ${recovered("Format")}")
     val sizes = recovered("Sizes").asInstanceOf[IterableOnce[Int]].iterator.toArray
     val dataBlock = new DataBlock(recovered("CreationTime"), recovered("DataTimeBegin"), recovered("DataTimeEnd"), sizes)
 
@@ -144,12 +157,14 @@ class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dat
       case None => null
     }
     val result = Map(
+      "Format" -> PROTOCOL_V1,
       "CreationTime" -> creationTime,
       "DataTimeBegin" -> dataTimeBegin,
       "DataTimeEnd" -> dataTimeEnd,
       "Sizes" -> sizes,
       "Content" -> serializedContent
     )
+    System.currentTimeMillis()
     MsgpackSerializer.serialize(result)
   }
 }

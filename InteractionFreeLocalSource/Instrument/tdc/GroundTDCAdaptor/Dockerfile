@@ -1,4 +1,4 @@
-FROM openjdk:11.0.8-jdk-slim-buster
+FROM openjdk:11.0.8-jre-slim-buster
 
 RUN mkdir /GTDCA
 COPY config.properties /GTDCA
