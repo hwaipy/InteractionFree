@@ -61,8 +61,8 @@ RUN \
 RUN pip3 install interactionfreepy
 
 # Deploy IFScala locally
-RUN mkdir /IFScala
-WORKDIR /IFScala
-RUN git clone https://github.com/hwaipy/InteractionFreeScala.git
-WORKDIR /IFScala/InteractionFreeScala
-RUN sbt publishLocal
+# RUN mkdir /IFScala
+# WORKDIR /IFScala
+# RUN git clone https://github.com/hwaipy/InteractionFreeScala.git
+# WORKDIR /IFScala/InteractionFreeScala
+# RUN sbt publishLocal
