@@ -59,3 +59,10 @@ RUN \
   
 # Install IFServer
 RUN pip3 install interactionfreepy
+
+# Deploy IFScala locally
+RUN mkdir /workspace/IFScala
+WORKDIR /workspace/IFScala
+RUN git https://github.com/hwaipy/InteractionFreeScala.git
+WORKDIR /workspace/IFScala/InteractionFreeScala
+RUN sbt publishLocal
