@@ -47,7 +47,7 @@ The entire DataBlock should be serialized by [MsgPack](https://msgpack.org) as f
 1. Suppose there is `N` events in total. Record the first time as `TIME_FIRST`.
 2. Calculate time differents between neighbor events. `delta[i] = time[i+1] - time[i]`, `i=0` to `N-1`.
 3. Calculate data length for each delta. `len[i]` = $log_{16}(delta[i])$.
-
+ 
 
 
 $$
