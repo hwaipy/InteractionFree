@@ -1,7 +1,10 @@
+# import sys
+# sys.path.append('/Users/hwaipy/GitHub/InteractionFreePy/')
+
 from tornado import web
-from IFBroker import IFBroker
-from IFWorker import IFWorker
-from IFCore import IFLoop
+from interactionfreepy import IFBroker
+from interactionfreepy import IFWorker
+from interactionfreepy import IFLoop
 from Bridge import WebSocketZMQBridgeHandler
 from AppHandler import IFAppHandler, IFAppResourceHandler
 import UIModules as uimodules
@@ -43,8 +46,8 @@ if __name__ == '__main__':
     app = web.Application(handlers_array, **settings)
     app.listen(webPort)
 
-    fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
-        IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
+    # fdSer = IFWorker(brokerURL, serviceName='IFLocalFileMeta', serviceObject=FileDistributor(
+    #     IFLocalFilesPath, '/IFLocalFiles'.format(webHost, webPort)))
     stSer = IFWorker(brokerURL, serviceName='Storage', serviceObject=MongoDBContext.MongoDBContext.IFData.storage)
 
     # ArduinoZMQBridge.start()

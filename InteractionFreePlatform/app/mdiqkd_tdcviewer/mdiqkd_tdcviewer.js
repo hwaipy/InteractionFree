@@ -94,16 +94,20 @@ class TDCConfiger {
     } else {
       // edited a MultiHistogram config
       var config = {}
+      var valid = true
       if (editedField == 'Sync') {
         config['Sync'] = parseInt(editedValue)
+        valid = !isNaN(config['Sync'])
       }
       if (editedField == 'ViewStart' || editedField == 'ViewStop') {
         config[editedField] = parseFloat(editedValue) * 1000.0
+        valid = !isNaN(config[editedField])
       }
       if (editedField == 'BinCount' || editedField == 'Divide') {
         config[editedField] = parseInt(editedValue)
+        valid = !isNaN(config[editedField])
       }
-      worker[tdcService].configureAnalyser('MultiHistogram', config)
+      if (valid) worker[tdcService].configureAnalyser('MultiHistogram', config)
     }
   }
 }
@@ -204,6 +208,39 @@ function plot(result, append) {
       pad: 4
     },
   }
+  layout['updatemenus'] = [
+    {
+        buttons: [
+            {
+                args: ['yaxis.type', 'linear'],
+                label: 'Linear',
+                method: 'relayout'
+            },
+            {
+                args: ['yaxis.type', 'log'],
+                label:'Log',
+                method:'relayout'
+            }
+        ],
+        direction: 'left',
+        pad: {'r': 10, 't': 10},
+        showactive: true,
+        type: 'buttons',
+        x: 0.1,
+        xanchor: 'left',
+        y: 1.1,
+        yanchor: 'top'
+    }
+  ]
+
+  // get current layout status: linear or log
+  var gd = document.getElementById('viewport')
+  var oldLayout = gd.layout
+  if (oldLayout && result != null) {
+    currentY = (gd.layout['yaxis']['type'])
+    layout['yaxis']['type'] = currentY
+  }
+
   var traces = []
   if (result == null) {
     for (var i = 0; i < TDCHistograms.length; i++) {
@@ -216,6 +253,11 @@ function plot(result, append) {
         name: 'CH0'
       })
       // $('#HistogramWarning')[0].classList.add('d-none')
+
+     Plotly.react('viewport', traces, layout, {
+      displaylogo: false,
+      // responsive: true
+    })
   } else {
     // Deal counts
     var counts = result['Data']['Counter']
@@ -272,38 +314,9 @@ function plot(result, append) {
     }
     layout['uirevision'] = 'true'
     listener('HistogramXsMatched', histogramXsMatched)
-  }
-  // Log Buttons
-  var updatemenus=[
-    {
-        buttons: [
-            {
-                args: ['yaxis.type', 'linear'],
-                label: 'Linear',
-                method: 'relayout'
-            },
-            {
-                args: ['yaxis.type', 'log'],
-                label:'Log',
-                method:'relayout'
-            }
-        ],
-        direction: 'left',
-        pad: {'r': 10, 't': 10},
-        showactive: true,
-        type: 'buttons',
-        x: 0.1,
-        xanchor: 'left',
-        y: 1.1,
-        yanchor: 'top'
-    }
-  ]
-  layout['updatemenus'] = updatemenus
 
-  Plotly.react('viewport', traces, layout, {
-    displaylogo: false,
-    // responsive: true
-  })
+    Plotly.react('viewport', traces, layout)
+  }
   Plotly.redraw('viewport')
 }
 
