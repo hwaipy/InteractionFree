@@ -110,6 +110,30 @@ object DataBlock {
     dataBlock.contentRef set (if (content.isEmpty) null else content)
     dataBlock
   }
+
+  private def serialize(list: Array[Long]) = list.size match {
+    case 0 => Array[Byte]()
+    case _ => {
+      val buffer = ByteBuffer.allocate(list.length * 8)
+      buffer.putLong(list(0))
+      var i = 0
+      val unit = new Array[Byte](8)
+      while (i < list.length - 1) {
+        val delta = (list(i + 1) - list(i))
+        i += 1
+        var value = if (delta >= 0) delta else -delta
+        var length = 0
+        while (value > 0) {
+          unit(7 - length) = (value & 0xFF).toByte
+          value >>= 8
+          length += 1
+        }
+        buffer put (length | (if (delta > 0) 0x00 else 0x80)).toByte
+        buffer.put(unit, 8 - length, length)
+      }
+      buffer.array().slice(0, buffer.position())
+    }
+  }
 }
 
 class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long, val sizes: Array[Int]) {
@@ -127,33 +151,8 @@ class DataBlock private(val creationTime: Long, val dataTimeBegin: Long, val dat
   def getContent: Array[Array[Long]] = contentRef.get
 
   def serialize(): Array[Byte] = {
-
-    // def serializeAChannel(list: Array[Long]) = list.size match {
-    //   case 0 => Array[Byte]()
-    //   case _ => {
-    //     val buffer = ByteBuffer.allocate(list.length * 8)
-    //     buffer.putLong(list(0))
-    //     var i = 0
-    //     val unit = new Array[Byte](8)
-    //     while (i < list.length - 1) {
-    //       val delta = (list(i + 1) - list(i))
-    //       i += 1
-    //       var value = if (delta >= 0) delta else -delta
-    //       var length = 0
-    //       while (value > 0) {
-    //         unit(7 - length) = (value & 0xFF).toByte
-    //         value >>= 8
-    //         length += 1
-    //       }
-    //       buffer put (length | (if (delta > 0) 0x00 else 0x80)).toByte
-    //       buffer.put(unit, 8 - length, length)
-    //     }
-    //     buffer.array().slice(0, buffer.position())
-    //   }
-    // }
-
     val serializedContent = content match {
-      case Some(c) => c.map(ch => Range(0, Math.ceil(ch.size / DataBlock.FINENESS.toDouble).toInt).map(i => serializeAChannel(ch.slice(i * DataBlock.FINENESS, (i + 1) * DataBlock.FINENESS))))
+      case Some(c) => c.map(ch => Range(0, Math.ceil(ch.size / DataBlock.FINENESS.toDouble).toInt).map(i => DataBlock.serialize(ch.slice(i * DataBlock.FINENESS, (i + 1) * DataBlock.FINENESS))))
       case None => null
     }
     val result = Map(

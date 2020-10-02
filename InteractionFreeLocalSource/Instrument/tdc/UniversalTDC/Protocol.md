@@ -44,12 +44,10 @@ The entire DataBlock should be serialized by [MsgPack](https://msgpack.org) as f
 
 `$serializedContent`: `Array[Array[Array[Byte]]]`. This is the key of DataBlock serialization. The `content` should be serialized channel by channel. For each channel, the events are sliced into fragments to enhence the capacity of parallelism. The size of each fragment is recommand to be 100000. Each fragment of events is serialized as `Array[Byte]`, thus a channel of events is serialized as  `Array[Array[Byte]]`. Each fragment is serialized as follows:
 
-1. Sort by time, ascent. Suppose there is `N` events in total.
-2. Record the first time as `TIME_FIRST`.
-3. Calculate time differents between neighbor events. `delta[i] = time[i+1] - time[i]`, `i=0` to `N-1`.
-4. Calculate data length for each delta. `len[i]` = $log_{16}(delta[i])$.
+1. Suppose there is `N` events in total. Record the first time as `TIME_FIRST`.
+2. Calculate time differents between neighbor events. `delta[i] = time[i+1] - time[i]`, `i=0` to `N-1`.
+3. Calculate data length for each delta. `len[i]` = $log_{16}(delta[i])$.
 
- 
 
 
 $$

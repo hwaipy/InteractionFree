@@ -30,3 +30,8 @@ config.properties
 
 dev
 venv
+
+.metals
+.vscode
+.bloop
+metals.sbt
