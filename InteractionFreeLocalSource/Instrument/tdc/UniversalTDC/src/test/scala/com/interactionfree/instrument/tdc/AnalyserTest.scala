@@ -49,7 +49,7 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
     assert(histo1.size == 100)
     assert(histo1.head > 0.5 * histo1.max && histo1.head < 1.5 * histo1.max)
     assert(histo1.last > 0.5 * histo1.max && histo1.last < 1.5 * histo1.max)
-    assert(histo1(histo1.length / 2) > 0.8 * histo1.max && histo1(histo1.length / 2) < 1.2 * histo1.max)
+    assert(histo1(histo1.length / 2) > 0.6 * histo1.max && histo1(histo1.length / 2) < 1.5 * histo1.max)
     assert(histo1(histo1.length / 4) < 0.05 * histo1.max && histo1(histo1.length / 4 * 3) < 0.05 * histo1.max)
     mha.turnOff()
     val result2 = mha.dataIncome(dataBlock)

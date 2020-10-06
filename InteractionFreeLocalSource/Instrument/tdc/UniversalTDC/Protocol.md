@@ -36,13 +36,13 @@ The entire DataBlock should be serialized by [MsgPack](https://msgpack.org) as f
 
 `creationTime`: `Long`. milliseconds from midnight, January 1, 1970 UTC (coordinated universal time).
 
-`resolution`: `Int`. Picosecond. For example, 1 ps is `1`.
+`resolution`: `Float`. Second. For example, 1 ps is `1e-12`.
 
-`dataTimeBegin`, `dataTimeEnd`: `Long`. Picosecond. For example, 1 ms with `resolution` of `16` is 1 ps is `62,500,000`.
+`dataTimeBegin`, `dataTimeEnd`: `Long`. Picosecond. For example, 1 ms with `resolution` of `16` is `62,500,000`.
 
 `sizes`: `Array[Int]`.
 
-`$serializedContent`: `Array[Array[Array[Byte]]]`. This is the key of DataBlock serialization. The `content` should be serialized channel by channel. For each channel, the events are sliced into fragments to enhence the capacity of parallelism. The size of each fragment is recommand to be 100000. Each fragment of events is serialized as `Array[Byte]`, thus a channel of events is serialized as  `Array[Array[Byte]]`. Each fragment is serialized as follows:
+`$serializedContent`: `Array[Array[Array[Byte]]]`. This is the key of DataBlock serialization. The `content` should be serialized channel by channel. For each channel, the events are sliced into fragments to enhence the capacity of parallelism. The size of each fragment is recommand to be 100000, yet not restricted. Each fragment of events is serialized as `Array[Byte]`, thus a channel of events is serialized as  `Array[Array[Byte]]`. Each fragment is serialized as follows:
 
 1. Suppose there is `N` events in total. Record the first time as `TIME_FIRST`.
 2. Calculate time differents between neighbor events. `delta[i] = time[i+1] - time[i]`, `i=0` to `N-1`.
