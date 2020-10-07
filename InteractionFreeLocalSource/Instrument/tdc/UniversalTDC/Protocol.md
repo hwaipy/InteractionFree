@@ -46,23 +46,21 @@ The entire DataBlock should be serialized by [MsgPack](https://msgpack.org) as f
 
 1. Suppose there is `N` events in total. Record the first time as `TIME_FIRST`.
 2. Calculate time differents between neighbor events. `delta[i] = time[i+1] - time[i]`, `i=0` to `N-1`.
-3. Calculate data length for each delta. `len[i]` = $log_{16}(delta[i])$.
- 
+3. Each time difference is serialized independently by two's-complement representation, and sliced as 4 * Q bits. Q is the minimal valid positive integer that remains the value of the number. Examples are listed below. Max valid Q is 15.
 
+| Decimal | Binary | Q |
+| :----: | :----: | :----: |
+| 0 | 0 | 1 |
+| 1 | 1 | 1 |
+| 7 | 111 | 1 |
+| 8 | 1000 | 2 |
+| 127 | 1111111 | 2 |
+| 128 | 10000000 | 3 |
+| -1 | ...1111 | 1 |
+| -2 | ...1110 | 1 |
+| -8 | ...1000 | 1 |
+| -9 | ...11110111 | 2 |
+| -128 | ...10000000 | 2 |
+| -129 | ...111101111111 | 3 |
 
-$$
-7^7
-$$
-
-
-1 -> 16 -> 16 ps
-2 -> 256 -> 0.256 ns
-3 -> 4096 -> 4 ns
-4 -> 65536 -> 65 ns
-5 -> 1048576 -> 1 us
-6 -> 16777216 -> 16 us
-7 -> 268435456 -> 268 us
-8 -> 4.29 ms
-9 -> 68.7 ms
-10-> 1.1 s
-15-> 
+4. Generate binaries. The first 8 bits represent `TIME_FIRST`, big-endian, signed. The following bits are group in 4, for the storage of time differences. Time differences are written one by one. For each time difference, the first 4 bits represents Q, and the following Q * 4 bits represent the value. After the written of the last time difference, any remaining bits of the last byte are filled with 0.

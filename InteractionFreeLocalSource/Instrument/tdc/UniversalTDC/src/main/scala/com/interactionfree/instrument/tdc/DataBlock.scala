@@ -13,8 +13,8 @@ object DataBlock {
   val PROTOCOL_V1 = "DataBlock_V1"
   private val DEFAULT_PROTOCOL = PROTOCOL_V1
 
-  def create(content: Array[Array[Long]], creationTime: Long, dataTimeBegin: Long, dataTimeEnd: Long): DataBlock = {
-    val dataBlock = new DataBlock(creationTime, dataTimeBegin, dataTimeEnd, content.map(_.length))
+  def create(content: Array[Array[Long]], creationTime: Long, dataTimeBegin: Long, dataTimeEnd: Long, resolution: Double = 1e-12): DataBlock = {
+    val dataBlock = new DataBlock(creationTime, dataTimeBegin, dataTimeEnd, content.map(_.length), resolution)
     dataBlock.contentRef set content
     dataBlock
   }
@@ -73,11 +73,12 @@ object DataBlock {
 
   def deserialize(data: Array[Byte]) = {
     val recovered = MsgpackSerializer.deserialize(data).asInstanceOf[Map[String, Any]]
-    if (recovered("Format") != PROTOCOL_V1) throw new IFException(s"Data format not supported: ${recovered("Format")}")
+    val protocol = recovered("Format").toString()
+    if (protocol != PROTOCOL_V1) throw new IFException(s"Data format not supported: ${recovered("Format")}")
     val sizes = recovered("Sizes").asInstanceOf[IterableOnce[Int]].iterator.toArray
     val dataBlock = new DataBlock(recovered("CreationTime"), recovered("DataTimeBegin"), recovered("DataTimeEnd"), sizes, recovered("Resolution"))
     val chDatas = recovered("Content").asInstanceOf[IterableOnce[List[Array[Byte]]]].iterator.toArray
-    val content = chDatas.map(chData => Array.concat(chData.map(section => DataBlockSerializers.naiveDBS.deserialize(section)): _*))
+    val content = chDatas.map(chData => Array.concat(chData.map(section => DataBlockSerializers(protocol).deserialize(section)): _*))
     dataBlock.contentRef set (if (content.isEmpty) null else content)
     dataBlock
   }
@@ -115,6 +116,16 @@ class DataBlock private (val creationTime: Long, val dataTimeBegin: Long, val da
     System.currentTimeMillis()
     MsgpackSerializer.serialize(result)
   }
+
+  def convertResolution(resolution: Double) = {
+    val ratio = this.resolution / resolution
+    val newDB = new DataBlock(creationTime, (dataTimeBegin * ratio).toLong, (dataTimeEnd * ratio).toLong, sizes, resolution)
+    content.foreach(c => {
+      val newContent = c.map(ch => ch.map(n => (n * ratio).toLong))
+      newDB.contentRef set newContent
+    })
+    newDB
+  }
 }
 
 abstract class DataBlockSerializer {
@@ -123,62 +134,9 @@ abstract class DataBlockSerializer {
 }
 
 object DataBlockSerializers {
-  val naiveDBS = new DataBlockSerializer {
-    def serialize(list: Array[Long]) =
-      list.size match {
-        case 0 => Array[Byte]()
-        case _ => {
-          val buffer = ByteBuffer.allocate(list.length * 8)
-          buffer.putLong(list(0))
-          var i = 0
-          val unit = new Array[Byte](8)
-          while (i < list.length - 1) {
-            val delta = (list(i + 1) - list(i))
-            i += 1
-            var value = if (delta >= 0) delta else -delta
-            var length = 0
-            while (value > 0) {
-              unit(7 - length) = (value & 0xff).toByte
-              value >>= 8
-              length += 1
-            }
-            buffer put (length | (if (delta > 0) 0x00 else 0x80)).toByte
-            buffer.put(unit, 8 - length, length)
-          }
-          buffer.array().slice(0, buffer.position())
-        }
-      }
-
-    def deserialize(data: Array[Byte]): Array[Long] =
-      data.size match {
-        case 0 => Array[Long]()
-        case _ => {
-          val buffer = ByteBuffer.wrap(data)
-          val longBuffer = LongBuffer.allocate(data.length)
-          val offset = buffer.getLong()
-          longBuffer.put(offset)
-          var previous = offset
-
-          while (buffer.hasRemaining) {
-            val lengthU = buffer.get()
-            val length = lengthU & 0x7f
-            val minus = (lengthU & 0x80) > 0
-            var delta = 0L
-            var i = length - 1
-            while (i >= 0) {
-              var v = buffer.get().toLong
-              if (v < 0) v += 256
-              delta += (v << (8 * i))
-              i -= 1
-            }
-            previous += (if (minus) -delta else delta)
-            longBuffer.put(previous)
-          }
-          longBuffer.array().slice(0, longBuffer.position())
-        }
-      }
-  }
   val pv1DBS = new DataBlockSerializer {
+    private val MAX_VALUE = 1e16
+
     def serialize(list: Array[Long]) =
       list.size match {
         case 0 => Array[Byte]()
@@ -186,30 +144,37 @@ object DataBlockSerializers {
           val buffer = ByteBuffer.allocate(list.length * 8)
           buffer.putLong(list(0))
 
-
-
+          val unitSize = 15
+          val unit = new Array[Byte](unitSize + 1)
+          var hasHalfByte = false
+          var halfByte: Byte = 0
           var i = 0
-          val unit = new Array[Byte](8)
           while (i < list.length - 1) {
             val delta = (list(i + 1) - list(i))
             i += 1
-            var value = if (delta >= 0) delta else -delta
+            if (delta > MAX_VALUE || delta < -MAX_VALUE) throw new IllegalArgumentException(s"The value to be serialized exceed MAX_VALUE: ${delta}")
+            var value = delta
             var length = 0
-            while (value > 0) {
-              unit(7 - length) = (value & 0xff).toByte
-              value >>= 8
+            var keepGoing = true
+            val valueBase = if (delta >= 0) 0 else 0xffffffffffffffffL
+            while (keepGoing) {
+              unit(unitSize - length) = (value & 0xf).toByte
+              value >>= 4
               length += 1
+              if (value == valueBase) {
+                keepGoing = (unit(unitSize - length + 1) & 0x8) == (if (delta >= 0) 0x8 else 0x0)
+              } else if (length >= unitSize) keepGoing = false
             }
-
-
-            
-            buffer put (length | (if (delta > 0) 0x00 else 0x80)).toByte
-            buffer.put(unit, 8 - length, length)
+            unit(unitSize - length) = length.toByte
+            var p = 0
+            while (p <= length) {
+              if (hasHalfByte) buffer.put(((halfByte << 4) | unit(unitSize - length + p)).toByte) else halfByte = unit(unitSize - length + p)
+              hasHalfByte = !hasHalfByte
+              p += 1
+            }
           }
+          if (hasHalfByte) buffer.put((halfByte << 4).toByte)
           buffer.array().slice(0, buffer.position())
-
-
-
         }
       }
 
@@ -217,34 +182,47 @@ object DataBlockSerializers {
       data.size match {
         case 0 => Array[Long]()
         case _ => {
-          val buffer = ByteBuffer.wrap(data)
+          val offset = (ByteBuffer.wrap(data.slice(0, 8))).getLong()
           val longBuffer = LongBuffer.allocate(data.length)
-          val offset = buffer.getLong()
           longBuffer.put(offset)
           var previous = offset
 
-          while (buffer.hasRemaining) {
-            val lengthU = buffer.get()
-            val length = lengthU & 0x7f
-            val minus = (lengthU & 0x80) > 0
-            var delta = 0L
-            var i = length - 1
-            while (i >= 0) {
-              var v = buffer.get().toLong
-              if (v < 0) v += 256
-              delta += (v << (8 * i))
-              i -= 1
+          var positionC = 8
+          var positionF = 0
+          def hasNext = positionC < data.length
+          def getNext = {
+            val b = data(positionC)
+            if (positionF == 0) {
+              positionF = 1
+              (b >> 4) & 0xf
+            } else {
+              positionF = 0
+              positionC += 1
+              b & 0xf
             }
-            previous += (if (minus) -delta else delta)
-            longBuffer.put(previous)
+          }
+
+          while (hasNext) {
+            var length = getNext - 1
+            if (length >= 0) {
+              var value: Long = (getNext & 0xf)
+              if ((value & 0x8) == 0x8) value |= 0xfffffffffffffff0L
+              while (length > 0) {
+                value <<= 4
+                value |= (getNext & 0xf)
+                length -= 1
+              }
+              previous += value
+              longBuffer.put(previous)
+            }
           }
           longBuffer.array().slice(0, longBuffer.position())
         }
       }
   }
   private val DBS = Map(
-    "NAIVE" -> naiveDBS,
-    DataBlock.PROTOCOL_V1 -> pv1DBS,
+    // "NAIVE" -> naiveDBS,
+    DataBlock.PROTOCOL_V1 -> pv1DBS
   )
 
   def apply(name: String) = DBS(name)
