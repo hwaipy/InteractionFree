@@ -13,15 +13,18 @@ import com.interactionfree.MsgpackSerializer
 import scala.collection.IterableOnce
 import scala.util.Random
 
-class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter], private val localStorePath: String) {
+class TDCProcessServer(port: Int, dataIncome: Any => Unit, adapters: List[TDCDataAdapter]) {
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor(r => {
     val t = new Thread(r)
     t.setDaemon(true)
     t
   }))
-  private val tdcParser = new TDCParser(new TDCDataProcessor {
-    override def process(data: Any): Unit = dataIncome(data)
-  }, adapters.toArray)
+  private val tdcParser = new TDCParser(
+    new TDCDataProcessor {
+      override def process(data: Any): Unit = dataIncome(data)
+    },
+    adapters.toArray
+  )
   private val server = new ServerSocket(port)
   val buffer = new Array[Byte](10000000)
   Future[Any] {
@@ -54,27 +57,6 @@ class TDCProcessServer(val channelCount: Int, port: Int, dataIncome: Any => Unit
     server.close()
     tdcParser.stop()
   }
-
-  //  private val sectionStartTime = new AtomicLong(0)
-  //  private var sectionStoredSize = new AtomicLong(0)
-  //  private var sectionStoreStream = new AtomicReference[BufferedOutputStream](null)
-  //
-  //  private def store(data: Array[Byte]) = {
-  //    if (sectionStoreStream == null) {
-  //      sectionStoreStream set new BufferedOutputStream(new FileOutputStream("TEMP.TDC"))
-  //      sectionStartTime set System.currentTimeMillis()
-  //    }
-  //    //            sectionStoreStream.write(array)
-  //    //            sectionStoredSize += read
-  //    //            if (sectionStoredSize > 1e7) {
-  //    //              sectionStoreStream.close()
-  //    //              val currentTime = System.currentTimeMillis()
-  //    //              Files.move(new File("TEMP.TDC").toPath, new File(s"${sectionStartTime}-${currentTime}.tdc").toPath, StandardCopyOption.REPLACE_EXISTING)
-  //    //              sectionStartTime = currentTime
-  //    //              sectionStoreStream = new BufferedOutputStream(new FileOutputStream("TEMP.TDC"))
-  //    //              sectionStoredSize = 0
-  //    //            }
-  //  }
 }
 
 class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCDataAdapter {
@@ -94,7 +76,7 @@ class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCData
     while (buffer.hasRemaining) {
       val item = buffer.get
       val time = item >> 4
-      val channel = (item & 0xF).toInt
+      val channel = (item & 0xf).toInt
       feedTimeEvent(channel, time)
     }
   }

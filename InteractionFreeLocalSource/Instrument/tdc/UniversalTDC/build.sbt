@@ -1,4 +1,4 @@
-name := "UniversalTDC"
+name := "universaltdc"
 version := "1.0.0"
 scalaVersion := "2.13.3"
 organization := "com.interactionfree.instrument"
