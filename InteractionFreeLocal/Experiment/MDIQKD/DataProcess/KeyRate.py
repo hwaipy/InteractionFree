@@ -5,8 +5,9 @@ import time
 
 
 class KeyRate:
-    def __init__(self):
+    def __init__(self, exe):
         self.root = ''
+        self.exe = exe
 
     def keyRate(self, data, inf=False):
         C = 1 if not inf else 1e10
@@ -27,7 +28,7 @@ class KeyRate:
         ]])))
         dataFile.close()
 
-        p = subprocess.Popen('{}MDI-freespace-data_process_failure_1e-7.exe'.format(self.root), shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen('{}{}'.format(self.root, self.exe), shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = p.communicate()
         os.remove('{}DATA_FILE.csv'.format(self.root))
         result = str(stdout, 'GB2312')
@@ -39,6 +40,7 @@ class KeyRate:
         return 0
 
 
-session = IFWorker('tcp://172.16.60.199:224', 'MDI-QKD KeyRate', KeyRate())
+IFWorker('tcp://172.16.60.199:224', 'MDI-QKD KeyRate', KeyRate('MDI-freespace-data_process_failure_1e-7.exe'))
+IFWorker('tcp://172.16.60.199:224', 'MDI-QKD KeyRate 20201016', KeyRate('MDI-freespace-data_process_failure_1e-7_20201016.exe'))
 IFLoop.join()
 

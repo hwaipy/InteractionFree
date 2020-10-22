@@ -336,7 +336,12 @@ class Channels:
 
     @classmethod
     def create(cls, entries):
+        # print('creating')
+        # print(entries.size())
+        # for entry in entries:
+        #     print(entry.trigger)
         syncedEntryIndices = seq(entries).zip_with_index().filter(lambda z: z[0].trigger).map(lambda z: z[1])
+        # print(syncedEntryIndices)
         return syncedEntryIndices[:-1].zip(syncedEntryIndices[1:]).map(lambda z: Channels(entries[z[0]:z[1] + 1]))
 
 
@@ -379,7 +384,6 @@ class ChannelEntry:
 
     def setTDCTime(self, tdcTime):
         self.tdcTime = tdcTime
-
 
 class DataBlock:
     def __init__(self, fetchTime, dataTimeBegin, dataTimeEnd, content, sectionCount):
@@ -513,7 +517,8 @@ class DataBlockFilter:
             outputFile.close()
 
 def debug_info(level, msg):
-    print('[{}] {}'.format(level, msg))
+    pass
+    # print('[{}] {}'.format(level, msg))
 
 if __name__ == '__main__':
     print(datetime.now(pytz.timezone('Asia/Shanghai')).isoformat())
