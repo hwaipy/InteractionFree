@@ -113,7 +113,6 @@ class DataBlock private (val creationTime: Long, val dataTimeBegin: Long, val da
       "Sizes" -> sizes,
       "Content" -> serializedContent
     )
-    System.currentTimeMillis()
     MsgpackSerializer.serialize(result)
   }
 

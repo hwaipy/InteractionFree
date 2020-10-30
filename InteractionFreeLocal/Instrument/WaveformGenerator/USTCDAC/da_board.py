@@ -3,13 +3,9 @@ import ctypes
 import time
 import numpy as np
 import math
-from Instrument.WaveformGenerator.USTCDAC.logging_util import logger
-
 import struct
 import socket
-import sys
-import pdb
-
+from Instrument.WaveformGenerator.USTCDAC.logging_util import logger
 
 def get_host_ip():
     addrs = socket.getaddrinfo(socket.gethostname(), None)
@@ -17,7 +13,6 @@ def get_host_ip():
         if item[-1][0].find('10.0') > -1:
             return item[-1][0]
     return '10.0.255.255'
-
 
 class VirtualDll:
     def __init__(self, da_id):
@@ -65,10 +60,6 @@ def format_data(data_in):
         temp_len = len(data_in)
         for i in range(0, temp_len):
             data[i] = data_in[i]
-    # for i in range(0, int(length / 2 - 1)):  # 颠倒数据
-    #     temp = data[2 * i]
-    #     data[2 * i] = data[2 * i + 1]
-    #     data[2 * i + 1] = temp
     return data
 
 
@@ -81,7 +72,7 @@ class RawBoard(object):
         self.connect_status = 0
         self.ip = '127.0.0.1'
         self.port = 80
-        self.timeout = 5
+        self.timeout = 2
         self.timeout_cnt = 0
         self.para_addr_list = []
         self.para_data_list = []
@@ -96,7 +87,7 @@ class RawBoard(object):
         """
         if self.timeout_cnt >= 5:
             logger.critical(f'{self.ip} timeout count reach 5, will repogram the fpga.')
-            # self.DA_reprog()
+            self.DA_reprog()
         count = 5
         while count > 0:
             try:
@@ -141,7 +132,7 @@ class RawBoard(object):
     def DA_reprog(self):
         """AWG FPGA 逻辑重配置"""
         self.timeout_cnt = 0
-        wait_time = 10
+        wait_time = 15
         print(f'da reprog please wait {wait_time} seconds')
         packet = struct.pack("LLL", 0x00000105, 2, 1)
         self.send_data(packet)
@@ -149,25 +140,27 @@ class RawBoard(object):
         for i in range(int(wait_time)):
             time.sleep(1)
         self.connect()
-        print('da reprog done')
+        # print('da reprog done')
         return 0
 
     def send_data(self, msg):
         """Send data over the socket."""
         totalsent = 0
         sent = 0
+        exc_cnt = 0
         while totalsent < len(msg):
             try:
                 sent = self.sockfd.send(msg)
             except:
-                print(self.timeout)
                 self.timeout_cnt += 1
+                # print(f'{self.id} send faild msg: {len(msg)}, {msg}')
                 self.connect()
+                print(self.para_addr_list)
                 self.init_tcp()
-                # break
-                return -1
-            # if sent == 0:
-            #     raise RuntimeError("Socket connection broken")
+                exc_cnt += 1
+                if exc_cnt > 5:
+                    return -1
+                continue
             totalsent = totalsent + sent
         return 0
 
@@ -184,10 +177,10 @@ class RawBoard(object):
                 chunks.append(chunk)
                 bytes_recd = bytes_recd + len(chunk)
         except:
-            # self.DA_reprog()
-            # raise RuntimeError("Socket connection broken")
-            self.sockfd.settimeout(8)
+            # self.sockfd.settimeout(8)
             self.timeout_cnt += 1
+            print(f'{self.id} recv faild')
+            # print(self.para_addr_list)
             self.connect()
             self.init_tcp()
             return -1, -1
@@ -206,7 +199,6 @@ class RawBoard(object):
             # I'm reading my data in byte chunks
             chunk = self.sockfd.recv(min(length - bytes_recd, 1024))
             # Unpack the received data
-            # data = struct.unpack("L", chunk)
             ram_data += chunk
             if chunk == '':
                 raise RuntimeError("Socket connection broken")
@@ -223,6 +215,7 @@ class RawBoard(object):
         packet = struct.pack("4bLL", cmd, unpackedBank[0], unpackedBank[1], unpackedBank[2], addr, data)
         # Next I need to send the command
         self.send_data(packet)
+        # print(f'{self.id} receive Write_Reg')
         stat, data = self.receive_data()
         if stat != 0x0:
             logger.info(f'{self.id} Write_Reg Issue with Write Command stat: {stat}')
@@ -319,10 +312,12 @@ class DABoard(RawBoard):
     is_block = 0  # is run in a block mode
     channel_amount = 4  # DA板通道个数，依次为X、Y、DC、Z
 
-    def __init__(self, id="E08", ip="10.0.4.8", port=80, connect_status=0, trig_interval_l1=200e-6, trig_interval_l2=0.001,
+    def __init__(self, id="E08", ip="10.0.4.8", port=80, connect_status=0, trig_interval_l1=200e-6,
+                 trig_interval_l2=0.001,
                  trig_count_l1=10, trig_count_l2=1, output_delay=0, channel_gain=None,
                  channel_default_voltage=None, data_offset=None, trig_out_delay_step=None,
-                 output_delay_step=None, sample_rate=0.5e-9, sync_delay=None, channel_sampling_ratio=None, batch_mode=True):
+                 output_delay_step=None, sample_rate=0.5e-9, sync_delay=None, channel_sampling_ratio=None,
+                 batch_mode=True):
         super(DABoard, self).__init__()
         if channel_gain is None:
             channel_gain = [511 for x in range(0, self.channel_amount)]
@@ -363,7 +358,6 @@ class DABoard(RawBoard):
         self.trig_source = 0  ## 选择触发模块通道做触发输出
         self.output_delay_info = output_delay  # DA板输出延时
         self.data_offset = data_offset
-        # self.pad_data = [struct.pack('H', _off)*32 for _off in data_offset]
         self.trig_out_delay_step = trig_out_delay_step
         self.output_delay_step = output_delay_step
         self.sample_rate = sample_rate
@@ -371,7 +365,7 @@ class DABoard(RawBoard):
         self.channel_sampling_ratio = channel_sampling_ratio  # DA板超采样
         # 记录配置到板子的信息
         self.channel_gain = [None for x in range(0, self.channel_amount)]
-        self.channel_default_voltage = [None for x in range(0, self.channel_amount)]
+        self.channel_default_voltage = channel_default_voltage
         self.trig_interval_l1 = None  # DA板默认触发间隔
         self.trig_interval_l2 = None  # DA板默认触发间隔
         self.trig_count_l1 = trig_count_l1
@@ -468,8 +462,6 @@ class DABoard(RawBoard):
         packet = _head + packet
         self.commiting = operation_dic['data fast']
         ret = self.send_data(packet)
-        # sta = self.fast_write_memory(packet)
-        # print(f'write status: {sta}')
         if ret == 0:
             return ret
         return -1
@@ -481,6 +473,9 @@ class DABoard(RawBoard):
         :param wave: 波形数据，波形数据要求为numpy数组类型，取值范围[0，65535]
         :return: uint16 类型 numpy array
         '''
+        # import matplotlib.pyplot as plt
+        # plt.plot(wave[:200])
+        # plt.show()
         data_offset = self.data_offset[channel - 1] + 32768
         pad_cnt = 40 + (32 - ((len(wave) + 40) & 31))
         data = np.pad(wave, [0, pad_cnt], 'constant', constant_values=(0, 0))  # 补齐64字节0
@@ -496,15 +491,19 @@ class DABoard(RawBoard):
         :param wave: 波形数据, 每通道波形长度小于100,000采样点
         :return:
         '''
-        # assert wave.dtype == 'uint16'
         if channel < 1 or channel > self.channel_amount:
             logger.error(f"[{self.id}] wrong channel: {channel}")
             return 3
-
+        if len(wave) > 10e4:
+            logger.error("DAC %s write wave failed, wave length:%d out of range 100k!", self.id, len(wave))
+            return 3
+        # t1 = time.time()
         data = self.wave_calc_fast(channel, wave)
+        # t2 = time.time()
+        # print(f'{self.id} {channel} wave calc time {round(t2-t1, 5)} {len(data)}')
         start_addr = ((channel - 1) << 19) + 2 * offset
-        if self.batch_mode and len(data) <= 32 * 1024:
-            # DA板上存储空间只有256kB，分到每个通道只有64kB，超过这个长度时，波形不能合并发送
+        if self.batch_mode:
+            # 无波形长度限制
             self.waves[channel - 1] = data.tobytes()
             return 0
         else:
@@ -522,13 +521,13 @@ class DABoard(RawBoard):
         :param seq: 序列数据，每通道序列数据长度<16384, 序列数据长度为4的整数倍
         :return:
         '''
-        if len(seq) & 0x3 != 0:
-            logger.error('length of seq shuld be multipule of 4')
+        if len(seq) & 0x3 != 0 or len(seq) > 16384:
+            logger.error('DAC %s length of seq %s shuld be multipule of 4 and less than 16384', self.id, len(seq))
             return 3
+
         if channel < 1 or channel > self.channel_amount:
-            logger.error('Wrong Channel')
+            logger.error(f"[{self.id}] wrong channel: {channel}")
             return 3
-        # print('write seq')
         # 将序列数据补齐成64字节整数倍
         pad_cnt = (32 - (len(seq) & 31)) & 31
         seq = np.pad(seq, [0, pad_cnt], 'constant', constant_values=(0, 0))  # 补齐64字节0
@@ -563,7 +562,7 @@ class DABoard(RawBoard):
             try_count = try_count - 1
             if try_count == 5 or try_count == 6:
                 logger.error(f"{self.id} init device failed 5 times,try to reprogram fpga")
-                # self.DA_reprog()
+                self.DA_reprog()
 
         if is_ready == 0:
             logger.error("init device failed")
@@ -606,11 +605,25 @@ class DABoard(RawBoard):
                 return 1
         return 0
 
+    def clear_trig_count(self):
+        ret = self.write_command(0x00001F05, 0, 0)
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s set_trig_count failed!", self.id)
+        return ret
+
     def init_board(self):
         ret = self.write_command(0x00001A05, 11, 1 << 16)
         if not ret == 0:
             self.disp_error(ret)
             logger.error("DAC %s init board failed!", self.id)
+        return ret
+
+    def power_on_dac(self, chip, on_off):
+        ret = self.write_command(0x00001E05, chip, on_off)
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s power on failed!", self.id)
         return ret
 
     def sync_ctrl(self, id, val):
@@ -632,7 +645,6 @@ class DABoard(RawBoard):
                 self.set_para(0, 0x40, ((4 * 250) << 16) | 1)
             else:  # 其他时候FPGA逻辑内部总的计数器与触发间隔计数相等
                 self.set_para(0, 0x40, (val << 4) | 1)
-        # self.commit_para()
 
     def start(self, index):
         if self.batch_mode:
@@ -661,6 +673,12 @@ class DABoard(RawBoard):
         :param arg4: 通道1循环次数 范围：(1，65535)
         :return:
         '''
+        if arg1 not in range(1, 65535) or arg2 not in range(1, 65535) or arg3 not in range(1,
+                                                                                           65535) or arg4 not in range(
+                1, 65535):
+            logger.error('DAC %s set_loop param out of range 0~65535', self.id)
+            return 3
+
         if self.batch_mode:
             self.set_para(0, 0x21, (arg1 << 16) | arg2)
             self.set_para(0, 0x23, (arg3 << 16) | arg4)
@@ -679,16 +697,21 @@ class DABoard(RawBoard):
         :param count: (0,65535)
         :return:
         '''
-        assert count < 65536
+        if count < 0 or count > 65536:
+            logger.error("DAC %s set_dac_start count %s param out of range 0~65535", self.id, count)
+            return 1
+
         count_trans = round(count) << 16
 
         if count_trans > 2 ** 32 - 1:
-            logger.error("set_dac_start count param error!")
+            logger.error("DAC %s set_dac_start count param error!", self.id)
             ret = 1
             return ret
         if count != round(count):
             real = round(count) * 4
-            logger.warn("Da_output_delay should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of da_output_delay is {}ns".format(real))
+            logger.warn(
+                "Da_output_delay should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of da_output_delay is {}ns".format(
+                    real))
         ret = self.write_command(0x00001805, 2, count_trans)
         if not ret == 0:
             self.disp_error(ret)
@@ -701,7 +724,10 @@ class DABoard(RawBoard):
         :param count: (0,65535)
         :return:
         '''
-        assert count < 65536
+        if count < 0 or count > 65536:
+            logger.error("DAC %s set_dac_start count %s param out of range 0~65535", self.id, count)
+            return 1
+
         count_trans = round(count) << 16
         if count_trans > 2 ** 32 - 1:
             logger.error("set_trig_start count param out of range,trig_delay should be less than 262.13e-6!")
@@ -709,7 +735,9 @@ class DABoard(RawBoard):
             return ret
         if abs(count - round(count)) > 0.1:
             real = round(count) * 4
-            logger.warn("Trig_delay should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of trig_delay is {}ns".format(real))
+            logger.warn(
+                "Trig_delay should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of trig_delay is {}ns".format(
+                    real))
         ret = self.write_command(0x00001805, 4, count_trans)
 
         if not ret == 0:
@@ -720,7 +748,9 @@ class DABoard(RawBoard):
     def set_multi_board(self, mode=0):
         # mode为1设置单板触发，mode为0设置多板触发
         # 1:single board mode 0: multi board mode
-        assert mode in [0, 1]
+        if mode not in [0, 1]:
+            logger.error("DAC %s set_multi_board mode %s not in [0, 1]", self.id, mode)
+            return 1
 
         if self.batch_mode:
             self.sync_ctrl(19, mode << 16)
@@ -740,7 +770,9 @@ class DABoard(RawBoard):
         :param ch: [0,1,2,3,4]
         :return:
         '''
-        assert ch in [0, 1, 2, 3, 4]
+        if ch not in [0, 1, 2, 3, 4]:
+            logger.error("DAC %s set_trig_select ch %s not in [0, 1, 2, 3, 4]", self.id, ch)
+            return 1
 
         if self.batch_mode:
             self.sync_ctrl(20, ch << 16)
@@ -761,7 +793,10 @@ class DABoard(RawBoard):
         :param count: (0,65535), 大于 set_trig_start中设置的值
         :return:
         '''
-        assert count < 65536
+        if count < 0 or count > 65536:
+            logger.error("DAC %s set_trig_stop count %s param out of range 0~65535", self.id, count)
+            return 1
+
         count_trans = round(count) << 16
         if count_trans > 2 ** 32 - 1:
             logger.error("set_trig_stop count param out of range,width+trig_delay should be less than 262.14e-6!")
@@ -769,7 +804,9 @@ class DABoard(RawBoard):
             return ret
         if abs(count - round(count)) > 0.1:
             real = round(count) * 4
-            logger.warn("Width+trig_delay should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of width+trig_delay is {}ns".format(real))
+            logger.warn(
+                "Width+trig_delay should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of width+trig_delay is {}ns".format(
+                    real))
         ret = self.write_command(0x00001805, 5, count_trans)
         if not ret == 0:
             self.disp_error(ret)
@@ -778,7 +815,7 @@ class DABoard(RawBoard):
 
     def send_int_trig(self):
         '''触发使能, 这条指令应该直接执行，执行时，先重置触发，防止有未运行完的触发'''
-        self.clear_trig_count()
+        # self.clear_trig_count()
         ret = self.write_command(0x00001805, 8, 1 << 16)
         if not ret == 0:
             self.disp_error(ret)
@@ -793,28 +830,32 @@ class DABoard(RawBoard):
         '''
         if trig_interval == self.trig_interval_l1:
             return 0
-        else:
-            count = trig_interval / 4e-9
-            count_trans = round(count) << 12
-            if count_trans > 2 ** 32 - 1:
-                logger.error("Interval_l1 count param out of range,interval_l1 should be less than 4.19e-3!")
-                ret = 1
-                return ret
-            if abs(count - round(count)) > 0.1:
-                real = round(count) * 4
-                logger.warn("Interval_l1 should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of interval_l1 is {}ns".format(real))
-            if self.batch_mode:
-                self.sync_ctrl(9, count_trans)
-                self.trig_interval_l1 = trig_interval
-                return 0
-            ret = self.write_command(0x00001805, 9, count_trans)
-
-            if not ret == 0:
-                self.disp_error(ret)
-                logger.error("DAC %s set_trig_interval failed!", self.id)
-            else:
-                self.trig_interval_l1 = trig_interval
+        if trig_interval < 1e-7 or trig_interval > 5e-3:
+            logger.error("DAC %s set_trig_interval_l1 %s out of range 100ns~5ms", self.id, trig_interval)
+            return 1
+        count = trig_interval / 4e-9
+        count_trans = round(count) << 12
+        if count_trans > 2 ** 32 - 1:
+            logger.error("Interval_l1 count param out of range,interval_l1 should be less than 4.19e-3!")
+            ret = 1
             return ret
+        if abs(count - round(count)) > 0.1:
+            real = round(count) * 4
+            logger.warn(
+                "Interval_l1 should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of interval_l1 is {}ns".format(
+                    real))
+        if self.batch_mode:
+            self.sync_ctrl(9, count_trans)
+            self.trig_interval_l1 = trig_interval
+            return 0
+        ret = self.write_command(0x00001805, 9, count_trans)
+
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s set_trig_interval failed!", self.id)
+        else:
+            self.trig_interval_l1 = trig_interval
+        return ret
 
     def set_trig_interval_l2(self, trig_interval):
         '''
@@ -824,70 +865,81 @@ class DABoard(RawBoard):
         '''
         if trig_interval == self.trig_interval_l2:
             return 0
-        else:
-            count = trig_interval / 4e-9
-            count_trans = round(count) << 12
-            if count_trans > 2 ** 32 - 1:
-                logger.error("Interval_l2 count param out of range,interval_l2 should be less than 4.19e-3!")
-                ret = 1
-                return ret
-            if abs(count - round(count)) > 1e-9:
-                real = round(count) * 4
-                logger.warn("Interval_l2 should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of interval_l2 is {}ns".format(real))
-            if self.batch_mode:
-                self.sync_ctrl(15, count_trans)
-                self.trig_interval_l2 = trig_interval
-                return 0
-            ret = self.write_command(0x00001805, 15, count_trans)
-            if not ret == 0:
-                self.disp_error(ret)
-                logger.error("DAC %s set_trig_interval failed!", self.id)
-            else:
-                self.trig_interval_l2 = trig_interval
+        if trig_interval < 1e-7 or trig_interval > 5e-3:
+            logger.error("DAC %s set_trig_interval_l2 %s out of range 100ns~5ms", self.id, trig_interval)
+            return 1
+        count = trig_interval / 4e-9
+        count_trans = round(count) << 12
+        if count_trans > 2 ** 32 - 1:
+            logger.error("Interval_l2 count param out of range,interval_l2 should be less than 4.19e-3!")
+            ret = 1
             return ret
+        if abs(count - round(count)) > 1e-9:
+            real = round(count) * 4
+            logger.warn(
+                "Interval_l2 should be a multiple of 4ns,otherwise we'll round it up.In this case,the real value of interval_l2 is {}ns".format(
+                    real))
+        if self.batch_mode:
+            self.sync_ctrl(15, count_trans)
+            self.trig_interval_l2 = trig_interval
+            return 0
+        ret = self.write_command(0x00001805, 15, count_trans)
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s set_trig_interval failed!", self.id)
+        else:
+            self.trig_interval_l2 = trig_interval
+        return ret
 
     def set_trig_count_l1(self, count):
         '''
         设置AWG出发模块一级触发个数
-        :param count: (1，65535)
+        :param count: (1，100000)
         :return:
         '''
-        if self.batch_mode:
-            # self.sync_ctrl(10, count << 12)
-            self.sync_ctrl(10, count << 12)  # 一级触发默认设置为1，通过序列生成
-            self.trig_count_l1 = count
-            return 0
+        if count < 1 or count > 100000:
+            logger.error("DAC %s set_trig_count_l1 count %s param out of range 1~65535", self.id, count)
+            return 1
+
         if count == self.trig_count_l1:
             return 0
+        if self.batch_mode:
+            self.sync_ctrl(10, count << 12)
+            self.trig_count_l1 = count
+            return 0
+
+        ret = self.write_command(0x00001805, 10, count << 12)
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s set_trig_count failed!", self.id)
         else:
-            ret = self.write_command(0x00001805, 10, count << 12)
-            if not ret == 0:
-                self.disp_error(ret)
-                logger.error("DAC %s set_trig_count failed!", self.id)
-            else:
-                self.trig_count_l1 = count
-            return ret
+            self.trig_count_l1 = count
+        return ret
 
     def set_trig_count_l2(self, count):
         '''
         设置AWG出发模块二级触发个数
-        :param count: (1，65535)
+        :param count: (1，100000)
         :return:
         '''
+        if count < 1 or count > 100000:
+            logger.error("DAC %s set_trig_count_l2 count %s param out of range 1~65535", self.id, count)
+            return 1
+
         if count == self.trig_count_l2:
             return 0
+
+        if self.batch_mode:
+            self.sync_ctrl(16, count << 12)
+            self.trig_count_l2 = count
+            return 0
+        ret = self.write_command(0x00001805, 16, count << 12)
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s set_trig_count failed!", self.id)
         else:
-            if self.batch_mode:
-                self.sync_ctrl(16, count << 12)
-                self.trig_count_l2 = count
-                return 0
-            ret = self.write_command(0x00001805, 16, count << 12)
-            if not ret == 0:
-                self.disp_error(ret)
-                logger.error("DAC %s set_trig_count failed!", self.id)
-            else:
-                self.trig_count_l2 = count
-            return ret
+            self.trig_count_l2 = count
+        return ret
 
     def set_monitor(self, ip=None):
         '''
@@ -922,9 +974,16 @@ class DABoard(RawBoard):
         :param width: 宽度默认为40ns，point+width 转换后的计数<65536
         :return:
         '''
+        if point < 0 or point > 2.56e-4:
+            logger.error("DAC %s set_trig_delay ponit %s param out of range 0-256us", self.id, point)
+            return 1
         start = round((self.da_trig_delay_offset + point) / 4e-9 + 1)
         stop = round((self.da_trig_delay_offset + point) / 4e-9 + width / 4e-9)
-        assert stop < 65536
+        if stop > 65536:
+            logger.error("DAC %s set_trig_delay stop %s param out of range 65535", self.id, stop)
+            return 1
+        if self.trig_delay == start and self.trig_delay_width == width:
+            return 0
         self.trig_delay = start
         self.trig_delay_width = width
 
@@ -943,18 +1002,23 @@ class DABoard(RawBoard):
         :param delay: 单位ns，范围 0-256us, delay转换后的计数+10<65536
         :return:
         '''
+        if delay < 0 or delay > 2.56e-4:
+            logger.error("DAC %s set_da_output_delay delay %s param out of range 0-256us", self.id, delay)
+            return 1
         count = round((delay) / 4e-9 + 1)
-        assert count + 10 < 65536
+        if count + 10 > 65536:
+            logger.error("DAC %s set_da_output_delay count+10 %s param out of range 65536", self.id, count + 10)
+            return 1
+        if delay == self.output_delay:
+            return 0
         if self.batch_mode:
             self.sync_ctrl(2, count << 16)
             self.sync_ctrl(3, (count + 10) << 16)
             return 0
-        if not delay == self.output_delay:
-            ret1 = self.set_dac_start(delay / 4e-9 + 1)
-            self.output_delay = delay
-            return ret1
         else:
-            return 0
+            ret = self.set_dac_start(delay / 4e-9 + 1)
+            self.output_delay = delay
+            return ret
 
     def set_gain(self, channel, gain):
         '''
@@ -963,25 +1027,28 @@ class DABoard(RawBoard):
         :param gain: 0-1023
         :return:
         '''
+        if channel < 1 or channel > self.channel_amount:
+            logger.error(f"[{self.id}] wrong channel: {channel}")
+            return 3
         if gain < 0:
             gain += 1024
         if gain == self.channel_gain[channel - 1]:
             return 0
-        else:
-            channel_map = [2, 3, 0, 1]
-            channel_ad = channel_map[channel - 1]
-            if self.batch_mode:
-                chip_sel = (channel_ad >> 1) + 1
-                addr = 0x040 + ((channel_ad & 0x01) << 2)
-                self.set_para(chip_sel, addr, (gain >> 8) & 0x03)
-                self.set_para(chip_sel, addr + 1, gain & 0xFF)
-                return 0
-            ret = self.write_command(0x00000702, channel_ad, gain)
-            if not ret == 0:
-                self.disp_error(ret)
-                logger.error("DAC %s set_gain failed!", self.id)
-            self.channel_gain[channel - 1] = gain
-            return ret
+
+        channel_map = [2, 3, 0, 1]
+        channel_ad = channel_map[channel - 1]
+        if self.batch_mode:
+            chip_sel = (channel_ad >> 1) + 1
+            addr = 0x040 + ((channel_ad & 0x01) << 2)
+            self.set_para(chip_sel, addr, (gain >> 8) & 0x03)
+            self.set_para(chip_sel, addr + 1, gain & 0xFF)
+            return 0
+        ret = self.write_command(0x00000702, channel_ad, gain)
+        if not ret == 0:
+            self.disp_error(ret)
+            logger.error("DAC %s set_gain failed!", self.id)
+        self.channel_gain[channel - 1] = gain
+        return ret
 
     def set_default_volt(self, channel, volt):
         '''
@@ -992,36 +1059,42 @@ class DABoard(RawBoard):
         :param volt: -1 或 volt+对应通道的offset < 65536
         :return:
         '''
+        if channel < 1 or channel > self.channel_amount:
+            logger.error(f"[{self.id}] wrong channel: {channel}")
+            return 3
+        hold = False
         offset = self.data_offset[channel - 1]
         if volt != -1:
-            channel = channel - 1
-            volt = volt + self.channel_voltage_offset[channel]
+            volt = 65535 - volt
             if volt > 65535:
                 volt = 65534
             if volt < 0:
                 volt = 0
-            volt = 65535 - volt
         else:  # hold模式 1 to 3 2 to 4 3to 5
+            hold = True
             channel = channel + 3
             volt = 32768
 
-        if self.batch_mode:
-            _code = round(volt + offset)
-            _code1 = ((_code & 0xFF) << 24) | ((_code & 0xFF00) << 8)
-            self.set_para(0, 0x41, (_code1 | channel))
-            self.channel_default_voltage[channel - 1] = volt
+        if volt == self.channel_default_voltage[channel - 1]:
             return 0
-
-        if not volt == self.channel_default_voltage[channel - 1]:
-            ret = self.write_command(0x00001B05, channel, round(volt + offset))
+        if round(volt - offset) < 0 or round(volt - offset) > 65535:
+            logger.critical('set volt out of range')
+            return -1
+        if self.batch_mode:
+            _code = round(volt - offset)
+            _code1 = ((_code & 0xFF) << 24) | ((_code & 0xFF00) << 8)
+            self.set_para(0, 0x41, (_code1 | (channel - 1)))
             self.channel_default_voltage[channel - 1] = volt
-            if not ret == 0:
-                self.disp_error(ret)
-                logger.error("DAC %s set_default_volt failed!", self.id)
-
-        else:
             ret = 0
-
+        else:
+            if hold:
+                ret = self.write_command(0x00001B05, channel, round(volt - offset))
+            else:
+                ret = self.write_command(0x00001B05, channel - 1, round(volt - offset))
+                self.channel_default_voltage[channel - 1] = volt
+                if not ret == 0:
+                    self.disp_error(ret)
+                    logger.error("DAC %s set_default_volt failed!", self.id)
         return ret
 
     def start_output_wave(self, channel):
@@ -1089,6 +1162,9 @@ class DABoard(RawBoard):
         :param code: (0,65535)
         :return:
         '''
+        if code < 0 or code > 65535:
+            logger.error("DAC %s calc_temp code %s param out of range 0~65535", self.id, code)
+            return 3
         volt = code / 65536
         R = 10000 * volt / (1.8 - volt)
         B = 3435
@@ -1137,6 +1213,13 @@ class DABoard(RawBoard):
         :param offset: (-10000,10000)
         :return:
         '''
+        if channel < 1 or channel > self.channel_amount:
+            logger.error('DAC %s Wrong Channel', self.id)
+            return 1
+
+        if offset < -10000 or offset > 10000:
+            logger.error("DAC %s set_data_offset offset %s param out of range -10000~10000", self.id, offset)
+            return 1
         self.data_offset[channel - 1] = offset
         return 0
 
@@ -1249,7 +1332,6 @@ class DABoard(RawBoard):
             注意：如果写入数据过大，TCP通信的timeout时间要增加
             11MB数据时插JTAG时，写入时间160秒左右，不插JTAG时，写入时间30秒左右
         """
-        # print('program flash start')
         # 地址最高位为1表示 写入FLASH操作,
         # 地址低两位为1 表示常规写入
         logger.info(f'{self.id} write flash data')
@@ -1275,8 +1357,11 @@ class DABoard(RawBoard):
             logger.info(f'{self.id} write_memory send cmd Error stat={recv_stat}!!!')
             return recv_stat
         packet = data
+        # 每1MB数据超时时间多等待15秒
+        self.sockfd.settimeout(((length >> 20) + 1) * 15)
         self.send_data(packet)
         recv_stat, _ = self.receive_data()
+        self.sockfd.settimeout(self.timeout)
         if recv_stat != 0x0:
             logger.info(f'{self.id} write_memory send data Error stat={recv_stat}!!!')
             return recv_stat

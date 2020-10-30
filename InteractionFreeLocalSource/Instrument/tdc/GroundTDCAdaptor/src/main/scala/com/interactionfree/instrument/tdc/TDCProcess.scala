@@ -9,8 +9,9 @@ import scala.jdk.CollectionConverters._
 import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
 import scala.collection.mutable
 import scala.io.Source
-import com.interactionfree.IFWorker
+import com.interactionfree.{IFWorker, AsynchronousRemoteObject}
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Success, Failure}
 
 object GroundTDC extends App {
   val properties = new Properties()
@@ -23,29 +24,32 @@ object GroundTDC extends App {
   val IFServerServiceName = properties.getOrDefault("IFServer.ServiceName", "GroundTDCAdapter").toString
   val TDCServerAddress = properties.getOrDefault("TDCServer.Address", "tcp://127.0.0.1:224").toString
   val TDCServerServiceName = properties.getOrDefault("TDCServer.ServiceName", "TDCServer").toString
-  val process = new TDCProcessService(dataSourceListeningPort)
+  val tdcServerBroker = IFWorker.async(TDCServerAddress)
+  val tdcServer = tdcServerBroker.asynchronousInvoker(TDCServerServiceName)
+  val process = new TDCProcessService(dataSourceListeningPort, tdcServer)
 
   val worker = IFWorker(IFServerAddress, IFServerServiceName, process)
-  val client = IFWorker(TDCServerAddress)
   println(s"Ground TDC Adapter started on port $dataSourceListeningPort.")
   Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
   println("Stoping Ground TDC...")
   worker.close()
-  client.close()
+  tdcServerBroker.close()
   process.stop()
 }
 
-class TDCProcessService(private val port: Int) {
+class TDCProcessService(private val port: Int, private val tdcServer: AsynchronousRemoteObject) {
   private val channelCount = 16
   private val groundTDA = new GroundTDCDataAdapter(channelCount)
   private val dataTDA = new LongBufferToDataBlockListTDCDataAdapter(channelCount)
   private val server = new TDCProcessServer(port, dataIncome, List(groundTDA, dataTDA))
   private val running = new AtomicBoolean(true)
   private val bufferSize = 50 * 1000000
+  private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor())
 
   def stop() = {
     running set false
     server.stop()
+    executionContext.shutdown()
   }
 
   private def dataIncome(data: Any) = {
@@ -57,7 +61,6 @@ class TDCProcessService(private val port: Int) {
 
   private def dataBlockIncome(dataBlock: DataBlock) = {
     this.synchronized {
-      println("get a dB")
       dataBlockQueue += dataBlock
       while (bufferStatus._3 >= bufferSize) dataBlockQueue.filter(!_.isReleased).head.release()
     }
@@ -75,8 +78,12 @@ class TDCProcessService(private val port: Int) {
         }
       } match {
         case Some(next) => {
-          println("do send a dB")
           val bytes = next.serialize()
+          println(s"Dealing a DataBlock with Size ${bytes.size}, Counts [${next.sizes.map(c => c.toString).mkString(", ")}]")
+          tdcServer.send(bytes).onComplete{
+            case Success(s) => println(s)
+            case Failure(f) => println(f)
+          }(executionContext)
         }
         case None => Thread.sleep(100)
       }

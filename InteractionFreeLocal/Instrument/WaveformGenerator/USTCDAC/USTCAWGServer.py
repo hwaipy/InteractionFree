@@ -1,27 +1,27 @@
 from Instrument.WaveformGenerator.USTCDAC.da_board import *
-import filecmp
-from Instrument.WaveformGenerator.USTCDAC.data_waves import *
-import matplotlib.pyplot as plt
-
 
 class USTCDACServer:
-    def __init__(self, ip, port=80):
+    def __init__(self, ip, port=80, sessionPermenent=False, singleBoard=False):
         self.ip = ip
         self.port = port
         self.dev = None
+        self.sessionInited = False
+        self.sessionPermenent = sessionPermenent
         self.beginSession()
         self.dev.set_loop(1, 1, 1, 1)
-        self.dev.set_multi_board(0)
+        self.dev.set_multi_board(0 if not singleBoard else 1)
         self.dev.set_trig_select(0)
         self.endSession()
 
     def beginSession(self):
-        self.dev = DABoard(id='{}:{}'.format(self.ip, self.port), ip=self.ip, port=self.port, batch_mode=False)
-        self.dev.connect()
+        if (not self.sessionInited) or (not self.sessionPermenent):
+            self.dev = DABoard(id='{}:{}'.format(self.ip, self.port), ip=self.ip, port=self.port, batch_mode=False)
+            self.dev.connect()
 
     def endSession(self):
-        self.dev.disconnect()
-        self.dev = None
+        if (not self.sessionPermenent):
+            self.dev.disconnect()
+            self.dev = None
 
     def turnOn(self, channel):
         assert channel >= 1 and channel <= 4
@@ -77,14 +77,17 @@ class USTCDACServer:
 
         self.dev.write_seq_fast(channel, seq=seq)
         self.dev.write_wave_fast(channel, wave=wave)
+        print('writed')
 
     def sendTrigger(self, interval1, count1, interval2, count2):
+        print('in send trigger')
         self.dev.clear_trig_count()
         self.dev.set_trig_count_l1(count1)
         self.dev.set_trig_interval_l1(interval1)
         self.dev.set_trig_count_l2(count2)
         self.dev.set_trig_interval_l2(interval2)
         self.dev.send_int_trig()
+        print('done send trigger')
 
 class MergedUSTCDACServer:
     def __init__(self, awgs, channelMapping):
@@ -118,7 +121,7 @@ class MergedUSTCDACServer:
     def writeWaveform(self, channel, wave):
         mappedChannel = self.channelMapping[channel]
         self.awgs[mappedChannel[0]].beginSession()
-        self.awgs[mappedChannel[0]].writeWaveform(mappedChannel[1], [(2 * v - 1) * 32765 for v in waveform])
+        self.awgs[mappedChannel[0]].writeWaveform(mappedChannel[1], [(2 * v - 1) * 32765 for v in wave])
         self.awgs[mappedChannel[0]].endSession()
 
     def sendTrigger(self, awgIndex, interval1, count1, interval2, count2):
@@ -129,28 +132,21 @@ class MergedUSTCDACServer:
 
 
 if __name__ == '__main__':
-    from IFWorker import IFWorker
-    from IFCore import IFLoop
+    from interactionfreepy import IFWorker
+    from interactionfreepy import IFLoop
 
-    awgA1 = USTCDACServer('192.168.25.232')
-    awgA2 = USTCDACServer('192.168.25.233')
-    awgB1 = USTCDACServer('192.168.25.230')
-    awgB2 = USTCDACServer('192.168.25.231')
-    mawgA = MergedUSTCDACServer([awgA1, awgA2], [[0,1],[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4]])
-    mawgB = MergedUSTCDACServer([awgB1, awgB2], [[0,1],[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4]])
-    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_A1', awgA1)
-    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_A2', awgA2)
-    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_B1', awgB1)
-    # IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Test_B2', awgB2)
-    IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Alice', mawgA)
-    IFWorker('tcp://192.168.25.27:224', 'USTCAWG_Bob', mawgB)
-    IFLoop.join()
+    sessionPermenent = True
 
-    # awg1.turnOffAllChannels()
-    # wave = [30000] * 50000 + [-30000] * 50000
-    # awg1.writeWaveform(1, wave)
-    # awg1.writeWaveform(2, wave)
-    # awg1.writeWaveform(3, wave)
-    # awg1.writeWaveform(4, wave)
-    # awg1.turnOnAllChannels()
-    # awg1.sendTrigger(200e-6, 100000)
+    awgAlice = USTCDACServer('192.168.25.237', sessionPermenent=sessionPermenent)
+    # IFWorker('tcp://192.168.25.5:224', 'USTCAWG_Alice', awgAlice)
+    # IFLoop.join()
+
+    a = 30000
+
+    awgAlice.sendTrigger(1e-3, 60000, 1e-3, 60000)
+    awgAlice.writeWaveform(1, [0,0,0,0,0,a,a,a,a,a] *2500)
+    awgAlice.writeWaveform(2, [0,0,0,0,0,a,a,a,a,a] *2500)
+    awgAlice.writeWaveform(3, [0,0,0,0,0,a,a,a,a,a] *2500)
+    awgAlice.writeWaveform(4, [0,0,0,0,0,a,a,a,a,a] *2500)
+    awgAlice.turnOffAllChannels()
+    print('done')
