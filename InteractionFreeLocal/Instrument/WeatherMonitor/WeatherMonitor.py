@@ -77,7 +77,7 @@ if __name__ == '__main__':
         ['Changchun', 'CC', 125.4, 43.9, 0],
         ['Jinan', 'JN', 117.000, 36.400, 0],
     ]
-    worker = IFWorker('tcp://172.16.60.199:224')
+    worker = IFWorker('tcp://172.16.60.200:224')
     storage = worker.Storage
 
     while True:

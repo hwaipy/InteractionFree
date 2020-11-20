@@ -24,22 +24,27 @@ object GroundTDC extends App {
   val IFServerServiceName = properties.getOrDefault("IFServer.ServiceName", "GroundTDCAdapter").toString
   val TDCServerAddress = properties.getOrDefault("TDCServer.Address", "tcp://127.0.0.1:224").toString
   val TDCServerServiceName = properties.getOrDefault("TDCServer.ServiceName", "TDCServer").toString
-  val tdcServerBroker = IFWorker.async(TDCServerAddress)
-  val tdcServer = tdcServerBroker.asynchronousInvoker(TDCServerServiceName)
-  val process = new TDCProcessService(dataSourceListeningPort, tdcServer)
+  val ChannelMapStr = properties.getOrDefault("ChannelMap", "-1 -> -1").toString
+  val channelMap = ChannelMapStr.split(" *, *").toList.map(s => {
+    val ss = s.split(" *-> *").toList.map(_.toInt)
+    (ss(0), ss(1))
+  }).toMap
+  val tdcServerWorker = IFWorker.async(TDCServerAddress)
+  val tdcServer = tdcServerWorker.asynchronousInvoker(TDCServerServiceName)
+  val process = new TDCProcessService(dataSourceListeningPort, tdcServer, channelMap)
 
   val worker = IFWorker(IFServerAddress, IFServerServiceName, process)
   println(s"Ground TDC Adapter started on port $dataSourceListeningPort.")
   Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
   println("Stoping Ground TDC...")
   worker.close()
-  tdcServerBroker.close()
+  tdcServerWorker.close()
   process.stop()
 }
 
-class TDCProcessService(private val port: Int, private val tdcServer: AsynchronousRemoteObject) {
+class TDCProcessService(private val port: Int, private val tdcServer: AsynchronousRemoteObject, channelMap: Map[Int, Int] = Map()) {
   private val channelCount = 16
-  private val groundTDA = new GroundTDCDataAdapter(channelCount)
+  private val groundTDA = new GroundTDCDataAdapter(channelCount, channelMap.map(e => (new Integer(e._1), new Integer(e._2))).asJava)
   private val dataTDA = new LongBufferToDataBlockListTDCDataAdapter(channelCount)
   private val server = new TDCProcessServer(port, dataIncome, List(groundTDA, dataTDA))
   private val running = new AtomicBoolean(true)
@@ -81,7 +86,7 @@ class TDCProcessService(private val port: Int, private val tdcServer: Asynchrono
           val bytes = next.serialize()
           println(s"Dealing a DataBlock with Size ${bytes.size}, Counts [${next.sizes.map(c => c.toString).mkString(", ")}]")
           tdcServer.send(bytes).onComplete{
-            case Success(s) => println(s)
+            case Success(s) => 
             case Failure(f) => println(f)
           }(executionContext)
         }

@@ -177,4 +177,34 @@ class DataBlockTest extends AnyFunSuite with BeforeAndAfter {
     assert(coarseDataBlock2.resolution == 24e-12)
     assert(coarseDataBlock2.getContent == null)
   }
+
+  test("Test DataBlock lazy deserialize and unpack.") {
+    val testDataBlock = DataBlock.generate(
+      Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
+      Map(
+        0 -> List("Period", 10000),
+        1 -> List("Random", 230000),
+        5 -> List("Random", 105888),
+        10 -> List("Period", 10),
+        12 -> List("Random", 1)
+      )
+    )
+    val binary = testDataBlock.serialize()
+    val recoveredDataBlock = DataBlock.deserialize(binary, true)
+    assert(testDataBlock.creationTime == recoveredDataBlock.creationTime)
+    assert(testDataBlock.dataTimeBegin == recoveredDataBlock.dataTimeBegin)
+    assert(testDataBlock.dataTimeEnd == recoveredDataBlock.dataTimeEnd)
+    assert(testDataBlock.sizes.toList == recoveredDataBlock.sizes.toList)
+    assert(testDataBlock.getContent != null)
+    assert(recoveredDataBlock.getContent == null)
+    assert(!recoveredDataBlock.isReleased)
+    recoveredDataBlock.unpack()
+    recoveredDataBlock.unpack()
+    assert(!recoveredDataBlock.isReleased)
+
+    val recoveredDataBlock2 = DataBlock.deserialize(binary, true)
+    recoveredDataBlock2.release()
+    recoveredDataBlock2.unpack()
+    assert(recoveredDataBlock2.getContent == null)
+  }
 }

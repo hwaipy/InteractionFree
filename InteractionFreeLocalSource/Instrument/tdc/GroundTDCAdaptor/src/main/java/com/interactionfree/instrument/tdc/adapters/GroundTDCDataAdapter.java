@@ -7,6 +7,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -26,8 +27,9 @@ public class GroundTDCDataAdapter implements TDCDataAdapter {
     private final int channelBit;
     private final long maxTime;
     private final int channelCount;
+    private final Map<Integer, Integer> channelMap;
 
-    public GroundTDCDataAdapter(int channelCount) {
+    public GroundTDCDataAdapter(int channelCount, Map<Integer, Integer> channelMap) {
         try {
             this.calibrator = new FineTimeCalibrator(null, 24);
             validEventCount = new int[channelCount];
@@ -35,8 +37,10 @@ public class GroundTDCDataAdapter implements TDCDataAdapter {
             throw new RuntimeException(ex);
         }
         this.channelCount = channelCount;
+        this.channelMap = channelMap;
+
         channelBit = (int) Math.ceil(Math.log(channelCount) / Math.log(2));
-//        System.out.println(channelBit);
+        // System.out.println(channelBit);
         maxTime = Long.MAX_VALUE >> channelBit;
     }
 
@@ -46,9 +50,12 @@ public class GroundTDCDataAdapter implements TDCDataAdapter {
             return null;
         }
         ByteBuffer buffer;
-        if (data instanceof byte[]) buffer = ByteBuffer.wrap((byte[]) data);
-        else if (data instanceof ByteBuffer) buffer = (ByteBuffer) data;
-        else throw new RuntimeException("Only byte array or ByteBuffer are acceptable for GroundTDCDataAdapter.");
+        if (data instanceof byte[])
+            buffer = ByteBuffer.wrap((byte[]) data);
+        else if (data instanceof ByteBuffer)
+            buffer = (ByteBuffer) data;
+        else
+            throw new RuntimeException("Only byte array or ByteBuffer are acceptable for GroundTDCDataAdapter.");
         try {
             dataBuffer.put(buffer);
         } catch (BufferOverflowException e) {
@@ -165,12 +172,17 @@ public class GroundTDCDataAdapter implements TDCDataAdapter {
         return crc == datacrc;
     }
 
-        AtomicInteger channel0Count = new AtomicInteger(0);
+    AtomicInteger channel0Count = new AtomicInteger(0);
+
     private void parseToTimeEvent(int position) {
         byte[] array = dataBuffer.array();
         int channel = array[position + 6] - 0x40;
-        if(channel == 0) channel0Count.incrementAndGet();
-        if (channel > 16 || channel < 0) return;
+        if (this.channelMap.containsKey(channel))
+            channel = this.channelMap.get(channel);
+        if (channel == 0)
+            channel0Count.incrementAndGet();
+        if (channel > 16 || channel < 0)
+            return;
         for (int i = 0; i < 8; i++) {
             unitLong[i] = array[position + i];
             if (unitLong[i] < 0) {
@@ -180,37 +192,29 @@ public class GroundTDCDataAdapter implements TDCDataAdapter {
         long fineTime = ((unitLong[3] & 0x10) << 4) | unitLong[7];
 
         /*
-        if(fineTime<500 && channel==5){
-            fineTimeStatistics[(int)fineTime]++;
-            fineTimeCount++;
-            if(fineTimeCount>1000000){
-                try {
-                    PrintWriter  pw = new PrintWriter(System.currentTimeMillis()+".csv");
-                    for(int i=0;i<500;i++)
-                    {
-                        pw.println(i+", "+fineTimeStatistics[i]);
-                        fineTimeStatistics[i]=0;
-                    }
-                    fineTimeCount=0;
-                    pw.close();
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-        }*/
+         * if(fineTime<500 && channel==5){ fineTimeStatistics[(int)fineTime]++;
+         * fineTimeCount++; if(fineTimeCount>1000000){ try { PrintWriter pw = new
+         * PrintWriter(System.currentTimeMillis()+".csv"); for(int i=0;i<500;i++) {
+         * pw.println(i+", "+fineTimeStatistics[i]); fineTimeStatistics[i]=0; }
+         * fineTimeCount=0; pw.close(); } catch (IOException ex) { throw new
+         * RuntimeException(ex); } } }
+         */
 
-        long coarseTime = (unitLong[4]) | (unitLong[5] << 8)
-                | (unitLong[2] << 16) | ((unitLong[3] & 0x0F) << 24);
-        if(Math.abs(coarseTime-lastCoarseTime)<COARSE_TIME_LIMIT/100 || Math.abs(coarseTime-lastCoarseTime+COARSE_TIME_LIMIT)<COARSE_TIME_LIMIT/100 ){}else{return;}
-        if (coarseTime < lastCoarseTime && (lastCoarseTime > COARSE_TIME_LIMIT * 0.9) && (coarseTime < COARSE_TIME_LIMIT * 0.1)) {
-       // if (coarseTime < lastCoarseTime) {
+        long coarseTime = (unitLong[4]) | (unitLong[5] << 8) | (unitLong[2] << 16) | ((unitLong[3] & 0x0F) << 24);
+        if (lastCoarseTime < 0 || Math.abs(coarseTime - lastCoarseTime) < COARSE_TIME_LIMIT / 100 || Math.abs(coarseTime - lastCoarseTime + COARSE_TIME_LIMIT) < COARSE_TIME_LIMIT / 100) {
+        } else {
+            return;
+        }
+        if (coarseTime < lastCoarseTime && (lastCoarseTime > COARSE_TIME_LIMIT * 0.9)
+                && (coarseTime < COARSE_TIME_LIMIT * 0.1)) {
+            // if (coarseTime < lastCoarseTime) {
 
             carry++;
-//            System.out.println("We are now carrying to" + carry + ": lastCT=" + lastCoarseTime + ", currentCT=" + coarseTime);
+            // System.out.println("We are now carrying to" + carry + ": lastCT=" +
+            // lastCoarseTime + ", currentCT=" + coarseTime);
         }
         lastCoarseTime = coarseTime;
-        long time = -calibrator.calibration(channel, (int) fineTime)
-                + ((coarseTime + (carry << 28)) * 6250);
+        long time = -calibrator.calibration(channel, (int) fineTime) + ((coarseTime + (carry << 28)) * 6250);
         if (channel < 0 || channel >= channelCount) {
             unknownChannelEventCount++;
         } else {

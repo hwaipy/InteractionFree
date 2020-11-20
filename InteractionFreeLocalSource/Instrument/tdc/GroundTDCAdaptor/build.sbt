@@ -1,5 +1,5 @@
 name := "GroundTDCAdaptor"
-version := "0.0.1"
+version := "1.0.0"
 scalaVersion := "2.13.3"
 organization := "com.interactionfree.instrument"
 libraryDependencies += "com.interactionfree" %% "interactionfreescala" % "1.0.1"

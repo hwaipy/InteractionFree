@@ -71,25 +71,33 @@ object DataBlock {
     create(content, creationTime, dataTimeBegin, dataTimeEnd)
   }
 
-  def deserialize(data: Array[Byte]) = {
+  def deserialize(data: Array[Byte], partial: Boolean = false) = {
     val recovered = MsgpackSerializer.deserialize(data).asInstanceOf[Map[String, Any]]
     val protocol = recovered("Format").toString()
     if (protocol != PROTOCOL_V1) throw new IFException(s"Data format not supported: ${recovered("Format")}")
     val sizes = recovered("Sizes").asInstanceOf[IterableOnce[Int]].iterator.toArray
     val dataBlock = new DataBlock(recovered("CreationTime"), recovered("DataTimeBegin"), recovered("DataTimeEnd"), sizes, recovered("Resolution"))
     val chDatas = recovered("Content").asInstanceOf[IterableOnce[List[Array[Byte]]]].iterator.toArray
-    val content = chDatas.map(chData => Array.concat(chData.map(section => DataBlockSerializers(protocol).deserialize(section)): _*))
-    dataBlock.contentRef set (if (content.isEmpty) null else content)
+    dataBlock.binaryRef set chDatas
+    if (!partial) {
+      // val content = chDatas.map(chData => Array.concat(chData.map(section => DataBlockSerializers(protocol).deserialize(section)): _*))
+      // dataBlock.contentRef set (if (content.isEmpty) null else content)
+      dataBlock.unpack()
+    }
     dataBlock
   }
 }
 
 class DataBlock private (val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long, val sizes: Array[Int], val resolution: Double = 1e-12) {
   private val contentRef = new AtomicReference[Array[Array[Long]]]()
+  private val binaryRef = new AtomicReference[Array[List[Array[Byte]]]]()
 
-  def release(): Unit = contentRef set null
+  def release(): Unit = {
+    contentRef set null
+    binaryRef set null
+  }
 
-  def isReleased: Boolean = contentRef.get == null
+  def isReleased: Boolean = (contentRef.get == null) && (binaryRef.get == null)
 
   def content: Option[Array[Array[Long]]] =
     contentRef.get match {
@@ -124,6 +132,33 @@ class DataBlock private (val creationTime: Long, val dataTimeBegin: Long, val da
       newDB.contentRef set newContent
     })
     newDB
+  }
+
+  def unpack() = {
+    if (binaryRef.get != null) {
+      val content = binaryRef.get.map(chData => Array.concat(chData.map(section => DataBlockSerializers(DataBlock.PROTOCOL_V1).deserialize(section)): _*))
+      binaryRef set null
+      contentRef set (if (content.isEmpty) null else content)
+    }
+  }
+
+  def binarySize() =
+    binaryRef.get match {
+      case null   => 0
+      case binary => binary.map(l => l.map(a => a.size).sum).sum
+    }
+
+  def delay(channel: Int, delay: Long) = {
+    content.foreach(c => {
+      if (channel < c.size) {
+        var ch = c(channel)
+        var i = 0
+        while (i < ch.size) {
+          ch(i) = ch(i) + delay
+          i += 1
+        }
+      } else { throw new IllegalArgumentException(s"Channel out of range: ${channel}") }
+    })
   }
 }
 

@@ -30,7 +30,7 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
       Map("CreationTime" -> 100, "DataTimeBegin" -> offset, "DataTimeEnd" -> (offset + 1000000000000L)),
       Map(
         0 -> List("Period", 10000),
-        1 -> List("Pulse", 100000000, 200000, 1000),
+        1 -> List("Pulse", 100000000, 200000, 1000)
       )
     )
     val mha = new MultiHistogramAnalyser(16)
@@ -51,6 +51,36 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
     assert(histo1.last > 0.5 * histo1.max && histo1.last < 1.5 * histo1.max)
     assert(histo1(histo1.length / 2) > 0.6 * histo1.max && histo1(histo1.length / 2) < 1.5 * histo1.max)
     assert(histo1(histo1.length / 4) < 0.05 * histo1.max && histo1(histo1.length / 4 * 3) < 0.05 * histo1.max)
+    mha.turnOff()
+    val result2 = mha.dataIncome(dataBlock)
+    assert(result2.isEmpty)
+  }
+
+  test("Test CounterAnalyser.") {
+    val offset = 50400000000010L
+    val dataBlock = DataBlock.generate(
+      Map("CreationTime" -> 100, "DataTimeBegin" -> offset, "DataTimeEnd" -> (offset + 1000000000000L)),
+      Map(
+        0 -> List("Period", 10000),
+        5 -> List("Pulse", 100000000, 200000, 1000)
+      )
+    )
+    val mha = new CounterAnalyser()
+    mha.turnOn()
+    val result = mha.dataIncome(dataBlock)
+    assert(result.isDefined)
+    assert(result.get("Configuration").asInstanceOf[Map[String, Any]] == Map())
+    assert(result.get("0") == 10000)
+    assert(result.get("1") == 0)
+    assert(result.get("2") == 0)
+    assert(result.get("3") == 0)
+    assert(result.get("4") == 0)
+    assert(result.get("5") == 200000)
+    assert(result.get("6") == 0)
+    assert(result.get("7") == 0)
+    assert(result.get("8") == 0)
+    assert(result.get("9") == 0)
+    assert(result.get("10") == 0)
     mha.turnOff()
     val result2 = mha.dataIncome(dataBlock)
     assert(result2.isEmpty)

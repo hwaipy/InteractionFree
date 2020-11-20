@@ -23,28 +23,33 @@ abstract class Analyser {
 
   protected def analysis(dataBlock: DataBlock): Map[String, Any]
 
-  def configure(paras: Map[String, Any]): Unit = paras.foreach(e => configuration.get(e._1) match {
-    case None => throw new IFException(s"[${e._1}] is not a valid configuration key.")
-    case Some(vv) => if (vv._2(e._2)) configuration(e._1) = (e._2, vv._2) else throw new IFException(s"Configuration ${e._1} -> ${e._2} is not valid.")
-  })
+  def configure(paras: Map[String, Any]): Unit =
+    paras.foreach(e =>
+      configuration.get(e._1) match {
+        case None     => throw new IFException(s"[${e._1}] is not a valid configuration key.")
+        case Some(vv) => if (vv._2(e._2)) configuration(e._1) = (e._2, vv._2) else throw new IFException(s"Configuration ${e._1} -> ${e._2} is not valid.")
+      }
+    )
 
   protected def setConfiguration(key: String, defaultValue: Any, validator: Any => Boolean = a => true): Unit = configuration(key) = (defaultValue, validator)
 
-  def getConfigurations: Map[String, Any] = configuration.toMap
+  def getConfigurations: Map[String, Any] = configuration.map(z => (z._1, z._2._1)).toMap
 
-  def getConfiguration(key: String) = configuration.get(key) match {
-    case None => throw new IFException(s"[$key] is not a valid configuration key.")
-    case Some(vv) => vv._1
-  }
+  def getConfiguration(key: String) =
+    configuration.get(key) match {
+      case None     => throw new IFException(s"[$key] is not a valid configuration key.")
+      case Some(vv) => vv._1
+    }
 }
 
 object Validator {
-  private def wrap(validator: Any => Boolean) = (any: Any) =>
-    try {
-      validator(any)
-    } catch {
-      case e: Throwable => false
-    }
+  private def wrap(validator: Any => Boolean) =
+    (any: Any) =>
+      try {
+        validator(any)
+      } catch {
+        case e: Throwable => false
+      }
 
   def int(min: Int = Int.MinValue, max: Int = Int.MaxValue) = wrap(value => anyToInt(value) >= min && anyToInt(value) <= max)
 
@@ -53,12 +58,12 @@ object Validator {
 
 class CounterAnalyser extends Analyser {
 
-  override protected def analysis(dataBlock: DataBlock): Map[String, Int] = Range(0, dataBlock.content.size).map(_.toString()).zip(dataBlock.content.map(list => list.length)).toMap
+  override protected def analysis(dataBlock: DataBlock): Map[String, Int] = dataBlock.sizes.zipWithIndex.map(z => (z._2.toString(), z._1)).toMap
 }
 
 class MultiHistogramAnalyser(channelCount: Int) extends Analyser {
   setConfiguration("Sync", 0, Validator.int(0, channelCount - 1))
-  setConfiguration("Signals", 0, value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < channelCount))
+  setConfiguration("Signals", List(1), value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < channelCount))
   setConfiguration("ViewStart", -100000, Validator.double())
   setConfiguration("ViewStop", 100000, Validator.double())
   setConfiguration("BinCount", 1000, Validator.int(1, 10000))
@@ -204,4 +209,3 @@ class Histogram(deltas: Array[Long], binCount: Int, viewFrom: Long, viewTo: Long
     }
   }
 }
-
