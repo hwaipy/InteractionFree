@@ -207,4 +207,38 @@ class DataBlockTest extends AnyFunSuite with BeforeAndAfter {
     recoveredDataBlock2.unpack()
     assert(recoveredDataBlock2.getContent == null)
   }
+
+  test("Test SyncedDataBlock.") {
+    val testDataBlock = DataBlock.generate(
+      Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
+      Map(
+        0 -> List("Period", 10000),
+        1 -> List("Period", 230000),
+        5 -> List("Random", 105888),
+        10 -> List("Period", 10),
+        12 -> List("Random", 1)
+      )
+    )
+    testDataBlock.content.foreach(content => content.zipWithIndex.foreach(z => content(z._2) = z._1.sorted))
+    val testDataBlockRef = DataBlock.deserialize(testDataBlock.serialize())
+    assertThrows[IllegalArgumentException](testDataBlock.synced(List(0, 1, 2, 4)))
+    val delays = List(10000000, 10L, 0, 0, 0, -10000, 0, 0, 0, 0, 10, 0, -10, 0, 0, 0)
+    val testDelayedDataBlock = testDataBlock.synced(delays)
+    (testDelayedDataBlock.content.get zip testDataBlock.content.get zip testDelayedDataBlock.delays).foreach(z => (z._1._1 zip z._1._2).foreach(zz => assert(zz._1 - zz._2 == z._2)))
+    assertThrows[IllegalArgumentException](testDataBlock.synced(delays, Map("Method" -> "N")))
+    val testSyncedDataBlock = testDataBlock.synced(delays, Map("Method" -> "PeriodSignal", "SyncChannel" -> "0", "Period" -> "2e8"))
+    (testSyncedDataBlock.content.get zip testSyncedDataBlock.sizes).foreach(z => assert(z._1.size == z._2))
+    (testSyncedDataBlock.content.get zip testDataBlock.content.get).zipWithIndex.foreach(z => {
+      val size1 = z._1._1.size
+      val list2 = z._1._2.filter(t => t + delays(z._2) >= testDataBlock.content.get(0)(0) + delays(0) && t + delays(z._2) <= testDataBlock.content.get(0).last + delays(0))
+      val size2 = list2.size
+      assert(size1 == size2)
+      val mappedList2 = list2.map(v => (v + delays(z._2) - delays(0)) * 2)
+      (mappedList2 zip z._1._1).foreach(zz => assert(math.abs(zz._1 - zz._2) < 2))
+    })
+    (testDataBlockRef.content.get zip testDataBlock.content.get).foreach(z => {
+      assert(z._1.size == z._2.size)
+      (z._1 zip z._2).foreach(zz => assert(zz._1 == zz._2))
+    })
+  }
 }

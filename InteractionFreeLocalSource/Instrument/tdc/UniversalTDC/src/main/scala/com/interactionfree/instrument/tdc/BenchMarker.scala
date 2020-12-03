@@ -6,14 +6,18 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
+import javax.sound.sampled.AudioFormat.Encoding
 
 object BenchMarker extends App {
   private val UNIT_SIZE = 20
 
   def run(): Unit = {
     println(s"${System.lineSeparator()} ******** Start BenchMarking ******** ${System.lineSeparator()}")
-    doBenchMarkingSerDeser()
-    doBenchMarkingMultiHistogramAnalyser()
+    // doBenchMarkingSerDeser()
+    // doBenchMarkingSyncedDataBlock()
+    // doBenchMarkingMultiHistogramAnalyser()
+    // doBenchMarkingExceptionMonitorAnalyser()
+    doBenchMarkingEncodingAnalyser()
   }
 
   private def doBenchMarkingSerDeser(): Unit =
@@ -23,7 +27,7 @@ object BenchMarker extends App {
       ("Random List", List(10000, 100000, 1000000, 4000000), (r: Int) => Map(0 -> List("Random", r)), 1e-12),
       ("Random List, 16 ps", List(10000, 100000, 1000000, 4000000), (r: Int) => Map(0 -> List("Random", r)), 16e-12),
       ("Mixed List", List(10000, 100000, 1000000, 4000000), (r: Int) => Map(0 -> List("Period", r / 10), 1 -> List("Random", r / 10 * 4), 5 -> List("Random", r / 10 * 5), 10 -> List("Period", 10), 12 -> List("Random", 1)), 1e-12),
-      ("Mixed List, 16 ps", List(10000, 100000, 1000000, 4000000), (r: Int) => Map(0 -> List("Period", r / 10), 1 -> List("Random", r / 10 * 4), 5 -> List("Random", r / 10 * 5), 10 -> List("Period", 10), 12 -> List("Random", 1)), 16e-12),
+      ("Mixed List, 16 ps", List(10000, 100000, 1000000, 4000000), (r: Int) => Map(0 -> List("Period", r / 10), 1 -> List("Random", r / 10 * 4), 5 -> List("Random", r / 10 * 5), 10 -> List("Period", 10), 12 -> List("Random", 1)), 16e-12)
     ).foreach(config => {
       val rt = ReportTable(s"DataBlock serial/deserial: ${config._1}", List("Event Size", "Data Rate", "Serial Time", "Deserial Time")).setFormatter(0, formatterKMG).setFormatter(1, (dr) => f"${dr.asInstanceOf[Double]}%.2f").setFormatter(2, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms").setFormatter(3, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
       config._2.foreach(r => {
@@ -43,6 +47,37 @@ object BenchMarker extends App {
     val infoRate = data.length.toDouble / testDataBlock.getContent.map(_.length).sum
     val consumingDeserialization = doBenchMarkingOpertion(() => DataBlock.deserialize(data))
     (infoRate, consumingSerialization, consumingDeserialization)
+  }
+
+  private def doBenchMarkingSyncedDataBlock(): Unit = {
+    List(false, true).foreach(hasSync => {
+      val rt = ReportTable(if (hasSync) s"Delay & Sync" else "Delay", List("Total Event Size", "1 Ch", "2 Ch (1, 1)", "4 Ch (5, 3, 1, 1)"))
+        .setFormatter(0, formatterKMG)
+        .setFormatter(1, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+        .setFormatter(2, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+        .setFormatter(3, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+      List(10000, 100000, 1000000, 4000000).foreach(r => {
+        val bm = doBenchMarkingSyncedDataBlock(
+          r,
+          List(
+            List(1),
+            List(1, 1),
+            List(5, 3, 1, 1)
+          ),
+          hasSync
+        )
+        rt.addRow(r, bm(0), bm(1), bm(2))
+      })
+      rt.output()
+    })
+  }
+
+  private def doBenchMarkingSyncedDataBlock(totalSize: Int, sizes: List[List[Double]], hasSync: Boolean): List[Double] = {
+    sizes.map(size => {
+      val m = Range(0, size.size + 1).map(s => s -> (if (s == 0) List("Period", 10000) else List("Pulse", 100000000, (size(s - 1) / size.sum * totalSize).toInt, 1000))).toMap
+      val dataBlock = DataBlock.generate(Map("CreationTime" -> 100, "DataTimeBegin" -> 0L, "DataTimeEnd" -> 1000000000000L), m)
+      doBenchMarkingOpertion(() => { dataBlock.synced(Range(0, 16).toList.map(_ => 100000), if (hasSync) Map("Method" -> "PeriodSignal", "SyncChannel" -> "0", "Period" -> "2e8") else Map()) })
+    })
   }
 
   private def doBenchMarkingMultiHistogramAnalyser(): Unit = {
@@ -71,6 +106,58 @@ object BenchMarker extends App {
     sizes.map(size => {
       val m = Range(0, size.size + 1).map(s => s -> (if (s == 0) List("Period", 10000) else List("Pulse", 100000000, (size(s - 1) / size.sum * totalSize).toInt, 1000))).toMap
       val dataBlock = DataBlock.generate(Map("CreationTime" -> 100, "DataTimeBegin" -> 0L, "DataTimeEnd" -> 1000000000000L), m)
+      doBenchMarkingOpertion(() => mha.dataIncome(dataBlock))
+    })
+  }
+
+  private def doBenchMarkingExceptionMonitorAnalyser(): Unit = {
+    val rt = ReportTable(s"ExceptionMonitorAnalyser", List("Total Event Size", "1 Ch", "2 Ch (1, 1)", "4 Ch (5, 3, 1, 1)"))
+      .setFormatter(0, formatterKMG)
+      .setFormatter(1, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+      .setFormatter(2, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+      .setFormatter(3, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+    List(10000, 100000, 1000000, 4000000).foreach(r => {
+      val bm = doBenchMarkingExceptionMonitorAnalyser(
+        r,
+        List(
+          List(1),
+          List(1, 1),
+          List(5, 3, 1, 1)
+        )
+      )
+      rt.addRow(r, bm(0), bm(1), bm(2))
+    })
+    rt.output()
+  }
+
+  private def doBenchMarkingExceptionMonitorAnalyser(totalSize: Int, sizes: List[List[Double]]): List[Double] = {
+    val mha = new ExceptionMonitorAnalyser(16)
+    mha.turnOn(Map("SyncChannels" -> List(0, 1, 2, 3, 4, 5, 6)))
+    sizes.map(size => {
+      val m = Range(0, size.size + 1).map(s => s -> (if (s == 0) List("Period", 10000) else List("Pulse", 100000000, (size(s - 1) / size.sum * totalSize).toInt, 1000))).toMap
+      val dataBlock = DataBlock.generate(Map("CreationTime" -> 100, "DataTimeBegin" -> 0L, "DataTimeEnd" -> 1000000000000L), m)
+      doBenchMarkingOpertion(() => mha.dataIncome(dataBlock))
+    })
+  }
+
+  private def doBenchMarkingEncodingAnalyser(): Unit = {
+    val rt = ReportTable(s"Encoding Analyser", List("Total Event Size", "RN (8)", "RN (32)", "RN (128)"))
+      .setFormatter(0, formatterKMG)
+      .setFormatter(1, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+      .setFormatter(2, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+      .setFormatter(3, (second) => f"${second.asInstanceOf[Double] * 1000}%.2f ms")
+    List(10000, 100000, 1000000, 4000000).foreach(r => {
+      val bm = doBenchMarkingEncodingAnalyser(r, List(8, 32, 128))
+      rt.addRow(r, bm(0), bm(1), bm(2))
+    })
+    rt.output()
+  }
+
+  private def doBenchMarkingEncodingAnalyser(totalSize: Int, rnLimits: List[Int]): List[Double] = {
+    rnLimits.map(rnLimit => {
+      val mha = new EncodingAnalyser(16, rnLimit)
+      mha.turnOn(Map("Period" -> 10000, "TriggerChannel" -> 0, "SignalChannel" -> 1, "RandomNumbers" -> Range(0, rnLimit).toList))
+      val dataBlock = DataBlock.generate(Map("CreationTime" -> 100, "DataTimeBegin" -> 0L, "DataTimeEnd" -> 1000000000000L), Map(0 -> List("Period", 10000), 1 -> List("Pulse", 100000000, totalSize, 100)))
       doBenchMarkingOpertion(() => mha.dataIncome(dataBlock))
     })
   }

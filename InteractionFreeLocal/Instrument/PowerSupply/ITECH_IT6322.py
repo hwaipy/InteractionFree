@@ -104,6 +104,11 @@ class IT6322(VISAInstrument):
         self.scpi.APP.OUT.write(outputCode)
         self.outputStatuses = [True if v else False for v in outputStatuses]
 
+    def getOutputStatuses(self):
+        ss = self.scpi.APP.OUT.query()
+        ss = [int(s) for s in ss.split(',')]
+        return [True if v else False for v in ss]
+
     #
     # def __measure(self, channel):
     #     self.__checkChannel(channel)
@@ -188,13 +193,17 @@ class IT6322(VISAInstrument):
         self.scpi._RST.write()
 
 if __name__ == '__main__':
-    import pyvisa
+    import pyvisa as visa
+    print(visa.ResourceManager().list_resources())
 
-    pm = IT6322('ASRL17::INSTR')
+    pm = IT6322('ASRL3::INSTR')
 
-    pm.setOutputStatuses([1, 1, 1])
+    # pm.setOutputStatuses([1, 1, 1])
     # pm.setCurrentLimits([1, 1, 1])
     # pm.setOutputStatuses([False]*3)
+    print(pm.getIdentity())
+    print(pm.getVoltageSetpoints())
+    print(pm.getOutputStatuses())
 
     import time
 

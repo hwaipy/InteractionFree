@@ -89,10 +89,9 @@ class AWGEncoder:
     def __ampModDecoy(self, inPulse, randomNumber):
         rRef = (randomNumber & 0b1000000) >> 6
         rDecoy = (randomNumber & 0b11)
-        rZ = (randomNumber & 0b100) >> 2
         if inPulse:
-            if rDecoy == 3 and rZ == 0: return 0
             if rRef == 1: return 0
+            # if rDecoy == 3 and rZ == 0: return 0
             return [self.config['ampDecoyO'], self.config['ampDecoyX'], self.config['ampDecoyY'], self.config['ampDecoyZ']][rDecoy]
         if rRef == 1: return self.config['ampDecoyInRef']
         return 0
@@ -127,12 +126,13 @@ class AWGEncoder:
 
     async def generateNewWaveform(self, returnWaveform=False):
         try:
-            if self.awg: await self.awg.turnOffAllChannels()
+            if self.awg:
+                await self.awg.turnOffAllChannels()
             waveforms = self.generateWaveforms()
             for waveformName in waveforms:
                 waveform = waveforms[waveformName]
                 channelIndex = self.channelMapping[waveformName]
-                if self.awg: await self.awg.writeWaveform(channelIndex, waveform)
+                if self.awg: await self.awg.writeWaveform(channelIndex, [(d - 0.5) * 2 * 32765 for d in waveform])
             if returnWaveform:
                 return waveforms
         except BaseException as e:
@@ -186,11 +186,18 @@ if __name__ == '__main__':
     from tornado.ioloop import IOLoop
     from random import Random
 
-    rnd = Random()
-    dev = AWGEncoder(None, {'AMRef': 1, 'AMDecoy': 2, 'PM1': 3, 'PM2': 4})
-    broker = IFBroker('tcp://*:2224')
-    worker = IFWorker('tcp://localhost:2224', 'AWGEncoder', dev)
+    worker = IFWorker('tcp://192.168.25.5:224')
+    dev = AWGEncoder(worker.asyncInvoker("USTCAWG_237"), {'AMRef': 1, 'AMDecoy': 2, 'PM1': 3, 'PM2': 4})
+    worker.bindService("AWGEncoder", dev)
+    IFLoop.join()
+
+
+    # rnd = Random()
+    # dev = AWGEncoder(None, {'AMRef': 1, 'AMDecoy': 2, 'PM1': 3, 'PM2': 4})
+    # broker = IFBroker('tcp://*:2224')
+    # worker = IFWorker('tcp://localhost:2224', 'AWGEncoder', dev)
     remoteDev = worker.AWGEncoder
+    # remoteDev = dev
 
     remoteDev.configure('sampleRate', 2e9)
     remoteDev.configure('randomNumbers', [i for i in range(128)])
@@ -205,10 +212,10 @@ if __name__ == '__main__':
     remoteDev.configure('pulseWidthDecoy', 3)
     remoteDev.configure('pulseWidthPM1', 8)
     remoteDev.configure('pulseWidthPM2', 4)
-    remoteDev.configure('delayReference', 30)
-    remoteDev.configure('delayDecoy', 14)
-    remoteDev.configure('delayPM1', 500)
-    remoteDev.configure('delayPM2', -500)
+    # remoteDev.configure('delayReference', 30)
+    # remoteDev.configure('delayDecoy', 14)
+    # remoteDev.configure('delayPM1', 500)
+    # remoteDev.configure('delayPM2', -500)
 
     waveforms = remoteDev.generateNewWaveform(True)
     showWaveform(waveforms)

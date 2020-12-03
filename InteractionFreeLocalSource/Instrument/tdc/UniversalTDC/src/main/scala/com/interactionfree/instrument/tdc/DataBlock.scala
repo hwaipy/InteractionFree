@@ -7,6 +7,7 @@ import com.interactionfree.NumberTypeConversions._
 import com.interactionfree.{IFException, MsgpackSerializer}
 import scala.collection.IterableOnce
 import scala.util.Random
+import javax.xml.crypto.Data
 
 object DataBlock {
   private val FINENESS = 100000
@@ -88,8 +89,8 @@ object DataBlock {
   }
 }
 
-class DataBlock private (val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long, val sizes: Array[Int], val resolution: Double = 1e-12) {
-  private val contentRef = new AtomicReference[Array[Array[Long]]]()
+class DataBlock protected[tdc] (val creationTime: Long, val dataTimeBegin: Long, val dataTimeEnd: Long, val sizes: Array[Int], val resolution: Double = 1e-12) {
+  protected[tdc] val contentRef = new AtomicReference[Array[Array[Long]]]()
   private val binaryRef = new AtomicReference[Array[List[Array[Byte]]]]()
 
   def release(): Unit = {
@@ -148,17 +149,77 @@ class DataBlock private (val creationTime: Long, val dataTimeBegin: Long, val da
       case binary => binary.map(l => l.map(a => a.size).sum).sum
     }
 
-  def delay(channel: Int, delay: Long) = {
-    content.foreach(c => {
-      if (channel < c.size) {
-        var ch = c(channel)
+  // def delay(channel: Int, delay: Long) = {
+  //   content.foreach(c => {
+  //     if (channel < c.size) {
+  //       var ch = c(channel)
+  //       var i = 0
+  //       while (i < ch.size) {
+  //         ch(i) = ch(i) + delay
+  //         i += 1
+  //       }
+  //     } else { throw new IllegalArgumentException(s"Channel out of range: ${channel}") }
+  //   })
+  // }
+
+  def synced(delays: List[Long], syncConfig: Map[String, String] = Map()) = new SyncedDataBlock(this, delays, syncConfig)
+}
+
+class SyncedDataBlock protected[tdc] (val sourceDataBlock: DataBlock, val delays: List[Long], val syncConfig: Map[String, String] = Map()) extends DataBlock(sourceDataBlock.creationTime, sourceDataBlock.dataTimeBegin, sourceDataBlock.dataTimeEnd, sourceDataBlock.sizes.toArray, sourceDataBlock.resolution) {
+  sourceDataBlock.content.foreach(content => {
+    if (delays.size != content.size) throw new IllegalArgumentException(s"The size of delays does not math the number of channels: ${delays.size} != ${content.size}")
+    val newContent = content
+      .zip(delays)
+      .map(z => {
+        val source = z._1
+        val target = new Array[Long](source.length)
         var i = 0
-        while (i < ch.size) {
-          ch(i) = ch(i) + delay
+        val delay = z._2
+        while (i < source.length) {
+          target(i) = source(i) + delay
           i += 1
         }
-      } else { throw new IllegalArgumentException(s"Channel out of range: ${channel}") }
-    })
+        target
+      })
+    syncConfig
+      .get("Method")
+      .foreach(
+        _ match {
+          case "PeriodSignal" => syncPeriodSignal(syncConfig, newContent)
+          case s              => throw new IllegalArgumentException(s"'${s}' is not a valid sync method.")
+        }
+      )
+    this.contentRef set newContent
+    newContent.zipWithIndex.foreach(z => this.sizes(z._2) = z._1.size)
+  })
+
+  private def syncPeriodSignal(config: Map[String, String], targetContent: Array[Array[Long]]) = {
+    val syncChannel = config("SyncChannel").toInt
+    val period = config("Period").toDouble
+    val syncList = targetContent(syncChannel).clone()
+    if (syncList.size >= 2) targetContent.zipWithIndex.map(z => targetContent(z._2) = syncASignalList(syncList, z._1))
+    def syncASignalList(syncList: Array[Long], signalList: Array[Long]) = {
+      val itSync = syncList.iterator
+      var syncBegin = itSync.next()
+      var syncEnd = itSync.next()
+      var syncDelta = (syncEnd - syncBegin).toDouble
+      var mappingBegin = 0.0
+      var iSignal = 0
+
+      while (iSignal < signalList.length && syncEnd != -1) {
+        val signal = signalList(iSignal)
+        while (syncEnd < signal && itSync.hasNext) {
+          syncBegin = syncEnd
+          syncEnd = itSync.next()
+          syncDelta = (syncEnd - syncBegin).toDouble
+          mappingBegin += period
+        }
+        if (signal < syncBegin || signal > syncEnd) signalList(iSignal) = -1
+        else signalList(iSignal) = ((signal - syncBegin) / syncDelta * period + mappingBegin).toLong
+        iSignal += 1
+      }
+      signalList.slice(signalList.indexWhere(l => l >= 0), signalList.lastIndexWhere(l => l >= 0) + 1)
+    }
   }
 }
 

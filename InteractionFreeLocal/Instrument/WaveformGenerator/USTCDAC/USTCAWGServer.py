@@ -1,4 +1,8 @@
 from Instrument.WaveformGenerator.USTCDAC.da_board import *
+import filecmp
+from Instrument.WaveformGenerator.USTCDAC.data_waves import *
+import matplotlib.pyplot as plt
+
 
 class USTCDACServer:
     def __init__(self, ip, port=80, sessionPermenent=False, singleBoard=False):
@@ -77,17 +81,14 @@ class USTCDACServer:
 
         self.dev.write_seq_fast(channel, seq=seq)
         self.dev.write_wave_fast(channel, wave=wave)
-        print('writed')
 
     def sendTrigger(self, interval1, count1, interval2, count2):
-        print('in send trigger')
         self.dev.clear_trig_count()
         self.dev.set_trig_count_l1(count1)
         self.dev.set_trig_interval_l1(interval1)
         self.dev.set_trig_count_l2(count2)
         self.dev.set_trig_interval_l2(interval2)
         self.dev.send_int_trig()
-        print('done send trigger')
 
 class MergedUSTCDACServer:
     def __init__(self, awgs, channelMapping):
@@ -135,18 +136,7 @@ if __name__ == '__main__':
     from interactionfreepy import IFWorker
     from interactionfreepy import IFLoop
 
-    sessionPermenent = True
+    awg = USTCDACServer('192.168.25.237', sessionPermenent=True)
+    IFWorker('tcp://192.168.25.5:224', 'USTCAWG_237', awg)
 
-    awgAlice = USTCDACServer('192.168.25.237', sessionPermenent=sessionPermenent)
-    # IFWorker('tcp://192.168.25.5:224', 'USTCAWG_Alice', awgAlice)
-    # IFLoop.join()
-
-    a = 30000
-
-    awgAlice.sendTrigger(1e-3, 60000, 1e-3, 60000)
-    awgAlice.writeWaveform(1, [0,0,0,0,0,a,a,a,a,a] *2500)
-    awgAlice.writeWaveform(2, [0,0,0,0,0,a,a,a,a,a] *2500)
-    awgAlice.writeWaveform(3, [0,0,0,0,0,a,a,a,a,a] *2500)
-    awgAlice.writeWaveform(4, [0,0,0,0,0,a,a,a,a,a] *2500)
-    awgAlice.turnOffAllChannels()
-    print('done')
+    IFLoop.join()
