@@ -124,7 +124,7 @@ class ExceptionMonitorAnalyser(channelCount: Int) extends Analyser {
       case None          => dataBlock.sizes.map(_ => -1)
     }
     val syncs = dataBlock.content match {
-      case Some(content) => syncChannels.map(sc => sc -> syncMonitor(content(sc))).toMap
+      case Some(content) => syncChannels.map(sc => sc.toString -> syncMonitor(content(sc))).toMap
       case None          => syncChannels.map(_ => {})
     }
     Map[String, Any]("ReverseCounts" -> reverseCounts, "SyncMonitor" -> syncs)
@@ -161,7 +161,7 @@ class EncodingAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analys
   setConfiguration("Period", 10000, Validator.double(min = 0))
   setConfiguration("TriggerChannel", 0, Validator.int(0, channelCount - 1))
   setConfiguration("SignalChannel", 1, Validator.int(0, channelCount - 1))
-  setConfiguration("BinCount", 100, Validator.int(1, 10000))
+  setConfiguration("BinCount", 100, Validator.int(1, 1000))
 
   override protected def analysis(dataBlock: DataBlock) = {
     val randomNumbers: List[Int] = getConfiguration("RandomNumbers").asInstanceOf[List[Int]]
@@ -217,16 +217,15 @@ class EncodingAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analys
   }
 }
 
-// class MDIQKDQBERAnalyser(channelCount: Int) extends DataAnalyser {
-//   configuration("AliceRandomNumbers") = Range(0, 10000).map(_ => 0).toList
-//   configuration("BobRandomNumbers") = Range(0, 10000).map(_ => 0).toList
-//   configuration("Period") = 10000.0
-//   configuration("Delay") = 3000.0
-//   configuration("PulseDiff") = 3000.0
-//   configuration("Gate") = 2000.0
-//   configuration("TriggerChannel") = 0
-//   configuration("Channel 1") = 1
-//   configuration("Channel 2") = 3
+class MDIQKDQBERAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analyser {
+  setConfiguration("AliceRandomNumbers", List(1), value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < randomNumberLimit))
+  setConfiguration("BobRandomNumbers", List(1), value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < randomNumberLimit))
+  setConfiguration("Period", 10000, Validator.double(min = 0))
+  setConfiguration("PulsePosition", 5000, Validator.double(min = 0))
+  setConfiguration("Gate", 1000, Validator.double(min = 0))
+  setConfiguration("TriggerChannel", 0, Validator.int(0, channelCount - 1))
+  setConfiguration("Channel 1", 4, Validator.int(0, channelCount - 1))
+  setConfiguration("Channel 2", 5, Validator.int(0, channelCount - 1))
 //   configuration("Channel Monitor Alice") = 4
 //   configuration("Channel Monitor Bob") = 5
 //   configuration("QBERSectionCount") = 1000
@@ -235,65 +234,10 @@ class EncodingAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analys
 //   val executionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(4))
 //   private val benchMarker = ListBuffer[BenchMarking]()
 
-//   override def configure(key: String, value: Any) = key match {
-//     case "AliceRandomNumbers" => value.asInstanceOf[List[Int]] != null
-//     case "BobRandomNumbers" => value.asInstanceOf[List[Int]] != null
-//     case "HOMSidePulses" => value.asInstanceOf[List[Int]] != null
-//     case "Period" => {
-//       val sc: Double = value
-//       sc > 0
-//     }
-//     case "Delay" => {
-//       val sc: Double = value
-//       true
-//     }
-//     case "Gate" => {
-//       val sc: Double = value
-//       true
-//     }
-//     case "PulseDiff" => {
-//       val sc: Double = value
-//       true
-//     }
-//     case "Channel 1" => {
-//       val sc: Int = value
-//       sc >= 0 && sc < channelCount
-//     }
-//     case "Channel 2" => {
-//       val sc: Int = value
-//       sc >= 0 && sc < channelCount
-//     }
-//     case "Channel Monitor Alice" => {
-//       val sc: Int = value
-//       sc >= 0 && sc < channelCount
-//     }
-//     case "Channel Monitor Bob" => {
-//       val sc: Int = value
-//       sc >= 0 && sc < channelCount
-//     }
-//     case "TriggerChannel" => {
-//       val sc: Int = value
-//       sc >= 0 && sc < channelCount
-//     }
-//     case "QBERSectionCount" => {
-//       val sc: Int = value
-//       sc > 0
-//     }
-//     case "ChannelMonitorSyncChannel" => {
-//       val sc: Int = value
-//       sc >= 0 && sc < channelCount
-//     }
-//     case "BenchMarking" => {
-//       benchMarker addOne value.asInstanceOf[BenchMarking]
-//       false
-//     }
-//     case _ => false
-//   }
-
-//   override protected def analysis(dataBlock: DataBlock) = {
+  override protected def analysis(dataBlock: DataBlock) = {
 //     benchMarker.foreach(b => b.tag("begin analysis"))
 
-//     val map = mutable.HashMap[String, Any]()
+    val map = mutable.HashMap[String, Any]()
 //     val randomNumbersAlice = configuration("AliceRandomNumbers").asInstanceOf[List[Int]].map(r => new RandomNumber(r)).toArray
 //     val randomNumbersBob = configuration("BobRandomNumbers").asInstanceOf[List[Int]].map(r => new RandomNumber(r)).toArray
 //     val period: Double = configuration("Period")
@@ -454,8 +398,8 @@ class EncodingAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analys
 //     benchMarker.foreach(b => b.tag("Count Sections"))
 //     benchMarker.foreach(b => b.tag("Finish"))
 
-//     map.toMap
-//   }
+    map.toMap
+  }
 
 //   private def analysisSingleChannel(triggerList: Array[Long], signalList: Array[Long], period: Double, delay: Double, gate: Double, pulseDiff: Double, randomNumberSize: Int) = {
 //     val triggerIterator = triggerList.iterator
@@ -473,32 +417,7 @@ class EncodingAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analys
 //     })
 //     meta
 //   }
-// }
-
-// object RandomNumber {
-//   def apply(rn: Int) = new RandomNumber(rn)
-
-//   val ALL_RANDOM_NUMBERS = Array(0, 1, 2, 3, 4, 5, 6, 7).map(RandomNumber(_))
-// }
-
-// class RandomNumber(val RN: Int) {
-//   def isVacuum = (RN / 2) == 0
-
-//   def isX = (RN / 2) == 1
-
-//   def isY = (RN / 2) == 2
-
-//   def isZ = (RN / 2) == 3
-
-//   def intensity = RN / 2
-
-//   def encode = RN % 2
-
-//   override def equals(obj: scala.Any): Boolean = obj match {
-//     case other: RandomNumber => other.RN == RN
-//     case _ => false
-//   }
-// }
+}
 
 // class Coincidence(val r1: Int, val r2: Int, val randomNumberAlice: RandomNumber, val randomNumberBob: RandomNumber, val triggerTime: Long, val triggerIndex: Long, val pulseIndex: Long) {
 //   val basisMatched = randomNumberAlice.intensity == randomNumberBob.intensity

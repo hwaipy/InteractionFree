@@ -104,16 +104,16 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
     val result = mha.dataIncome(dataBlock)
     assert(result.isDefined)
     assert(result.get("ReverseCounts").asInstanceOf[Array[Int]].toList == List(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
-    val syncMonitor = result.get("SyncMonitor").asInstanceOf[Map[Int, Map[String, Any]]]
-    assert(syncMonitor(0)("Average") == 1e8)
-    assert(syncMonitor(0)("Max") == 1e8)
-    assert(syncMonitor(0)("Min") == 1e8)
-    assert(syncMonitor(1)("Average") == 4347826.086952552)
-    assert(syncMonitor(1)("Max") == 4347827)
-    assert(syncMonitor(1)("Min") == 4347826)
-    assert(syncMonitor(10)("Average") == 1e11)
-    assert(syncMonitor(10)("Max") == 1e11)
-    assert(syncMonitor(10)("Min") == 1e11)
+    val syncMonitor = result.get("SyncMonitor").asInstanceOf[Map[String, Map[String, Any]]]
+    assert(syncMonitor("0")("Average") == 1e8)
+    assert(syncMonitor("0")("Max") == 1e8)
+    assert(syncMonitor("0")("Min") == 1e8)
+    assert(syncMonitor("1")("Average") == 4347826.086952552)
+    assert(syncMonitor("1")("Max") == 4347827)
+    assert(syncMonitor("1")("Min") == 4347826)
+    assert(syncMonitor("10")("Average") == 1e11)
+    assert(syncMonitor("10")("Max") == 1e11)
+    assert(syncMonitor("10")("Min") == 1e11)
     List(5, 10, 100, 1100, 1101, 20230, 33323).foreach(i => dataBlock.content.get(1)(i) = 10)
     val result2 = mha.dataIncome(dataBlock)
     assert(result2.get("ReverseCounts").asInstanceOf[Array[Int]].toList == List(0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
@@ -121,26 +121,46 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
 
   test("Test EncodingAnalyser.") {
     val offset = 50400000000010L
-    val dataBlock = DataBlock
-      .generate(
+    val dataBlock1 = DataBlock.generate(
         Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
         Map(
           0 -> List("Period", 10000),
           1 -> List("Pulse", 100000000, 2300000, 100)
         )
-      )
-      .synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+      ).synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     val mha = new EncodingAnalyser(16, 128)
-    mha.turnOn(Map("Period" -> 10000, "TriggerChannel" -> 0, "SignalChannel" -> 1, "RandomNumbers" -> List(0, 1, 2, 3, 4, 5, 6, 7)))
-    val result = mha.dataIncome(dataBlock)
-    assert(result.isDefined)
-    Range(0, 8).foreach(rn => assert(result.get(s"Pulse Count of RandomNumber [$rn]") == 1))
-    Range(0, 8).foreach(rn => {
-      val histogram = result.get(s"Histogram with RandomNumber [$rn]").asInstanceOf[List[Int]]
+    mha.turnOn(Map("Period" -> 10000, "TriggerChannel" -> 0, "SignalChannel" -> 1, "RandomNumbers" -> Range(0, 128).toList))
+    val result1 = mha.dataIncome(dataBlock1)
+    assert(result1.isDefined)
+    Range(0, 128).foreach(rn => assert(result1.get(s"Pulse Count of RandomNumber [$rn]") == 1))
+    Range(0, 128).foreach(rn => {
+      val histogram = result1.get(s"Histogram with RandomNumber [$rn]").asInstanceOf[List[Int]]
       assert(Math.abs(histogram.indexOf(histogram.max) - 50) < 5)
       assert(histogram.filter(_ > 0).size < 15)
       assert(histogram.slice(0, 42).max == 0)
       assert(histogram.slice(57, 100).max == 0)
+    })
+
+    val dataBlock2 = DataBlock.generate(
+        Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
+        Map(
+          0 -> List("Period", 10000),
+          1 -> List("Pulse", 50000000, 2300000, 100)
+        )
+      ).synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    val result2 = mha.dataIncome(dataBlock2)
+    assert(result2.isDefined)
+    Range(0, 128).foreach(rn => assert(result2.get(s"Pulse Count of RandomNumber [$rn]") == 1))
+    Range(0, 128).foreach(rn => {
+      val histogram = result2.get(s"Histogram with RandomNumber [$rn]").asInstanceOf[List[Int]]
+      if (rn % 2 == 0){
+        assert(Math.abs(histogram.indexOf(histogram.max) - 50) < 5)
+        assert(histogram.filter(_ > 0).size < 15)
+        assert(histogram.slice(0, 42).max == 0)
+        assert(histogram.slice(57, 100).max == 0)
+      } else {
+        assert(histogram.max == 0)
+      }
     })
   }
 }

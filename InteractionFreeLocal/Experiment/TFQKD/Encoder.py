@@ -1,16 +1,14 @@
 import math
 import numpy as np
 
-
 class ModulatorConfig:
-    def __init__(self, duty, delay, waveformPeriodLength, waveformLength, sampleRate, randomNumberRange, ampMod):
-        self.duty = duty
+    def __init__(self, delay, waveformPeriodLength, waveformLength, sampleRate, randomNumberRange, waveformMod):
         self.delay = delay
         self.waveformPeriodLength = waveformPeriodLength
         self.waveformLength = waveformLength
-        self.ampMod = ampMod
         self.sampleRate = sampleRate
         self.randomNumberRange = randomNumberRange
+        self.waveformMod = waveformMod
 
     def generateWaveform(self, randomNumbers):
         waveformPositions = [i * self.waveformPeriodLength for i in range(0, len(randomNumbers))]
@@ -18,6 +16,8 @@ class ModulatorConfig:
         waveformLengthes = [waveformPositionsInt[i + 1] - waveformPositionsInt[i] for i in range(0, len(randomNumbers))]
         waveform = []
         waveformUnits = self.generateWaveformUnits()
+
+        print(self.waveformLength)
         for i in range(0, len(randomNumbers)):
             rn = randomNumbers[i]
             length = waveformLengthes[i]
@@ -35,20 +35,16 @@ class ModulatorConfig:
         return waveforms
 
     def _generateWaveformUnit(self, randomNumber):
-        waveform = []
-        for i in range(0, math.ceil(self.waveformPeriodLength)):
-            position = i * 1.0 / self.waveformPeriodLength
-            if (position <= self.duty):
-                pulseIndex = 1
-            else:
-                pulseIndex = 0
-            amp = self.ampMod(pulseIndex, randomNumber)
-            waveform.append(amp)
-        return waveform
+        width, amp = self.waveformMod(randomNumber)
+        pulseSample = math.ceil((width + 0.001) * 1e-9 * self.sampleRate)
+        totalSample = math.ceil(self.waveformPeriodLength)
+        leadingSample = math.ceil((self.waveformPeriodLength - pulseSample) / 2)
+        a = [0] * leadingSample + [amp] * pulseSample + [0] * (totalSample - leadingSample - pulseSample)
+        return a
 
 
 class AWGEncoder:
-    def __init__(self, asyncInvoker, channelMapping, randonNumberRange=256, phaseSlice=16):
+    def __init__(self, asyncInvoker, channelMapping, randonNumberRange=128, phaseSlice=16):
         self.awg = asyncInvoker
         self.channelMapping = channelMapping
         self.randonNumberRange = randonNumberRange
@@ -57,18 +53,22 @@ class AWGEncoder:
             'sampleRate': 2e9,
             'randomNumbers': [i for i in range(randonNumberRange)],
             'waveformLength': randonNumberRange * 20,
-            'ampReference': 1,
-            'ampDecoyZ': 1,
+            'ampReferenceSignal': 0.1,
+            'ampReference': 0.9,
+            'ampDecoyReference': 1,
+            'ampDecoyZ': 0.9,
             'ampDecoyX': 0.5,
             'ampDecoyY': 0.2,
             'ampDecoyO': 0,
-            'ampDecoyInRef': 1,
             'ampsPM1': [i / phaseSlice for i in range(phaseSlice)],
             'ampsPM2': [i / phaseSlice for i in range(phaseSlice)],
+            'pulseWidthReferenceSignal': 2.6,
+            'pulseWidthReference': 9.5,
             'pulseWidthDecoy': 2,
+            'pulseWidthDecoyReference': 8,
             'pulseWidthPM1': 5,
-            'pulseWidthPM2': 3,
-            'delayReference': 0,
+            'pulseWidthPM2': 9.8,
+            'delayReference': 100,
             'delayDecoy': 0,
             'delayPM1': 0,
             'delayPM2': 0,
@@ -80,42 +80,30 @@ class AWGEncoder:
         else:
             raise RuntimeError('Bad configuration')
 
-    def __ampReference(self, inPulse, randomNumber):
+    def __modReference(self, randomNumber):
         rRef = (randomNumber & 0b1000000) >> 6
-        if inPulse:
-            return [0, self.config['ampReference']][rRef]
-        return 0
+        return [self.config['pulseWidthReferenceSignal'], self.config['pulseWidthReference']][rRef], [self.config['ampReferenceSignal'], self.config['ampReference']][rRef]
 
-    def __ampModDecoy(self, inPulse, randomNumber):
+    def __modDecoy(self, randomNumber):
         rRef = (randomNumber & 0b1000000) >> 6
         rDecoy = (randomNumber & 0b11)
-        if inPulse:
-            if rRef == 1: return 0
-            # if rDecoy == 3 and rZ == 0: return 0
-            return [self.config['ampDecoyO'], self.config['ampDecoyX'], self.config['ampDecoyY'], self.config['ampDecoyZ']][rDecoy]
-        if rRef == 1: return self.config['ampDecoyInRef']
-        return 0
+        return [self.config['pulseWidthDecoy'], self.config['pulseWidthDecoyReference']][rRef], [[self.config['ampDecoyO'], self.config['ampDecoyX'], self.config['ampDecoyY'], self.config['ampDecoyZ']][rDecoy], self.config['ampDecoyReference']][rRef]
 
-    def __ampModPM1(self, inPulse, randomNumber):
+    def __modPM1(self, randomNumber):
         rPhase = (randomNumber & 0b111100) >> 2
-        if inPulse:
-            return self.config['ampsPM1'][rPhase]
-        return 0
+        return self.config['pulseWidthPM1'], self.config['ampsPM1'][rPhase]
 
-    def __ampModPM2(self, inPulse, randomNumber):
+    def __modPM2(self, randomNumber):
         rPhase = (randomNumber & 0b111100) >> 2
-        if inPulse:
-            return self.config['ampsPM2'][rPhase]
-        return 0
+        return self.config['pulseWidthPM2'], self.config['ampsPM2'][rPhase]
 
     def generateWaveforms(self):
         waveformPeriodLength = self.config['waveformLength'] / len(self.config['randomNumbers'])
-        waveformPeriod = waveformPeriodLength * 1e9 / self.config['sampleRate']
         modulatorConfigs = {
-            'AMRef': ModulatorConfig(1, self.config['delayReference'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__ampReference),
-            'AMDecoy': ModulatorConfig(self.config['pulseWidthDecoy'] / waveformPeriod, self.config['delayDecoy'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__ampModDecoy),
-            'PM1': ModulatorConfig(self.config['pulseWidthPM1'] / waveformPeriod, self.config['delayPM1'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__ampModPM1),
-            'PM2': ModulatorConfig(self.config['pulseWidthPM2'] / waveformPeriod, self.config['delayPM2'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__ampModPM2),
+            'AMRef': ModulatorConfig(self.config['delayReference'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__modReference),
+            'AMDecoy': ModulatorConfig(self.config['delayDecoy'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__modDecoy),
+            'PM1': ModulatorConfig(self.config['delayPM1'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__modPM1),
+            'PM2': ModulatorConfig(self.config['delayPM2'], waveformPeriodLength, self.config['waveformLength'], self.config['sampleRate'], self.randonNumberRange, self.__modPM2),
         }
         waveforms = {}
         for waveformName in modulatorConfigs.keys():
@@ -161,10 +149,6 @@ class AWGEncoder:
         else:
             raise RuntimeError('Channel {} not exists.'.format(name))
 
-    async def startTrigger(self):
-        await self.awg.sendTrigger(1e-3, 60000, 1e-3, 60000)
-
-
 def showWaveform(waveforms, showRange=None):
     import matplotlib.pyplot as plt
     sampleCount = len(list(waveforms.values())[0])
@@ -202,20 +186,30 @@ if __name__ == '__main__':
     remoteDev.configure('sampleRate', 2e9)
     remoteDev.configure('randomNumbers', [i for i in range(128)])
     remoteDev.configure('waveformLength', 128 * 20)
-    remoteDev.configure('ampReference', 0.5)
+    remoteDev.configure('ampReferenceSignal', 0.1)
+    remoteDev.configure('ampReference', 0.9)
+    remoteDev.configure('ampDecoyReference', 1)
     remoteDev.configure('ampDecoyZ', 0.9)
     remoteDev.configure('ampDecoyX', 0.2)
     remoteDev.configure('ampDecoyY', 0.1)
     remoteDev.configure('ampDecoyO', 0)
     remoteDev.configure('ampsPM1', [i / 15 for i in range(16)])
     remoteDev.configure('ampsPM2', [(15 - i) / 15 for i in range(16)])
+    remoteDev.configure('pulseWidthReferenceSignal', 2.6)
+    remoteDev.configure('pulseWidthReference', 9.8)
     remoteDev.configure('pulseWidthDecoy', 3)
+    remoteDev.configure('pulseWidthDecoyReference', 9.8)
     remoteDev.configure('pulseWidthPM1', 8)
     remoteDev.configure('pulseWidthPM2', 4)
     # remoteDev.configure('delayReference', 30)
     # remoteDev.configure('delayDecoy', 14)
     # remoteDev.configure('delayPM1', 500)
     # remoteDev.configure('delayPM2', -500)
+
+
+
+
+
 
     waveforms = remoteDev.generateNewWaveform(True)
     showWaveform(waveforms)
