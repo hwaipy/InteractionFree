@@ -6,35 +6,30 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
 import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters._
-import com.interactionfree.instrument.tdc.adapters.GroundTDCDataAdapter
 import scala.collection.mutable
 import scala.io.Source
 import com.interactionfree.{IFWorker, AsynchronousRemoteObject}
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Success, Failure}
+import scala.collection.mutable.ArrayBuffer
+import java.nio.LongBuffer
 
-object GroundTDC extends App {
+object SwabianTDC extends App {
   val properties = new Properties()
   val propertiesIn = new FileInputStream("config.properties")
   properties.load(propertiesIn)
   propertiesIn.close()
 
-  val dataSourceListeningPort = properties.getOrDefault("DataSource.Port", 20156).toString.toInt
-  val IFServerAddress = properties.getOrDefault("IFServer.Address", "tcp://127.0.0.1:224").toStrings
+  val IFServerAddress = properties.getOrDefault("IFServer.Address", "tcp://127.0.0.1:224").toString
   val IFServerServiceName = properties.getOrDefault("IFServer.ServiceName", "GroundTDCAdapter").toString
   val TDCServerAddress = properties.getOrDefault("TDCServer.Address", "tcp://127.0.0.1:224").toString
   val TDCServerServiceName = properties.getOrDefault("TDCServer.ServiceName", "TDCServer").toString
-  val ChannelMapStr = properties.getOrDefault("ChannelMap", "-1 -> -1").toString
-  val channelMap = ChannelMapStr.split(" *, *").toList.map(s => {
-    val ss = s.split(" *-> *").toList.map(_.toInt)
-    (ss(0), ss(1))
-  }).toMap
   val tdcServerWorker = IFWorker.async(TDCServerAddress)
   val tdcServer = tdcServerWorker.asynchronousInvoker(TDCServerServiceName)
-  val process = new TDCProcessService(dataSourceListeningPort, tdcServer, channelMap)
+  val process = new TDCProcess(tdcServer)
 
   val worker = IFWorker(IFServerAddress, IFServerServiceName, process)
-  println(s"Ground TDC Adapter started on port $dataSourceListeningPort.")
+  println(s"Swabian TDC Adaptor started.")
   Source.stdin.getLines().filter(line => line.toLowerCase() == "q").next()
   println("Stoping Ground TDC...")
   worker.close()
@@ -42,24 +37,40 @@ object GroundTDC extends App {
   process.stop()
 }
 
-class TDCProcessService(private val port: Int, private val tdcServer: AsynchronousRemoteObject, channelMap: Map[Int, Int] = Map()) {
+class TDCProcess(private val tdcServer: AsynchronousRemoteObject) {
   private val channelCount = 16
-  private val groundTDA = new GroundTDCDataAdapter(channelCount, channelMap.map(e => (new Integer(e._1), new Integer(e._2))).asJava)
+  private val swabianTDA = new SwabianTDCDataAdapter()
   private val dataTDA = new LongBufferToDataBlockListTDCDataAdapter(channelCount)
-  private val server = new TDCProcessServer(port, dataIncome, List(groundTDA, dataTDA))
   private val running = new AtomicBoolean(true)
   private val bufferSize = 50 * 1000000
   private val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor())
+  private val tdcParser = new TDCParser(
+    new TDCDataProcessor {
+      override def process(data: Any): Unit = dataParsed(data)
+    },
+    Array(swabianTDA, dataTDA)
+  )
 
   def stop() = {
     running set false
-    server.stop()
     executionContext.shutdown()
+    tdcParser.stop()
   }
 
-  private def dataIncome(data: Any) = {
-    if (!data.isInstanceOf[List[_]]) throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")
-    data.asInstanceOf[List[DataBlock]].foreach(dataBlock => dataBlockIncome(dataBlock))
+  def dataIncome(data: Any) = data match {
+    case data: Array[Byte] => tdcParser.offer(data)
+    case _                 => throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")
+  }
+
+  private def dataParsed(data: Any) = data match {
+    case data: List[_] =>
+      data.foreach(d =>
+        d match {
+          case d: DataBlock => dataBlockIncome(d)
+          case _            => throw new IllegalArgumentException(s"Wrong type: ${d.getClass}")
+        }
+      )
+    case _ => throw new IllegalArgumentException(s"Wrong type: ${data.getClass}")
   }
 
   private val dataBlockQueue = new collection.mutable.ListBuffer[DataBlock]
@@ -86,7 +97,7 @@ class TDCProcessService(private val port: Int, private val tdcServer: Asynchrono
           val bytes = next.serialize()
           println(s"Dealing a DataBlock with Size ${bytes.size}, Counts [${next.sizes.map(c => c.toString).mkString(", ")}]")
           tdcServer.send(bytes).onComplete{
-            case Success(s) => 
+            case Success(s) =>
             case Failure(f) => println(f)
           }(executionContext)
         }
@@ -98,4 +109,47 @@ class TDCProcessService(private val port: Int, private val tdcServer: Asynchrono
     t.setDaemon(true)
     t
   })))
+}
+
+class LongBufferToDataBlockListTDCDataAdapter(channelCount: Int) extends TDCDataAdapter {
+  private val dataBlocks = new ArrayBuffer[DataBlock]()
+
+  def offer(data: Any): AnyRef = {
+    dataBlocks.clear()
+    dataIncome(data)
+    dataBlocks.toList
+  }
+
+  def flush(data: Any): AnyRef = offer(data)
+
+  private def dataIncome(data: Any): Unit = {
+    if (!data.isInstanceOf[LongBuffer]) throw new IllegalArgumentException(s"LongBuffer expected, not ${data.getClass}")
+    val buffer = data.asInstanceOf[LongBuffer]
+    while (buffer.hasRemaining) {
+      val item = buffer.get
+      val time = item >> 4
+      val channel = (item & 0xf).toInt
+      feedTimeEvent(channel, time)
+    }
+  }
+
+  private val timeEvents = Range(0, channelCount).map(_ => ArrayBuffer[Long]()).toList
+  private var unitEndTime = Long.MinValue
+  private val timeUnitSize = 1000000000000L
+
+  private def feedTimeEvent(channel: Int, time: Long) = {
+    if (time > unitEndTime) {
+      if (unitEndTime == Long.MinValue) unitEndTime = time
+      else flush()
+    }
+    timeEvents(channel) += time
+  }
+
+  private def flush(): Unit = {
+    val data = timeEvents.map(_.toArray).toArray
+    timeEvents.foreach(_.clear())
+    val creationTime = System.currentTimeMillis() - 1000
+    dataBlocks += DataBlock.create(data, creationTime, unitEndTime - timeUnitSize, unitEndTime)
+    unitEndTime += timeUnitSize
+  }
 }
