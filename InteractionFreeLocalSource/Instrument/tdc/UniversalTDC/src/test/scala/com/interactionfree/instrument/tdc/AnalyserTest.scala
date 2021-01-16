@@ -3,6 +3,7 @@ package com.interactionfree.instrument.tdc
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 import scala.language.postfixOps
+import java.nio.channels.Channel
 
 class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
 
@@ -121,13 +122,15 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
 
   test("Test EncodingAnalyser.") {
     val offset = 50400000000010L
-    val dataBlock1 = DataBlock.generate(
+    val dataBlock1 = DataBlock
+      .generate(
         Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
         Map(
           0 -> List("Period", 10000),
           1 -> List("Pulse", 100000000, 2300000, 100)
         )
-      ).synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+      )
+      .synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     val mha = new EncodingAnalyser(16, 128)
     mha.turnOn(Map("Period" -> 10000, "TriggerChannel" -> 0, "SignalChannel" -> 1, "RandomNumbers" -> Range(0, 128).toList))
     val result1 = mha.dataIncome(dataBlock1)
@@ -141,19 +144,21 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
       assert(histogram.slice(57, 100).max == 0)
     })
 
-    val dataBlock2 = DataBlock.generate(
+    val dataBlock2 = DataBlock
+      .generate(
         Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
         Map(
           0 -> List("Period", 10000),
           1 -> List("Pulse", 50000000, 2300000, 100)
         )
-      ).synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+      )
+      .synced(List(0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     val result2 = mha.dataIncome(dataBlock2)
     assert(result2.isDefined)
     Range(0, 128).foreach(rn => assert(result2.get(s"Pulse Count of RandomNumber [$rn]") == 1))
     Range(0, 128).foreach(rn => {
       val histogram = result2.get(s"Histogram with RandomNumber [$rn]").asInstanceOf[List[Int]]
-      if (rn % 2 == 0){
+      if (rn % 2 == 0) {
         assert(Math.abs(histogram.indexOf(histogram.max) - 50) < 5)
         assert(histogram.filter(_ > 0).size < 15)
         assert(histogram.slice(0, 42).max == 0)
@@ -162,5 +167,29 @@ class AnalyserTest extends AnyFunSuite with BeforeAndAfter {
         assert(histogram.max == 0)
       }
     })
+  }
+
+  test("Test ChannelMonitorAnalyser.") {
+    val offset = 50400000000010L
+    val dataBlock = DataBlock.generate(
+      Map("CreationTime" -> 100, "DataTimeBegin" -> 10, "DataTimeEnd" -> 1000000000010L),
+      Map(
+        0 -> List("Period", 10000),
+        1 -> List("Period", 230000),
+        5 -> List("Random", 105888),
+        10 -> List("Period", 10),
+        12 -> List("Random", 2)
+      )
+    )
+    val mha = new ChannelMonitorAnalyser(16)
+    mha.turnOn(Map("SyncChannel" -> 12, "Channels" -> List(0, 1, 5, 10), "SectionCount" -> 1000))
+    val result = mha.dataIncome(dataBlock)
+    assert(result.isDefined)
+    assert(result.get("DataBlockBegin") == 10L)
+    assert(result.get("DataBlockEnd") == 1000000000010L)
+    assert(result.get("Sync").asInstanceOf[Array[Long]].toList == dataBlock.getContent(12).toList)
+    val countSections = result.get("CountSections").asInstanceOf[Map[String, Array[Int]]]
+    assert(countSections("0").toList == List(11) ++ Range(0, 998).toList.map(_ => 10) ++ List(9))
+    assert(countSections("1").toList == List(231) ++ Range(0, 998).toList.map(_ => 230) ++ List(229))
   }
 }

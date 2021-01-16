@@ -41,6 +41,7 @@ object TDCServer extends App {
     process.turnOnAnalyser("MultiHistogram")
     process.turnOnAnalyser("TFQKDEncoding", Map("Period" -> 10000, "TriggerChannel" -> 0, "SignalChannel" -> 4, "RandomNumbers" -> Range(0, 129).toList))
     process.turnOnAnalyser("ExceptionMonitor", Map("SyncChannels" -> List(0)))
+    process.turnOnAnalyser("ChannelMonitor", Map("SyncChannel" -> 2, "Channels" -> List(4, 5), "SectionCount" -> 1000))
   }
 
   println(s"TDCServer started.")
@@ -65,6 +66,7 @@ object TDCServer extends App {
     private val running = new AtomicBoolean(true)
     private val delays = Range(0, channelCount).map(_ => 0L).toArray
     private val dataFormat = new SimpleDateFormat("yyyy-MM-dd")
+    private val hourFormat = new SimpleDateFormat("HH")
     private val dataTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss.SSS")
 
     def send(bytes: Array[Byte]): Unit = {
@@ -80,14 +82,17 @@ object TDCServer extends App {
       val executionTimes = new mutable.HashMap[String, Double]()
       val result = new mutable.HashMap[String, Any]()
       dataBlock.unpack()
-      val syncedDataBlock = dataBlock.synced(delays.toList, Map("Method" -> "PeriodSignal", "SyncChannel" -> "0", "Period" -> "40000000"))
+      // SyncedDataBlock值得商榷。目前的实现对datablock间的衔接可能有点问题
+      // val syncedDataBlock = dataBlock.synced(delays.toList, Map("Method" -> "PeriodSignal", "SyncChannel" -> "0", "Period" -> "40000000"))
+      val syncedDataBlock = dataBlock.synced(delays.toList)
       val massiveStoreFuture = Future[Any] {
         try {
           val date = dataFormat.format(dataBlock.creationTime)
+          val hour = hourFormat.format(dataBlock.creationTime)
           val dateTime = dataTimeFormat.format(dataBlock.creationTime)
-          val path = Paths.get(massiveStorePath, date)
+          val path = Paths.get(massiveStorePath, date, hour)
           if (Files.notExists(path)) Files.createDirectories(path)
-          val raf = new RandomAccessFile(path.resolve(dateTime).toFile(), "rw")
+          val raf = new RandomAccessFile(path.resolve(dateTime + ".datablock").toFile(), "rw")
           raf.write(syncedDataBlock.serialize())
           raf.close()
           executionTimes("Massive Store Time") = (System.nanoTime() - overallBeginTime) / 1e9
@@ -172,6 +177,8 @@ object TDCServer extends App {
     analysersMatcher("TFQKDEncoding") = "Synced"
     analysers("ExceptionMonitor") = new ExceptionMonitorAnalyser(16)
     analysersMatcher("ExceptionMonitor") = "Original"
+    analysers("ChannelMonitor") = new ChannelMonitorAnalyser(16)
+    analysersMatcher("ChannelMonitor") = "Synced"
 
     def stop() = {
       running set false

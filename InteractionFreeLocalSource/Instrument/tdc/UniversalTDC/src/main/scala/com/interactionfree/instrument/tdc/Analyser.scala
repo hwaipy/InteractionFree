@@ -217,6 +217,59 @@ class EncodingAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analys
   }
 }
 
+class ChannelMonitorAnalyser(channelCount: Int) extends Analyser {
+  setConfiguration("SyncChannel", 2, Validator.int(0, channelCount - 1))
+  setConfiguration("Channels", List(1), value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < channelCount))
+  setConfiguration("SectionCount", 100, Validator.int(1, 1000))
+
+  override protected def analysis(dataBlock: DataBlock) = {
+    val map = mutable.HashMap[String, Any]()
+    val syncChannel: Int = getConfiguration("SyncChannel")
+    val sectionCount: Int = getConfiguration("SectionCount")
+    val channels: List[Int] = getConfiguration("Channels").asInstanceOf[List[Int]]
+
+    val syncList = dataBlock.getContent(syncChannel)
+    map.put("DataBlockBegin", dataBlock.dataTimeBegin)
+    map.put("DataBlockEnd", dataBlock.dataTimeEnd)
+    map.put(
+      "Sync",
+      syncList.size match {
+        case s if s > 10 => {
+          println("Error: counting rate at syncChannel exceed 10!")
+          new Array[Long](0)
+        }
+        case s => syncList
+      }
+    )
+    val countSections = channels
+      .map(channel =>
+        (
+          channel.toString, {
+            val countSectionsForChannel = new Array[Int](sectionCount)
+            val list = dataBlock.getContent(channel)
+            var i = 0;
+            while (i < list.size) {
+              val sectionIndex = ((list(i) - dataBlock.dataTimeBegin).toDouble / (dataBlock.dataTimeEnd - dataBlock.dataTimeBegin) * sectionCount).toInt
+              if (sectionIndex >= 0 && sectionIndex < sectionCount) countSectionsForChannel(sectionIndex) += 1
+              i += 1
+            }
+            // println(list.size)
+            // println(countSectionsForChannel.toList)
+            // println("----------")
+            // println(dataBlock.dataTimeBegin)
+            // println(list(0))
+            // println(dataBlock.dataTimeEnd)
+            // println("----------")
+            countSectionsForChannel
+          }
+        )
+      )
+      .toMap
+    map.put("CountSections", countSections)
+    map.toMap
+  }
+}
+
 class MDIQKDQBERAnalyser(channelCount: Int, randomNumberLimit: Int) extends Analyser {
   setConfiguration("AliceRandomNumbers", List(1), value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < randomNumberLimit))
   setConfiguration("BobRandomNumbers", List(1), value => value.asInstanceOf[List[Int]].forall(c => c >= 0 && c < randomNumberLimit))

@@ -149,19 +149,6 @@ class DataBlock protected[tdc] (val creationTime: Long, val dataTimeBegin: Long,
       case binary => binary.map(l => l.map(a => a.size).sum).sum
     }
 
-  // def delay(channel: Int, delay: Long) = {
-  //   content.foreach(c => {
-  //     if (channel < c.size) {
-  //       var ch = c(channel)
-  //       var i = 0
-  //       while (i < ch.size) {
-  //         ch(i) = ch(i) + delay
-  //         i += 1
-  //       }
-  //     } else { throw new IllegalArgumentException(s"Channel out of range: ${channel}") }
-  //   })
-  // }
-
   def synced(delays: List[Long], syncConfig: Map[String, String] = Map()) = new SyncedDataBlock(this, delays, syncConfig)
 }
 
